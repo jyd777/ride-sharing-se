@@ -106,6 +106,8 @@
 </template>
 
 <script>
+import authApi from '@/api/auth.js'
+	
 export default {
   data() {
     return {
@@ -141,46 +143,21 @@ export default {
         this.user.password &&
         this.user.password === this.user.confirmPassword
       ) {
-        const registerData = {
-          username: this.user.username,
-          realname: this.user.true_username,
-          identity_id: this.user.identity_num,
-          gender: this.user.gender,
-          telephone: this.user.telephone,
-          password: this.user.password
-        };
-
-        uni.request({
-          url: 'http://100.80.189.152:5000/api/register',
-          method: 'POST',
-          data: registerData,
-          header: {
-            'Content-Type': 'application/json'
-          },
-          success: (res) => {
-            if (res.data.code === 200) {
-              uni.showToast({
-                title: '注册成功',
-                icon: 'success'
-              });
-              uni.navigateTo({
-                url: '/pages/index/login'
-              });
-            } else {
-              uni.showToast({
-                title: res.data.message,
-                icon: 'none'
-              });
-            }
-          },
-          fail: (err) => {
-            uni.showToast({
-              title: '请求失败，请稍后重试',
-              icon: 'none'
-            });
-            console.log(err);
-          }
-        });
+		// 调用注册API
+		authApi.register({
+			username: this.user.username,
+			realname: this.user.true_username,
+			identity_id: this.user.identity_num,
+			gender: this.user.gender,
+			telephone: this.user.telephone,
+			password: this.user.password
+		}).then(res => {
+			console.log("注册成功", res);
+			this.goToLogin(); // 跳转到登陆界面
+		}).catch(err => {
+			console.log('注册失败：', err);
+		})
+		
       } else {
         uni.showToast({
           title: '请填写所有必填项，并确保两次密码一致！',
@@ -188,6 +165,7 @@ export default {
         });
       }
     },
+	
     goToLogin() {
       uni.navigateTo({
         url: '/pages/index/login'

@@ -37,6 +37,8 @@
 </template>
 
 <script>
+import authApi from '@/api/auth.js'
+	
 export default {
   data() {
     return {
@@ -51,10 +53,11 @@ export default {
   mounted() {
     setTimeout(() => {
       this.showWelcome = false;
-    }, 5000);
+    }, 500);
   },
   methods: {
     login() {
+	  // 验证输入
       if (!this.credentials.username || !this.credentials.password) {
         uni.showToast({
           title: '用户名和密码不能为空',
@@ -62,53 +65,38 @@ export default {
         });
         return;
       }
-
-      this.loading = true;
-      uni.request({
-        url: 'http://100.80.189.152:5000/api/login',
-        method: 'POST',
-        data: this.credentials,
-        header: {
-          'Content-Type': 'application/json'
-        },
-        success: (res) => {
-          if (res.data.code === 200) {
-            // 保存用户信息到本地存储
-            uni.setStorageSync('user', res.data.user);
-            console.log(res.data);
-            uni.showToast({
-              title: '登录成功',
-              icon: 'success'
-            });
-            
-            // 跳转到首页
-			  uni.navigateTo({
-				url: '/pages/index/home' // 跳转到首页
-			  });
-          } else {
-            uni.showToast({
-              title: res.data.message || '登录失败',
-              icon: 'none'
-            });
-          }
-        },
-        fail: (err) => {
-          console.log(err);
-          uni.showToast({
-            title: '网络错误，请稍后重试',
-            icon: 'none'
-          });
-        },
-        complete: () => {
-          this.loading = false;
-        }
-      });
+	  
+	  console.log(typeof authApi.login); 
+	  
+	  // 调用登陆API
+	  authApi.login({
+	  	username: this.credentials.username,
+	  	password: this.credentials.password
+	  }).then(res => {
+	  	console.log("登陆成功", res);
+		
+		// 存储Token和用户信息（同步存储）
+		uni.setStorageSync('access_token', res.data.access_token);
+		uni.setStorageSync('user_info', res.data.user);
+		
+		this.goToHome()
+	  }).catch(err => {
+	  	console.log('登陆失败：', err);
+		uni.showToast({ title: err.data?.message || '登录失败', icon: 'none' });
+	  });
     },
+	
     goToRegister() {
       uni.navigateTo({
         url: '/pages/index/register'
       });
-    }
+    },
+	
+	goToHome() {
+	  uni.navigateTo({
+	    url: '/pages/index/home'
+	  });
+	},
   }
 };
 </script>

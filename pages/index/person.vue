@@ -92,6 +92,7 @@
 
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
+import { fetchUserBaseInfo } from '../../api/user';
 
 export default {
   components: {
@@ -184,23 +185,36 @@ export default {
 	  });
 	},
     async fetchUserData() {
-      try {
-        // 模拟API请求
-        const response = await new Promise(resolve => setTimeout(() => {
-          resolve({
-            data: {
-              avatar: '../../static/user_2.jpg',
-              name: '测试者',
-              age: 20,
-              gender: '女'
-            }
-          });
-        }, 800));
-        
-        this.user = response.data;
-      } catch (error) {
-        console.error('获取用户数据失败:', error);
-      }
+	  this.loading = true;
+	  
+	  try {
+		// 优先读取本地缓存
+		const cacheUser = uni.getStorageSync('user_info');  
+		console.log(cacheUser)
+		if(cacheUser) {
+			this.user.name = cacheUser.username;
+			this.user.avatar = cacheUser.avatar;
+			this.user.age = cacheUser.age;
+			this.user.gender = cacheUser.gender;
+		}
+		
+		// 无论是否有缓存都请求最新数据
+		const res = await fetchUserBaseInfo(cacheUser.userId);
+		const newUserData = {
+		  name: res.username,
+		  avatar: res.avatar,
+		  age: res.age,
+		  gender: res.gender
+		};
+			
+		if (JSON.stringify(this.user) !== JSON.stringify(newUserData)) {
+		  this.user = newUserData;
+		  uni.setStorageSync('user_info', newUserData);
+		  conole.log(this.user)
+		}
+	  } catch (error) {
+		  console.error('获取用户数据失败:', error);
+	  }
     },
     viewDetails(tripId) {
       this.$router.push({ name: 'Detail', params: { id: tripId } });
