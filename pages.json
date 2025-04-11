@@ -21,12 +21,6 @@
 			}
 		},
 		{
-			"path": "pages/index/login",
-			"style": {
-				"navigationBarTitleText": "用户登录"
-			}
-		},
-		{
 			"path": "pages/index/register",
 			"style": {
 				"navigationBarTitleText": "用户注册"
