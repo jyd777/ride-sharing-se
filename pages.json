@@ -1,10 +1,9 @@
 {
 	"pages": [ 
 		{
-			"path" : "pages/index/chat",
-			"style" : 
-			{
-				"navigationBarTitleText" : "拼友聊天"
+			"path": "pages/index/login",
+			"style": {
+				"navigationBarTitleText": "用户登录"
 			}
 		},
 		{
@@ -27,9 +26,6 @@
 				"navigationBarTitleText": "用户登录"
 			}
 		},
-		
-		
-		
 		{
 			"path": "pages/index/register",
 			"style": {
