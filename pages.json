@@ -1,6 +1,13 @@
 {
 	"pages": [ 
 		{
+			"path" : "pages/index/chat",
+			"style" : 
+			{
+				"navigationBarTitleText" : "拼友聊天"
+			}
+		},
+		{
 			"path" : "pages/index/chatlist",
 			"style" : 
 			{
@@ -8,10 +15,10 @@
 			}
 		},
 		{
-			"path" : "pages/index/chat",
+			"path" : "pages/index/trip_info",
 			"style" : 
 			{
-				"navigationBarTitleText" : "拼友聊天"
+				"navigationBarTitleText" : "行程详情"
 			}
 		},
 		{
@@ -20,6 +27,9 @@
 				"navigationBarTitleText": "用户登录"
 			}
 		},
+		
+		
+		
 		{
 			"path": "pages/index/register",
 			"style": {
@@ -68,13 +78,7 @@
 				"navigationBarTitleText" : "信息修改"
 			}
 		},
-		{
-			"path" : "pages/index/trip_info",
-			"style" : 
-			{
-				"navigationBarTitleText" : "行程详情"
-			}
-		},
+		
 		{
 			"path": "pages/index/home",
 			"style": {
