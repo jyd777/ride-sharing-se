@@ -196,6 +196,7 @@ export default {
 			this.user.avatar = cacheUser.avatar;
 			this.user.age = cacheUser.age;
 			this.user.gender = cacheUser.gender;
+			
 		}
 		
 		// 无论是否有缓存都请求最新数据
@@ -204,12 +205,13 @@ export default {
 		  name: res.username,
 		  avatar: res.avatar,
 		  age: res.age,
-		  gender: res.gender
+		  gender: res.gender,
+		  userId: res.user_id
 		};
-			
+
 		if (JSON.stringify(this.user) !== JSON.stringify(newUserData)) {
 		  this.user = newUserData;
-		  uni.setStorageSync('user_info', newUserData);
+		  uni.setStorageSync('user_info', newUserData); // 
 		  conole.log(this.user)
 		}
 	  } catch (error) {

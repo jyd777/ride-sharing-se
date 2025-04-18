@@ -66,8 +66,6 @@ export default {
         return;
       }
 	  
-	  console.log(typeof authApi.login); 
-	  
 	  // 调用登陆API
 	  authApi.login({
 	  	username: this.credentials.username,

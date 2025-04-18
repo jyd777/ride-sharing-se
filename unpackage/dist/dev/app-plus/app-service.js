@@ -41,7 +41,7 @@ if (uni.restoreGlobal) {
   function resolveEasycom(component, easycom) {
     return typeof component === "string" ? easycom : component;
   }
-  const BASE_URL = "http://100.80.119.36:5000/api";
+  const BASE_URL = "http://100.79.29.218:5000/api";
   const requestInterceptor = {
     /**
       * 请求预处理
@@ -225,18 +225,17 @@ if (uni.restoreGlobal) {
           });
           return;
         }
-        formatAppLog("log", "at pages/index/login.vue:69", typeof authApi.login);
         authApi.login({
           username: this.credentials.username,
           password: this.credentials.password
         }).then((res) => {
-          formatAppLog("log", "at pages/index/login.vue:76", "登陆成功", res);
+          formatAppLog("log", "at pages/index/login.vue:74", "登陆成功", res);
           uni.setStorageSync("access_token", res.data.access_token);
           uni.setStorageSync("user_info", res.data.user);
           this.goToHome();
         }).catch((err) => {
           var _a;
-          formatAppLog("log", "at pages/index/login.vue:84", "登陆失败：", err);
+          formatAppLog("log", "at pages/index/login.vue:82", "登陆失败：", err);
           uni.showToast({ title: ((_a = err.data) == null ? void 0 : _a.message) || "登录失败", icon: "none" });
         });
       },
@@ -316,7 +315,7 @@ if (uni.restoreGlobal) {
       ])) : vue.createCommentVNode("v-if", true)
     ]);
   }
-  const PagesIndexLogin = /* @__PURE__ */ _export_sfc(_sfc_main$g, [["render", _sfc_render$f], ["__scopeId", "data-v-fa14255b"], ["__file", "E:/Clone/ride-sharing-se/pages/index/login.vue"]]);
+  const PagesIndexLogin = /* @__PURE__ */ _export_sfc(_sfc_main$g, [["render", _sfc_render$f], ["__scopeId", "data-v-fa14255b"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/login.vue"]]);
   const _imports_0$4 = "/static/car-icon.png";
   const _imports_1$2 = "/static/launch-icon.png";
   const _imports_2$2 = "/static/chatlist.png";
@@ -402,7 +401,7 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const NavigationBar = /* @__PURE__ */ _export_sfc(_sfc_main$f, [["render", _sfc_render$e], ["__scopeId", "data-v-e29e7744"], ["__file", "E:/Clone/ride-sharing-se/components/NavigationBar.vue"]]);
+  const NavigationBar = /* @__PURE__ */ _export_sfc(_sfc_main$f, [["render", _sfc_render$e], ["__scopeId", "data-v-e29e7744"], ["__file", "E:/Projects/SE/ride-sharing-se/components/NavigationBar.vue"]]);
   const _sfc_main$e = {
     components: {
       NavigationBar
@@ -718,7 +717,7 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
     );
   }
-  const PagesIndexChatlist = /* @__PURE__ */ _export_sfc(_sfc_main$e, [["render", _sfc_render$d], ["__scopeId", "data-v-c2d98f75"], ["__file", "E:/Clone/ride-sharing-se/pages/index/chatlist.vue"]]);
+  const PagesIndexChatlist = /* @__PURE__ */ _export_sfc(_sfc_main$e, [["render", _sfc_render$d], ["__scopeId", "data-v-c2d98f75"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/chatlist.vue"]]);
   const _imports_0$3 = "/static/QR-code.png";
   const _sfc_main$d = {
     props: {
@@ -770,7 +769,7 @@ if (uni.restoreGlobal) {
       ])
     ])) : vue.createCommentVNode("v-if", true);
   }
-  const PaymentModal = /* @__PURE__ */ _export_sfc(_sfc_main$d, [["render", _sfc_render$c], ["__scopeId", "data-v-d0c78149"], ["__file", "E:/Clone/ride-sharing-se/components/PaymentModal.vue"]]);
+  const PaymentModal = /* @__PURE__ */ _export_sfc(_sfc_main$d, [["render", _sfc_render$c], ["__scopeId", "data-v-d0c78149"], ["__file", "E:/Projects/SE/ride-sharing-se/components/PaymentModal.vue"]]);
   const _imports_1$1 = "/static/start.png";
   const _imports_2$1 = "/static/dest.png";
   const _sfc_main$c = {
@@ -1146,7 +1145,7 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const PagesIndexTripInfo = /* @__PURE__ */ _export_sfc(_sfc_main$c, [["render", _sfc_render$b], ["__scopeId", "data-v-c77841f1"], ["__file", "E:/Clone/ride-sharing-se/pages/index/trip_info.vue"]]);
+  const PagesIndexTripInfo = /* @__PURE__ */ _export_sfc(_sfc_main$c, [["render", _sfc_render$b], ["__scopeId", "data-v-c77841f1"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/trip_info.vue"]]);
   const _sfc_main$b = {
     data() {
       return {
@@ -1364,7 +1363,7 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const PagesIndexRegister = /* @__PURE__ */ _export_sfc(_sfc_main$b, [["render", _sfc_render$a], ["__scopeId", "data-v-224dede7"], ["__file", "E:/Clone/ride-sharing-se/pages/index/register.vue"]]);
+  const PagesIndexRegister = /* @__PURE__ */ _export_sfc(_sfc_main$b, [["render", _sfc_render$a], ["__scopeId", "data-v-224dede7"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/register.vue"]]);
   const _sfc_main$a = {
     components: {
       NavigationBar
@@ -1965,7 +1964,7 @@ if (uni.restoreGlobal) {
       ])) : vue.createCommentVNode("v-if", true)
     ]);
   }
-  const PagesIndexCarManage = /* @__PURE__ */ _export_sfc(_sfc_main$a, [["render", _sfc_render$9], ["__scopeId", "data-v-f62f82f0"], ["__file", "E:/Clone/ride-sharing-se/pages/index/car_manage.vue"]]);
+  const PagesIndexCarManage = /* @__PURE__ */ _export_sfc(_sfc_main$a, [["render", _sfc_render$9], ["__scopeId", "data-v-f62f82f0"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/car_manage.vue"]]);
   const _imports_0$2 = "/static/arrow-down.png";
   const _sfc_main$9 = {
     data() {
@@ -2364,7 +2363,7 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT */
     );
   }
-  const PagesIndexManage = /* @__PURE__ */ _export_sfc(_sfc_main$9, [["render", _sfc_render$8], ["__scopeId", "data-v-4652816d"], ["__file", "E:/Clone/ride-sharing-se/pages/index/manage.vue"]]);
+  const PagesIndexManage = /* @__PURE__ */ _export_sfc(_sfc_main$9, [["render", _sfc_render$8], ["__scopeId", "data-v-4652816d"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/manage.vue"]]);
   const _sfc_main$8 = {
     components: {
       NavigationBar
@@ -2900,7 +2899,7 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT */
     );
   }
-  const PagesIndexOrderLaunch = /* @__PURE__ */ _export_sfc(_sfc_main$8, [["render", _sfc_render$7], ["__file", "E:/Clone/ride-sharing-se/pages/index/order_launch.vue"]]);
+  const PagesIndexOrderLaunch = /* @__PURE__ */ _export_sfc(_sfc_main$8, [["render", _sfc_render$7], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/order_launch.vue"]]);
   const fetchUserBaseInfo = (userId) => {
     return get(`/user/basic/${userId}`).then((res) => {
       return {
@@ -3024,7 +3023,8 @@ if (uni.restoreGlobal) {
             name: res.username,
             avatar: res.avatar,
             age: res.age,
-            gender: res.gender
+            gender: res.gender,
+            userId: res.user_id
           };
           if (JSON.stringify(this.user) !== JSON.stringify(newUserData)) {
             this.user = newUserData;
@@ -3032,7 +3032,7 @@ if (uni.restoreGlobal) {
             conole.log(this.user);
           }
         } catch (error2) {
-          formatAppLog("error", "at pages/index/person.vue:216", "获取用户数据失败:", error2);
+          formatAppLog("error", "at pages/index/person.vue:218", "获取用户数据失败:", error2);
         }
       },
       viewDetails(tripId) {
@@ -3042,7 +3042,7 @@ if (uni.restoreGlobal) {
         this.isEditing = !this.isEditing;
       },
       saveChanges() {
-        formatAppLog("log", "at pages/index/person.vue:226", "保存修改:", this.user);
+        formatAppLog("log", "at pages/index/person.vue:228", "保存修改:", this.user);
         this.isEditing = false;
       },
       openFileInput() {
@@ -3257,7 +3257,7 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT */
     );
   }
-  const PagesIndexPerson = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$6], ["__file", "E:/Clone/ride-sharing-se/pages/index/person.vue"]]);
+  const PagesIndexPerson = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$6], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/person.vue"]]);
   var calendar = {
     /**
         * 农历1900-2100的润大小信息表
@@ -4874,7 +4874,7 @@ if (uni.restoreGlobal) {
       /* CLASS */
     );
   }
-  const CalendarItem = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$5], ["__scopeId", "data-v-65626c58"], ["__file", "E:/Clone/ride-sharing-se/uni_modules/uni-calendar/components/uni-calendar/uni-calendar-item.vue"]]);
+  const CalendarItem = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$5], ["__scopeId", "data-v-65626c58"], ["__file", "E:/Projects/SE/ride-sharing-se/uni_modules/uni-calendar/components/uni-calendar/uni-calendar-item.vue"]]);
   const { t } = initVueI18n(i18nMessages);
   const _sfc_main$5 = {
     components: {
@@ -5352,7 +5352,7 @@ if (uni.restoreGlobal) {
       )) : vue.createCommentVNode("v-if", true)
     ]);
   }
-  const __easycom_0 = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$4], ["__scopeId", "data-v-b6ab2cfb"], ["__file", "E:/Clone/ride-sharing-se/uni_modules/uni-calendar/components/uni-calendar/uni-calendar.vue"]]);
+  const __easycom_0 = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$4], ["__scopeId", "data-v-b6ab2cfb"], ["__file", "E:/Projects/SE/ride-sharing-se/uni_modules/uni-calendar/components/uni-calendar/uni-calendar.vue"]]);
   const _sfc_main$4 = {
     components: {
       NavigationBar
@@ -5573,7 +5573,7 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const PagesIndexCalendar = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__scopeId", "data-v-da8fb852"], ["__file", "E:/Clone/ride-sharing-se/pages/index/calendar.vue"]]);
+  const PagesIndexCalendar = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__scopeId", "data-v-da8fb852"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/calendar.vue"]]);
   const _sfc_main$3 = {
     components: {
       NavigationBar
@@ -5783,7 +5783,7 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const PagesIndexInfoManage = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$2], ["__scopeId", "data-v-2cb089b3"], ["__file", "E:/Clone/ride-sharing-se/pages/index/info_manage.vue"]]);
+  const PagesIndexInfoManage = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$2], ["__scopeId", "data-v-2cb089b3"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/info_manage.vue"]]);
   const _imports_0 = "/static/atm-fill.png";
   const _sfc_main$2 = {
     data() {
@@ -6100,7 +6100,7 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT */
     );
   }
-  const PagesIndexHome = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["render", _sfc_render$1], ["__scopeId", "data-v-760d994e"], ["__file", "E:/Clone/ride-sharing-se/pages/index/home.vue"]]);
+  const PagesIndexHome = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["render", _sfc_render$1], ["__scopeId", "data-v-760d994e"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/home.vue"]]);
   const _sfc_main$1 = {
     data() {
       return {
@@ -6564,7 +6564,7 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT */
     );
   }
-  const PagesIndexRecord = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["render", _sfc_render], ["__scopeId", "data-v-01d8b9db"], ["__file", "E:/Clone/ride-sharing-se/pages/index/record.vue"]]);
+  const PagesIndexRecord = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["render", _sfc_render], ["__scopeId", "data-v-01d8b9db"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/record.vue"]]);
   __definePage("pages/index/login", PagesIndexLogin);
   __definePage("pages/index/chatlist", PagesIndexChatlist);
   __definePage("pages/index/trip_info", PagesIndexTripInfo);
@@ -6588,7 +6588,7 @@ if (uni.restoreGlobal) {
       formatAppLog("log", "at App.vue:10", "App Hide");
     }
   };
-  const App = /* @__PURE__ */ _export_sfc(_sfc_main, [["__file", "E:/Clone/ride-sharing-se/App.vue"]]);
+  const App = /* @__PURE__ */ _export_sfc(_sfc_main, [["__file", "E:/Projects/SE/ride-sharing-se/App.vue"]]);
   function createApp() {
     const app = vue.createVueApp(App);
     return {
