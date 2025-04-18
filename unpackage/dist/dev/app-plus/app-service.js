@@ -1379,7 +1379,7 @@ if (uni.restoreGlobal) {
       throw error2;
     });
   };
-  const fetchUserModifiableData = (userId) => {
+  const fetchModifiableData = (userId) => {
     return get(`/user/${userId}/modifiable_data`).then((res) => {
       return {
         ...res.data,
@@ -1405,14 +1405,17 @@ if (uni.restoreGlobal) {
       return res;
     });
   };
-  const uploadUserAvatar = (userId, filePath) => {
-    return uni.uploadFile({
-      url: `/user/upload_avatar/${userId}`,
-      filePath,
-      name: "file",
-      formData: {
-        "user_id": userId
-      }
+  const uploadUserAvatar = (userId, base64Data) => {
+    return post$1(`/user/upload_avatar/${userId}`, {
+      base64_data: base64Data
+    }, {
+      showLoading: true,
+      loadingText: "正在上传头像..."
+    });
+  };
+  const fetchUserAvatar = (userId) => {
+    return get(`/user/avatar/${userId}`).then((res) => {
+      return res.data.avatar_url || getDefaultAvatar();
     });
   };
   const getDefaultAvatar = () => {
@@ -3082,20 +3085,15 @@ if (uni.restoreGlobal) {
       async fetchUserData() {
         this.loading = true;
         try {
-          formatAppLog("log", "at pages/index/person.vue:190", "get data");
           const cacheUser = uni.getStorageSync("user_info");
-          formatAppLog("log", "at pages/index/person.vue:192", cacheUser);
           if (cacheUser) {
             this.user.name = cacheUser.username;
             this.user.avatar = cacheUser.avatar;
             this.user.age = cacheUser.age;
             this.user.gender = cacheUser.gender;
           }
-          formatAppLog("log", "at pages/index/person.vue:200", this.user.avatar);
           const cacheUserID = uni.getStorageSync("user_id");
-          formatAppLog("log", "at pages/index/person.vue:204", cacheUserID);
           const res = await fetchUserBaseInfo(cacheUserID);
-          formatAppLog("log", "at pages/index/person.vue:206", res);
           const newUserData = {
             user_id: res.user_id,
             name: res.username,
@@ -3106,10 +3104,10 @@ if (uni.restoreGlobal) {
           if (JSON.stringify(this.user) !== JSON.stringify(newUserData)) {
             this.user = newUserData;
             uni.setStorageSync("user_info", newUserData);
-            formatAppLog("log", "at pages/index/person.vue:218", this.user);
+            formatAppLog("log", "at pages/index/person.vue:212", this.user);
           }
         } catch (error2) {
-          formatAppLog("error", "at pages/index/person.vue:221", "获取用户数据失败:", error2);
+          formatAppLog("error", "at pages/index/person.vue:215", "获取用户数据失败:", error2);
         }
       },
       viewDetails(tripId) {
@@ -3119,7 +3117,7 @@ if (uni.restoreGlobal) {
         this.isEditing = !this.isEditing;
       },
       saveChanges() {
-        formatAppLog("log", "at pages/index/person.vue:231", "保存修改:", this.user);
+        formatAppLog("log", "at pages/index/person.vue:225", "保存修改:", this.user);
         this.isEditing = false;
       },
       openFileInput() {
@@ -5651,38 +5649,6 @@ if (uni.restoreGlobal) {
     ]);
   }
   const PagesIndexCalendar = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__scopeId", "data-v-da8fb852"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/calendar.vue"]]);
-  const saveFileToLocal = async (tempFilePath) => {
-    try {
-      const uploadDir = "_doc/upload/";
-      await createDirIfNotExists(uploadDir);
-      const fileName = `${Date.now()}.${tempFilePath.split(".").pop()}`;
-      const savePath = `${uploadDir}${fileName}`;
-      const { savedFilePath } = await uni.saveFile({
-        tempFilePath,
-        filePath: savePath
-      });
-      return savedFilePath;
-    } catch (error2) {
-      formatAppLog("error", "at utils/fileUtils.js:21", "保存文件到本地失败:", error2);
-      throw error2;
-    }
-  };
-  const createDirIfNotExists = async (dirPath) => {
-    try {
-      await uni.getFileInfo({
-        filePath: dirPath
-      });
-    } catch (error2) {
-      if (error2.errMsg.includes("file not found")) {
-        await uni.mkdir({
-          dirPath,
-          recursive: true
-        });
-      } else {
-        throw error2;
-      }
-    }
-  };
   const _sfc_main$3 = {
     components: {
       NavigationBar
@@ -5723,25 +5689,20 @@ if (uni.restoreGlobal) {
         this.loading = true;
         try {
           const cacheUserID = uni.getStorageSync("user_id");
-          const res = await fetchUserModifiableData(cacheUserID);
-          formatAppLog("log", "at pages/index/info_manage.vue:131", res);
+          const res = await fetchModifiableData(cacheUserID);
+          const avatar = await fetchUserAvatar(cacheUserID);
+          formatAppLog("log", "at pages/index/info_manage.vue:134", res);
           const userData = {
             user_id: cacheUserID,
-            avatar: res.avatar || this.defaultAvatar,
-            username: res.username,
-            gender: res.gender || "",
-            // 新增性别字段
-            contact: res.telephone || "",
-            password: "",
-            // 密码字段初始为空
-            confirmPassword: ""
-            // 确认密码字段初始为空
+            avatar: avatar || this.defaultAvatar,
+            gender: res.gender,
+            contact: res.telephone,
+            username: res.username
           };
           this.user = { ...userData };
           this.originalUser = { ...userData };
-          uni.setStorageSync("user_info", userData);
         } catch (error2) {
-          formatAppLog("error", "at pages/index/info_manage.vue:150", "获取用户数据失败:", error2);
+          formatAppLog("error", "at pages/index/info_manage.vue:146", "获取用户数据失败:", error2);
           uni.showToast({ title: "获取信息失败", icon: "none" });
         }
       },
@@ -5751,55 +5712,96 @@ if (uni.restoreGlobal) {
         this.user.gender = this.genderList[selectedGenderIndex].value;
       },
       // 触发头像上传
+      // 处理头像变更
       async triggerAvatarUpload() {
         uni.chooseImage({
           count: 1,
           sizeType: ["compressed"],
+          // 压缩图片
           sourceType: ["album", "camera"],
           success: async (res) => {
             try {
-              const localFilePath = await saveFileToLocal(res.tempFilePaths[0]);
-              this.uploadAvatar(localFilePath);
+              const filePath = res.tempFilePaths[0];
+              plus.io.resolveLocalFileSystemURL(filePath, (entry) => {
+                entry.file((file) => {
+                  const reader = new plus.io.FileReader();
+                  reader.readAsDataURL(file);
+                  reader.onloadend = (e) => {
+                    const base64Data = e.target.result;
+                    this.uploadAvatar(base64Data);
+                  };
+                  reader.onerror = (err) => {
+                    formatAppLog("error", "at pages/index/info_manage.vue:180", "读取文件失败:", err);
+                    uni.showToast({
+                      title: "读取文件失败: " + err.message,
+                      icon: "none"
+                    });
+                  };
+                });
+              }, (error2) => {
+                formatAppLog("error", "at pages/index/info_manage.vue:188", "解析文件路径失败:", error2);
+                uni.showToast({
+                  title: "解析文件路径失败: " + error2.message,
+                  icon: "none"
+                });
+              });
             } catch (error2) {
-              formatAppLog("error", "at pages/index/info_manage.vue:172", "保存图片到本地失败:", error2);
-              uni.showToast({ title: "保存图片失败", icon: "none" });
+              formatAppLog("error", "at pages/index/info_manage.vue:195", "头像处理失败:", error2);
+              uni.showToast({
+                title: "头像处理失败: " + error2.message,
+                icon: "none"
+              });
             }
           }
         });
       },
-      // 处理头像变更
-      handleAvatarChange(filePath) {
-        if (!filePath)
-          return;
-        uni.getImageInfo({
-          src: filePath,
-          success: (res) => {
-            this.user.avatar = filePath;
-            this.avatarError = "";
-          },
-          fail: () => {
-            this.avatarError = "图片加载失败";
-          }
+      // 图片压缩方法(可选)
+      compressImage(filePath) {
+        return new Promise((resolve, reject) => {
+          uni.compressImage({
+            src: filePath,
+            quality: 80,
+            // 质量80%
+            success: (res) => resolve(res.tempFilePath),
+            fail: (err) => reject(err)
+          });
         });
       },
-      async uploadAvatar(filePath) {
+      fileToBase64(filePath) {
+        return new Promise((resolve, reject) => {
+          const fs = uni.getFileSystemManager();
+          fs.readFile({
+            filePath,
+            encoding: "base64",
+            success: (res) => {
+              const fileType = this.getFileType(filePath);
+              resolve(`data:image/${fileType};base64,${res.data}`);
+            },
+            fail: (err) => {
+              reject(err);
+            }
+          });
+        });
+      },
+      // 获取文件类型
+      getFileType(filePath) {
+        const extension = filePath.split(".").pop().toLowerCase();
+        return extension === "png" ? "png" : "jpeg";
+      },
+      async uploadAvatar(base64Data) {
         try {
           uni.showLoading({ title: "上传中..." });
           const cacheUserID = uni.getStorageSync("user_id");
-          const response = await uploadUserAvatar(cacheUserID, filePath);
-          formatAppLog("log", "at pages/index/info_manage.vue:203", response);
-          const res = JSON.parse(response.data);
-          if (res.code === 200) {
-            this.user.avatar = res.data.avatar_url;
-            uni.showToast({
-              title: "头像上传成功",
-              icon: "success"
-            });
-          } else {
-            throw new Error(res.message || "头像上传失败");
-          }
+          await uploadUserAvatar(cacheUserID, base64Data);
+          const newAvatar = await fetchUserAvatar(cacheUserID);
+          this.user.avatar = newAvatar;
+          this.user.avatar = newAvatar;
+          uni.showToast({
+            title: "头像上传成功",
+            icon: "success"
+          });
         } catch (error2) {
-          formatAppLog("error", "at pages/index/info_manage.vue:216", "头像上传失败:", error2);
+          formatAppLog("error", "at pages/index/info_manage.vue:259", "头像上传失败:", error2);
           uni.showToast({
             title: error2.message || "头像上传失败",
             icon: "none"
@@ -5854,7 +5856,7 @@ if (uni.restoreGlobal) {
             throw new Error(response.message || "保存失败");
           }
         } catch (error2) {
-          formatAppLog("error", "at pages/index/info_manage.vue:289", "保存失败:", error2);
+          formatAppLog("error", "at pages/index/info_manage.vue:331", "保存失败:", error2);
           uni.showToast({
             title: error2.message || "保存失败，请重试",
             icon: "none"

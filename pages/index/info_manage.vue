@@ -86,11 +86,12 @@
 
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
-import { 
-  fetchUserModifiableData, 
+import { fetchUserBaseInfo,
+  fetchModifiableData, 
   updateUserInfo, 
   uploadUserAvatar,
-  getDefaultAvatar
+  getDefaultAvatar,
+  fetchUserAvatar
 } from '@/api/user.js';
 import { saveFileToLocal } from '@/utils/fileUtils'; // 假设这里有一个保存文件到本地的工具函数
 
@@ -122,35 +123,30 @@ export default {
     this.fetchUserModifiableData();
   },
   methods: {
-    async fetchUserModifiableData() {
-      this.loading = true;
+  async fetchUserModifiableData() {
+    this.loading = true;
+    try {
+      const cacheUserID = uni.getStorageSync('user_id');
+      const res = await fetchModifiableData(cacheUserID);
+      
+      // 获取用户头像
+      const avatar = await fetchUserAvatar(cacheUserID);
+	  console.log(res);
+      const userData = {
+        user_id: cacheUserID,
+        avatar: avatar || this.defaultAvatar,
+        gender: res.gender,
+		contact: res.telephone,
+		username: res.username
+      };
 
-      try {
-        const cacheUserID = uni.getStorageSync('user_id');
-        const res = await fetchUserModifiableData(cacheUserID);
-        console.log(res);
-
-        // 映射 API 数据到本地字段
-        const userData = {
-          user_id: cacheUserID,
-          avatar: res.avatar || this.defaultAvatar,
-          username: res.username,
-          gender: res.gender || '', // 新增性别字段
-          contact: res.telephone || '',
-          password: '',             // 密码字段初始为空
-          confirmPassword: ''       // 确认密码字段初始为空
-        };
-
-        this.user = { ...userData };
-        this.originalUser = { ...userData };
-
-        uni.setStorageSync('user_info', userData);
-
-      } catch (error) {
-        console.error('获取用户数据失败:', error);
-        uni.showToast({ title: '获取信息失败', icon: 'none' });
-      }
-    },
+      this.user = { ...userData };
+      this.originalUser = { ...userData };
+    } catch (error) {
+      console.error('获取用户数据失败:', error);
+      uni.showToast({ title: '获取信息失败', icon: 'none' });
+    }
+  },
 
     // 处理性别选择变化
     handleGenderChange(event) {
@@ -159,70 +155,116 @@ export default {
     },
 
     // 触发头像上传
-    async triggerAvatarUpload() {
-      uni.chooseImage({
-        count: 1,
-        sizeType: ['compressed'],
-        sourceType: ['album', 'camera'],
-        success: async (res) => {
-          try {
-            const localFilePath = await saveFileToLocal(res.tempFilePaths[0]);
-            this.uploadAvatar(localFilePath);
-          } catch (error) {
-            console.error('保存图片到本地失败:', error);
-            uni.showToast({ title: '保存图片失败', icon: 'none' });
-          }
-        }
-      });
-    },
-
     // 处理头像变更
-    handleAvatarChange(filePath) {
-      if (!filePath) return;
+	async triggerAvatarUpload() {
+	  uni.chooseImage({
+		count: 1,
+		sizeType: ['compressed'], // 压缩图片
+		sourceType: ['album', 'camera'],
+		success: async (res) => {
+		  try {
+			const filePath = res.tempFilePaths[0];
+			
+			// 使用 plus.io.resolveLocalFileSystemURL 解析文件路径
+			plus.io.resolveLocalFileSystemURL(filePath, (entry) => {
+			  // entry 是一个 FileEntry 对象
+			  entry.file((file) => {
+				// 使用 FileReader 读取文件内容
+				const reader = new plus.io.FileReader();
+				reader.readAsDataURL(file); // 读取为 Data URL
+				reader.onloadend = (e) => {
+				  const base64Data = e.target.result; // 获取 Base64 数据
+				  this.uploadAvatar(base64Data); // 调用上传方法
+				};
+				reader.onerror = (err) => {
+				  console.error('读取文件失败:', err);
+				  uni.showToast({ 
+					title: '读取文件失败: ' + err.message, 
+					icon: 'none' 
+				  });
+				};
+			  });
+			}, (error) => {
+			  console.error('解析文件路径失败:', error);
+			  uni.showToast({ 
+				title: '解析文件路径失败: ' + error.message, 
+				icon: 'none' 
+			  });
+			});
+		  } catch (error) {
+			console.error('头像处理失败:', error);
+			uni.showToast({ 
+			  title: '头像处理失败: ' + error.message, 
+			  icon: 'none' 
+			});
+		  }
+		}
+	  });
+	},
 
-      // 使用uni.getImageInfo代替Image对象
-      uni.getImageInfo({
-        src: filePath,
+	// 图片压缩方法(可选)
+	compressImage(filePath) {
+	  return new Promise((resolve, reject) => {
+		uni.compressImage({
+		  src: filePath,
+		  quality: 80, // 质量80%
+		  success: res => resolve(res.tempFilePath),
+		  fail: err => reject(err)
+		});
+	  });
+	},
+
+  fileToBase64(filePath) {
+    return new Promise((resolve, reject) => {
+      // 使用uni.getFileSystemManager()代替nativeFileManager
+      const fs = uni.getFileSystemManager();
+      fs.readFile({
+        filePath: filePath,
+        encoding: 'base64',
         success: (res) => {
-          // 更新用户头像
-          this.user.avatar = filePath;
-          this.avatarError = '';
+          // 获取文件类型
+          const fileType = this.getFileType(filePath);
+          resolve(`data:image/${fileType};base64,${res.data}`);
         },
-        fail: () => {
-          this.avatarError = '图片加载失败';
+        fail: (err) => {
+          reject(err);
         }
       });
-    },
+    });
+  },
 
-    async uploadAvatar(filePath) {
-      try {
-        uni.showLoading({ title: '上传中...' });
-        const cacheUserID = uni.getStorageSync('user_id'); 
-        // 调用上传API
-        const response = await uploadUserAvatar(cacheUserID, filePath);
-        console.log(response); // 打印上传结果
-        const res = JSON.parse(response.data);
+  // 获取文件类型
+  getFileType(filePath) {
+    const extension = filePath.split('.').pop().toLowerCase();
+    return extension === 'png' ? 'png' : 'jpeg'; // 默认jpeg
+  },
 
-        if (res.code === 200) {
-          this.user.avatar = res.data.avatar_url;
-          uni.showToast({
-            title: '头像上传成功',
-            icon: 'success'
-          });
-        } else {
-          throw new Error(res.message || '头像上传失败');
-        }
-      } catch (error) {
-        console.error('头像上传失败:', error);
-        uni.showToast({
-          title: error.message || '头像上传失败',
-          icon: 'none'
-        });
-      } finally {
-        uni.hideLoading();
-      }
-    },
+  async uploadAvatar(base64Data) {
+    try {
+      uni.showLoading({ title: '上传中...' });
+      const cacheUserID = uni.getStorageSync('user_id'); 
+      await uploadUserAvatar(cacheUserID, base64Data);
+      
+      // 获取更新后的头像
+      const newAvatar = await fetchUserAvatar(cacheUserID);
+      this.user.avatar = newAvatar;
+	   // 获取更新后的头像
+	   this.user.avatar = newAvatar;
 
+      uni.showToast({
+        title: '头像上传成功',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('头像上传失败:', error);
+      uni.showToast({
+        title: error.message || '头像上传失败',
+        icon: 'none'
+      });
+    } finally {
+      uni.hideLoading();
+    }
+  },
     handleImageError() {
       this.user.avatar = this.defaultAvatar;
     },

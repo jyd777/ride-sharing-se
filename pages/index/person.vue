@@ -187,9 +187,7 @@ export default {
 	  this.loading = true;
 	  try {
 		// 优先读取本地缓存
-		console.log("get data");
 		const cacheUser = uni.getStorageSync('user_info');  
-		console.log(cacheUser);
 		// 无论是否有缓存都请求最新数据
 		if(cacheUser) {
 			this.user.name = cacheUser.username;
@@ -197,13 +195,9 @@ export default {
 			this.user.age = cacheUser.age;
 			this.user.gender = cacheUser.gender;
 		}
-		console.log(this.user.avatar);
-		
 		// 无论是否有缓存都请求最新数据
 		const cacheUserID = uni.getStorageSync('user_id'); 
-		console.log(cacheUserID);
 		const res = await fetchUserBaseInfo(cacheUserID);
-		console.log(res);
 		const newUserData = {
 		  user_id: res.user_id,
 		  name: res.username,

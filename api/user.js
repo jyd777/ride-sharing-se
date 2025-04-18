@@ -40,7 +40,7 @@ export const fetchUserProfile = (userId) => {
  * @param {number} userId - 用户ID
  * @returns {Promise}
  */
-export const fetchUserModifiableData = (userId) => {
+export const fetchModifiableData = (userId) => {
   return get(`/user/${userId}/modifiable_data`).then(res => {
     return {
       ...res.data,
@@ -81,19 +81,28 @@ export const updateUserInfo = (userId, data) => {
 };
 
 /**
- * 上传用户头像
+ * 上传用户头像 (Base64版本)
  * @param {number} userId - 用户ID
- * @param {string} filePath - 文件路径
+ * @param {string} base64Data - Base64编码的图片数据
  * @returns {Promise}
  */
-export const uploadUserAvatar = (userId, filePath) => {
-  return uni.uploadFile({
-    url: `/user/upload_avatar/${userId}`,
-    filePath: filePath,
-    name: 'file',
-    formData: {
-      'user_id': userId
-    }
+export const uploadUserAvatar = (userId, base64Data) => {
+  return post(`/user/upload_avatar/${userId}`, {
+    base64_data: base64Data
+  }, {
+    showLoading: true,
+    loadingText: "正在上传头像..."
+  });
+};
+
+/**
+ * 获取用户头像 (Base64版本)
+ * @param {number} userId - 用户ID
+ * @returns {Promise<string>} Base64编码的头像URL
+ */
+export const fetchUserAvatar = (userId) => {
+  return get(`/user/avatar/${userId}`).then(res => {
+    return res.data.avatar_url || getDefaultAvatar();
   });
 };
 
