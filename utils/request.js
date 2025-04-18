@@ -141,6 +141,49 @@ export const request = (options) => {
   })
 }
 
+/**
+ * 文件上传
+ * @param {String} url - 请求地址
+ * @param {String} filePath - 文件路径
+ * @param {String} name - 文件字段名
+ * @param {Object} [formData] - 额外表单数据
+ * @param {Object} [options] - 额外配置
+ */
+export const upload = (url, filePath, name = 'file', formData = {}, options = {}) => {
+  return new Promise((resolve, reject) => {
+    uni.uploadFile({
+      url: `${BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`,
+      filePath,
+      name,
+      formData,
+      header: {
+        'Authorization': `Bearer ${uni.getStorageSync('access_token') || ''}`
+      },
+      success: (res) => {
+        if (res.statusCode === 200) {
+          try {
+            const data = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+            handleBusinessCode(data)
+              .then(resolve)
+              .catch(reject);
+          } catch (e) {
+            reject(new Error('解析响应数据失败'));
+          }
+        } else {
+          handleNetworkError(res.statusCode)
+            .then(resolve)
+            .catch(reject);
+        }
+      },
+      fail: (err) => {
+        responseInterceptor.fail(err)
+          .then(resolve)
+          .catch(reject);
+      }
+    });
+  });
+};
+
 // 快捷方法 =================================================
 
 /**
@@ -149,8 +192,10 @@ export const request = (options) => {
  * @param {Object} [data] - 请求参数
  * @param {Object} [options] - 额外配置
  */
-export const get = (url, data = {}, options = {}) => 
-  request({ url, data, method: 'GET', ...options })
+export const get = (url, data = {}, options = {}) => {
+	request({ url, data, method: 'GET', ...options });
+}
+  
 
 /**
  * POST请求
@@ -269,3 +314,4 @@ function handleBusinessCode(data) {
       return Promise.reject(new Error(errMsg));
   }
 }
+

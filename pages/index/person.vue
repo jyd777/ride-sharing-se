@@ -92,8 +92,7 @@
 
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
-import { fetchUserBaseInfo } from '../../api/user';
-
+import { fetchUserBaseInfo } from '../../api/user'; 
 export default {
   components: {
     NavigationBar
@@ -162,17 +161,17 @@ export default {
   methods: {
     info_manage() {
       uni.navigateTo({
-        url: '/pages/index/info_manage' // 登录成功后的跳转
+        url: '/pages/index/info_manage' 
       });
     },
     car_manage() {
       uni.navigateTo({
-        url: '/pages/index/car_manage' // 跳转到注册页面
+        url: '/pages/index/car_manage'
       });
     },
 	calendar() {
 	  uni.navigateTo({
-	    url: '/pages/index/calendar' // 跳转到注册页面
+	    url: '/pages/index/calendar'
 	  });
 	},
     formatDate(dateString) {
@@ -181,7 +180,7 @@ export default {
     },
 	viewAllTrips() {
 	  uni.navigateTo({
-	    url: '/pages/index/record' // 跳转到注册页面
+	    url: '/pages/index/record'
 	  });
 	},
     async fetchUserData() {
@@ -190,7 +189,7 @@ export default {
 	  try {
 		// 优先读取本地缓存
 		const cacheUser = uni.getStorageSync('user_info');  
-		console.log(cacheUser)
+		// 无论是否有缓存都请求最新数据
 		if(cacheUser) {
 			this.user.name = cacheUser.username;
 			this.user.avatar = cacheUser.avatar;
@@ -198,9 +197,12 @@ export default {
 			this.user.gender = cacheUser.gender;
 			
 		}
+		console.log(this.user.avatar);
 		
 		// 无论是否有缓存都请求最新数据
-		const res = await fetchUserBaseInfo(cacheUser.userId);
+		const cacheUserID = uni.getStorageSync('user_id'); 
+		const res = await fetchUserBaseInfo(cacheUserID);
+		console.log(res);
 		const newUserData = {
 		  name: res.username,
 		  avatar: res.avatar,
@@ -211,8 +213,8 @@ export default {
 
 		if (JSON.stringify(this.user) !== JSON.stringify(newUserData)) {
 		  this.user = newUserData;
-		  uni.setStorageSync('user_info', newUserData); // 
-		  conole.log(this.user)
+		  uni.setStorageSync('user_info', newUserData);
+		  console.log(this.user)
 		}
 	  } catch (error) {
 		  console.error('获取用户数据失败:', error);

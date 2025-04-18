@@ -69,13 +69,14 @@ export default {
 	  // 调用登陆API
 	  authApi.login({
 	  	username: this.credentials.username,
-	  	password: this.credentials.password
+	  	password: this.credentials.password,
 	  }).then(res => {
 	  	console.log("登陆成功", res);
 		
 		// 存储Token和用户信息（同步存储）
 		uni.setStorageSync('access_token', res.data.access_token);
 		uni.setStorageSync('user_info', res.data.user);
+		uni.setStorageSync('user_id', res.data.user.userId);
 		
 		this.goToHome()
 	  }).catch(err => {
