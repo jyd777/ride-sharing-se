@@ -41,7 +41,7 @@ if (uni.restoreGlobal) {
   function resolveEasycom(component, easycom) {
     return typeof component === "string" ? easycom : component;
   }
-  const BASE_URL = "http://100.78.182.47:5000/api";
+  const BASE_URL = "http://10.0.0.8:5000/api";
   const requestInterceptor = {
     /**
       * 请求预处理
@@ -118,9 +118,7 @@ if (uni.restoreGlobal) {
       });
     });
   };
-  const get = (url, data = {}, options = {}) => {
-    request({ url, data, method: "GET", ...options });
-  };
+  const get = (url, data = {}, options = {}) => request({ url, data, method: "GET", ...options });
   const post$1 = (url, data = {}, options = {}) => request({ url, data, method: "POST", ...options });
   function showToast(message) {
     uni.showToast({
@@ -1376,11 +1374,13 @@ if (uni.restoreGlobal) {
         gender: res.data.gender === "男" ? "male" : "female",
         avatar: res.data.avatar || getDefaultAvatar()
       };
+    }).catch((error2) => {
+      formatAppLog("error", "at api/user.js:18", "Error fetching user base info:", error2);
+      throw error2;
     });
   };
   const fetchUserModifiableData = (userId) => {
     return get(`/user/${userId}/modifiable_data`).then((res) => {
-      formatAppLog("log", "at api/user.js:40", res.data);
       return {
         ...res.data,
         gender: res.data.gender === "男" ? "male" : "female",
@@ -1390,14 +1390,12 @@ if (uni.restoreGlobal) {
   };
   const fetchCars = (userId) => {
     return get(`/user/cars/${userId}`).then((res) => {
-      formatAppLog("log", "at api/user.js:57", res.data);
       return {
         ...res.data
       };
     });
   };
   const updateUserInfo = (userId, data) => {
-    formatAppLog("log", "at api/user.js:74", data);
     return post$1(`/user/update/${userId}`, data, {
       showLoading: true,
       loadingText: "正在更新用户信息..."
@@ -1409,8 +1407,6 @@ if (uni.restoreGlobal) {
     });
   };
   const uploadUserAvatar = (userId, filePath) => {
-    formatAppLog("log", "at api/user.js:93", userId);
-    formatAppLog("log", "at api/user.js:94", filePath);
     return uni.uploadFile({
       url: `/user/upload_avatar/${userId}`,
       filePath,
@@ -1513,8 +1509,14 @@ if (uni.restoreGlobal) {
         try {
           const userId = uni.getStorageSync("user_id");
           const res = await fetchCars(userId);
-          formatAppLog("log", "at pages/index/car_manage.vue:199", res);
-          this.userCars = res.map((car) => ({
+          formatAppLog("log", "at pages/index/car_manage.vue:199", "fetch car res", res);
+          if (!res || typeof res !== "object") {
+            this.userCars = [];
+            formatAppLog("log", "at pages/index/car_manage.vue:204", "没有车辆数据或数据格式不正确");
+            return;
+          }
+          const carsArray = Object.values(res);
+          this.userCars = carsArray.map((car) => ({
             car_id: car.car_id,
             number: car.plate_number,
             model: car.brand_model,
@@ -1523,11 +1525,19 @@ if (uni.restoreGlobal) {
             seats: car.seats || 4
             // 默认座位数
           }));
-          formatAppLog("log", "at pages/index/car_manage.vue:208", this.userCars);
+          formatAppLog("log", "at pages/index/car_manage.vue:220", this.userCars);
+          if (this.userCars.length === 0) {
+            uni.showToast({
+              title: "您还没有添加车辆，请点击下方按钮添加",
+              icon: "none",
+              duration: 3e3
+            });
+          }
         } catch (error2) {
-          formatAppLog("error", "at pages/index/car_manage.vue:210", "获取车辆列表失败:", error2);
+          formatAppLog("error", "at pages/index/car_manage.vue:231", "获取车辆列表失败:", error2);
+          this.userCars = [];
           uni.showToast({
-            title: "获取车辆列表失败",
+            title: "获取车辆列表失败，请稍后重试",
             icon: "none",
             duration: 2e3
           });
@@ -1580,7 +1590,7 @@ if (uni.restoreGlobal) {
           });
           await this.fetchUserCars();
         } catch (error2) {
-          formatAppLog("error", "at pages/index/car_manage.vue:275", "添加车牌失败:", error2);
+          formatAppLog("error", "at pages/index/car_manage.vue:297", "添加车牌失败:", error2);
           uni.showToast({
             title: "操作失败，请稍后重试",
             icon: "none",
@@ -1629,7 +1639,7 @@ if (uni.restoreGlobal) {
           });
           await this.fetchUserCars();
         } catch (error2) {
-          formatAppLog("error", "at pages/index/car_manage.vue:332", "修改车牌失败:", error2);
+          formatAppLog("error", "at pages/index/car_manage.vue:354", "修改车牌失败:", error2);
           uni.showToast({
             title: "操作失败，请稍后重试",
             icon: "none",
@@ -1670,7 +1680,7 @@ if (uni.restoreGlobal) {
                   await this.fetchUserCars();
                 }
               } catch (error2) {
-                formatAppLog("error", "at pages/index/car_manage.vue:378", "解绑车牌失败:", error2);
+                formatAppLog("error", "at pages/index/car_manage.vue:400", "解绑车牌失败:", error2);
                 uni.showToast({
                   title: "操作失败，请稍后重试",
                   icon: "none",
@@ -3070,18 +3080,22 @@ if (uni.restoreGlobal) {
       async fetchUserData() {
         this.loading = true;
         try {
+          formatAppLog("log", "at pages/index/person.vue:190", "get data");
           const cacheUser = uni.getStorageSync("user_info");
+          formatAppLog("log", "at pages/index/person.vue:192", cacheUser);
           if (cacheUser) {
             this.user.name = cacheUser.username;
             this.user.avatar = cacheUser.avatar;
             this.user.age = cacheUser.age;
             this.user.gender = cacheUser.gender;
           }
-          formatAppLog("log", "at pages/index/person.vue:199", this.user.avatar);
+          formatAppLog("log", "at pages/index/person.vue:200", this.user.avatar);
           const cacheUserID = uni.getStorageSync("user_id");
+          formatAppLog("log", "at pages/index/person.vue:204", cacheUserID);
           const res = await fetchUserBaseInfo(cacheUserID);
-          formatAppLog("log", "at pages/index/person.vue:204", res);
+          formatAppLog("log", "at pages/index/person.vue:206", res);
           const newUserData = {
+            user_id: res.user_id,
             name: res.username,
             avatar: res.avatar,
             age: res.age,
@@ -3090,10 +3104,10 @@ if (uni.restoreGlobal) {
           if (JSON.stringify(this.user) !== JSON.stringify(newUserData)) {
             this.user = newUserData;
             uni.setStorageSync("user_info", newUserData);
-            formatAppLog("log", "at pages/index/person.vue:215", this.user);
+            formatAppLog("log", "at pages/index/person.vue:218", this.user);
           }
         } catch (error2) {
-          formatAppLog("error", "at pages/index/person.vue:218", "获取用户数据失败:", error2);
+          formatAppLog("error", "at pages/index/person.vue:221", "获取用户数据失败:", error2);
         }
       },
       viewDetails(tripId) {
@@ -3103,7 +3117,7 @@ if (uni.restoreGlobal) {
         this.isEditing = !this.isEditing;
       },
       saveChanges() {
-        formatAppLog("log", "at pages/index/person.vue:228", "保存修改:", this.user);
+        formatAppLog("log", "at pages/index/person.vue:231", "保存修改:", this.user);
         this.isEditing = false;
       },
       openFileInput() {
@@ -5679,8 +5693,6 @@ if (uni.restoreGlobal) {
           // 头像
           username: "",
           // 用户名
-          gender: "",
-          // 性别
           contact: ""
           // 联系方式（对应 API 的 telephone）
         },
@@ -5699,25 +5711,22 @@ if (uni.restoreGlobal) {
         this.loading = true;
         try {
           const cacheUserID = uni.getStorageSync("user_id");
+          formatAppLog("log", "at pages/index/info_manage.vue:77", cacheUserID);
           const res = await fetchUserModifiableData(cacheUserID);
-          formatAppLog("log", "at pages/index/info_manage.vue:88", res);
+          formatAppLog("log", "at pages/index/info_manage.vue:79", res);
           const userData = {
             user_id: cacheUserID,
             avatar: res.avatar || this.defaultAvatar,
             // 默认头像兜底
             username: res.username,
-            gender: res.gender,
-            // 默认性别
             contact: res.telephone || ""
             // API 返回的 telephone 映射为 contact
           };
-          const gender = res.gender === "male" || res.gender === "female" ? res.gender : "male";
           this.user = { ...userData };
-          formatAppLog("log", "at pages/index/info_manage.vue:104", this.user.avatar);
           this.originalUser = { ...userData };
           uni.setStorageSync("user_info", userData);
         } catch (error2) {
-          formatAppLog("error", "at pages/index/info_manage.vue:111", "获取用户数据失败:", error2);
+          formatAppLog("error", "at pages/index/info_manage.vue:97", "获取用户数据失败:", error2);
           uni.showToast({ title: "获取信息失败", icon: "none" });
         }
       },
@@ -5732,7 +5741,7 @@ if (uni.restoreGlobal) {
               const localFilePath = await saveFileToLocal(res.tempFilePaths[0]);
               this.uploadAvatar(localFilePath);
             } catch (error2) {
-              formatAppLog("error", "at pages/index/info_manage.vue:127", "保存图片到本地失败:", error2);
+              formatAppLog("error", "at pages/index/info_manage.vue:113", "保存图片到本地失败:", error2);
               uni.showToast({ title: "保存图片失败", icon: "none" });
             }
           }
@@ -5758,7 +5767,7 @@ if (uni.restoreGlobal) {
           uni.showLoading({ title: "上传中..." });
           const cacheUserID = uni.getStorageSync("user_id");
           const response = await uploadUserAvatar(cacheUserID, filePath);
-          formatAppLog("log", "at pages/index/info_manage.vue:158", response);
+          formatAppLog("log", "at pages/index/info_manage.vue:144", response);
           const res = JSON.parse(response.data);
           if (res.code === 200) {
             this.user.avatar = res.data.avatar_url;
@@ -5770,7 +5779,7 @@ if (uni.restoreGlobal) {
             throw new Error(res.message || "头像上传失败");
           }
         } catch (error2) {
-          formatAppLog("error", "at pages/index/info_manage.vue:171", "头像上传失败:", error2);
+          formatAppLog("error", "at pages/index/info_manage.vue:157", "头像上传失败:", error2);
           uni.showToast({
             title: error2.message || "头像上传失败",
             icon: "none"
@@ -5796,7 +5805,6 @@ if (uni.restoreGlobal) {
           const cacheUserID = uni.getStorageSync("user_id");
           const requestData = {
             username: this.user.username,
-            gender: this.user.gender === "male" ? "男" : "女",
             telephone: this.user.contact
           };
           const response = await updateUserInfo(cacheUserID, requestData);
@@ -5807,7 +5815,7 @@ if (uni.restoreGlobal) {
             throw new Error(response.message || "保存失败");
           }
         } catch (error2) {
-          formatAppLog("error", "at pages/index/info_manage.vue:220", "保存失败:", error2);
+          formatAppLog("error", "at pages/index/info_manage.vue:205", "保存失败:", error2);
           uni.showToast({
             title: error2.message || "保存失败，请重试",
             icon: "none"
@@ -5874,33 +5882,13 @@ if (uni.restoreGlobal) {
             ])
           ]),
           vue.createElementVNode("div", { class: "form-group" }, [
-            vue.createElementVNode("label", { for: "gender" }, "性别"),
-            vue.withDirectives(vue.createElementVNode(
-              "select",
-              {
-                id: "gender",
-                "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $data.user.gender = $event),
-                class: "gender-select",
-                style: { "width": "70%" }
-              },
-              [
-                vue.createElementVNode("option", { value: "male" }, "男"),
-                vue.createElementVNode("option", { value: "female" }, "女")
-              ],
-              512
-              /* NEED_PATCH */
-            ), [
-              [vue.vModelSelect, $data.user.gender]
-            ])
-          ]),
-          vue.createElementVNode("div", { class: "form-group" }, [
             vue.createElementVNode("label", { for: "contact" }, "联系方式"),
             vue.withDirectives(vue.createElementVNode(
               "input",
               {
                 type: "tel",
                 id: "contact",
-                "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => $data.user.contact = $event),
+                "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $data.user.contact = $event),
                 placeholder: "请输入手机号",
                 pattern: "[0-9]{11}",
                 style: { "width": "80%" }
@@ -5914,7 +5902,7 @@ if (uni.restoreGlobal) {
           ]),
           vue.createElementVNode("button", {
             class: "save-btn",
-            onClick: _cache[5] || (_cache[5] = (...args) => $options.saveProfile && $options.saveProfile(...args))
+            onClick: _cache[4] || (_cache[4] = (...args) => $options.saveProfile && $options.saveProfile(...args))
           }, "保存修改")
         ])
       ])

@@ -24,7 +24,7 @@
  * 基础API地址 (根据环境动态设置--未完成)
  */
 //你的ipconfig得到的ipv4地址
-const BASE_URL = "http://100.78.182.47:5000/api" 
+const BASE_URL = "http://10.0.0.8:5000/api" 
 
 
 // 拦截器 ====================================================
@@ -193,9 +193,8 @@ export const upload = (url, filePath, name = 'file', formData = {}, options = {}
  * @param {Object} [data] - 请求参数
  * @param {Object} [options] - 额外配置
  */
-export const get = (url, data = {}, options = {}) => {
+export const get = (url, data = {}, options = {}) => 
 	request({ url, data, method: 'GET', ...options });
-}
   
 
 /**

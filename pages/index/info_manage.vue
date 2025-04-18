@@ -26,15 +26,6 @@
         </div>
 
         <div class="form-group">
-          <label for="gender">性别</label>
-          <select id="gender" v-model="user.gender" class="gender-select"style ="width:70%">
-            <option value="male">男</option>
-            <option value="female">女</option>
-          </select>
-        </div>
-
-
-        <div class="form-group">
           <label for="contact">联系方式</label>
           <input 
             type="tel" 
@@ -67,7 +58,6 @@ export default {
         user_id: null,
         avatar: '',        // 头像
         username: '',       // 用户名
-        gender: '',     // 性别
         contact: ''        // 联系方式（对应 API 的 telephone）
       },
       originalUser: {},     // 保存原始数据用于比较
@@ -84,6 +74,7 @@ export default {
 
       try {
         const cacheUserID = uni.getStorageSync('user_id');
+		console.log(cacheUserID);
         const res = await fetchUserModifiableData(cacheUserID);
         console.log(res);
 
@@ -92,16 +83,11 @@ export default {
           user_id: cacheUserID,
           avatar: res.avatar || this.defaultAvatar, // 默认头像兜底
           username: res.username,
-          gender: res.gender,            // 默认性别
           contact: res.telephone || ''             // API 返回的 telephone 映射为 contact
         };
-        // 确保性别字段值合法，否则设置默认值
-        const gender = res.gender === 'male' || res.gender === 'female' 
-          ? res.gender 
-          : 'male'; // 默认值
+
         // 更新数据和原始副本
         this.user = { ...userData };
-        console.log(this.user.avatar);
         this.originalUser = { ...userData };
 
         // 存储到本地缓存
@@ -202,7 +188,6 @@ export default {
         // 准备请求数据
         const requestData = {
           username: this.user.username,
-          gender: this.user.gender === 'male' ? '男' : '女',
           telephone: this.user.contact
         };
 

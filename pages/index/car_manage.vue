@@ -196,28 +196,50 @@ export default {
 	  try {
 		const userId = uni.getStorageSync('user_id');
 		const res = await fetchCars(userId);
-		console.log(res);
+		console.log("fetch car res", res);
+		
+		// 处理返回数据为空或非对象情况
+		if (!res || typeof res !== 'object') {
+		  this.userCars = [];
+		  console.log('没有车辆数据或数据格式不正确');
+		  return;
+		}
+		
+		// 将对象转换为数组
+		const carsArray = Object.values(res);
+		
 		// 转换后端数据为前端需要的格式
-		this.userCars = res.map(car => ({
+		this.userCars = carsArray.map(car => ({
 		  car_id: car.car_id,
 		  number: car.plate_number,
 		  model: car.brand_model,
 		  color: car.color || 'blue', // 默认颜色
 		  seats: car.seats || 4 // 默认座位数
 		}));
+		
 		console.log(this.userCars);
+		
+		// 如果没有车辆数据，显示提示
+		if (this.userCars.length === 0) {
+		  uni.showToast({
+			title: '您还没有添加车辆，请点击下方按钮添加',
+			icon: 'none',
+			duration: 3000
+		  });
+		}
 	  } catch (error) {
 		console.error('获取车辆列表失败:', error);
+		this.userCars = []; // 确保设置为空数组
+		
 		uni.showToast({
-		  title: '获取车辆列表失败',
+		  title: '获取车辆列表失败，请稍后重试',
 		  icon: 'none',
 		  duration: 2000
 		});
 	  } finally {
 		this.isLoading = false;
 	  }
-	},
-    
+	},   
     handleSubmit() {
       if (this.isEditing) {
         this.updatePlate();
@@ -410,16 +432,19 @@ export default {
   border-radius: 10px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   display: flex;
+  justify-content: center; /* 垂直居中 */
+  align-items: center; /* 水平居中 */
   flex-direction: column;
   padding: 15px;
   margin-bottom: 20px;
-  width: 90%;
+  width: 100%;
   height: auto;
   min-height: 100px;
   margin-top: 0px;
 }
 
 .car-scroll {
+  width:100%;
   max-height: 200px;
   overflow-y: auto;
   margin-bottom: 10px;

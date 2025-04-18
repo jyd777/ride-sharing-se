@@ -5,15 +5,30 @@ import { get, post } from '@/utils/request.js'
  * @returns {Promise<UserInfo>}
  */
 export const fetchUserBaseInfo = (userId) => {
-  return get(`/user/basic/${userId}`).then(res => {
-	// 统一处理数据格式
-	return {
-	  ...res.data,
-	  age: typeof res.data.age === 'number' ? res.data.age : null,
-	  gender: res.data.gender === '男' ? 'male' : 'female',
-	  avatar: res.data.avatar || getDefaultAvatar() 
-	};
-  });
+  return get(`/user/basic/${userId}`)
+    .then(res => {
+      return {
+        ...res.data,
+        age: typeof res.data.age === 'number' ? res.data.age : null,
+        gender: res.data.gender === '男' ? 'male' : 'female',
+        avatar: res.data.avatar || getDefaultAvatar() 
+      };
+    })
+    .catch(error => {
+      console.error('Error fetching user base info:', error);
+      // 可以选择以下任一处理方式：
+      // 1. 抛出错误给调用者处理
+      throw error;
+      
+      // 2. 返回一个默认值或错误对象
+      // return {
+      //   error: 'Failed to fetch user info',
+      //   details: error.message
+      // };
+      
+      // 3. 返回null或undefined
+      // return null;
+    });
 };
 
 /**
@@ -36,8 +51,7 @@ export const fetchUserProfile = (userId) => {
  * @returns {Promise}
  */
 export const fetchUserModifiableData = (userId) => {
-  return get(`/user/${userId}/modifiable_data`).then(res => {4
-  console.log(res.data);
+  return get(`/user/${userId}/modifiable_data`).then(res => {
     return {
       ...res.data,
 	  gender: res.data.gender === '男' ? 'male' : 'female',
@@ -54,7 +68,6 @@ export const fetchUserModifiableData = (userId) => {
  */
 export const fetchCars = (userId) => {
   return get(`/user/cars/${userId}`).then(res => {
-	console.log(res.data);
     return {
       ...res.data
     };
@@ -71,7 +84,6 @@ export const fetchCars = (userId) => {
  * @returns Promise
  */
 export const updateUserInfo = (userId, data) => {
-	console.log(data);
   return post(`/user/update/${userId}`, data, {
     showLoading: true,
     loadingText: "正在更新用户信息..."
@@ -90,8 +102,6 @@ export const updateUserInfo = (userId, data) => {
  * @returns {Promise}
  */
 export const uploadUserAvatar = (userId, filePath) => {
-	console.log(userId);
-	console.log(filePath);
   return uni.uploadFile({
     url: `/user/upload_avatar/${userId}`,
     filePath: filePath,
