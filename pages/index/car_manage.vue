@@ -96,7 +96,8 @@
 
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
-
+import {get} from '@/utils/request.js';
+import {fetchCars} from '../../api/user';  
 export default {
   components: {
     NavigationBar
@@ -189,18 +190,33 @@ export default {
       this.isEditing = false;
       this.editingPlateNumber = '';
     },
-    
-    fetchUserCars() {
-      this.isLoading = true;
-      // 使用静态数据模拟API请求
-      setTimeout(() => {
-        this.userCars = [
-          { number: '沪A12345', color: 'blue', model: '特斯拉', seats: 5 },
-          { number: '京B67890', color: 'yellow', model: '大众 帕萨特', seats: 5 }
-        ];
-        this.isLoading = false;
-      }, 500);
-    },
+
+	async fetchUserCars() {
+	  this.isLoading = true;
+	  try {
+		const userId = uni.getStorageSync('user_id');
+		const res = await fetchCars(userId);
+		console.log(res);
+		// 转换后端数据为前端需要的格式
+		this.userCars = res.map(car => ({
+		  car_id: car.car_id,
+		  number: car.plate_number,
+		  model: car.brand_model,
+		  color: car.color || 'blue', // 默认颜色
+		  seats: car.seats || 4 // 默认座位数
+		}));
+		console.log(this.userCars);
+	  } catch (error) {
+		console.error('获取车辆列表失败:', error);
+		uni.showToast({
+		  title: '获取车辆列表失败',
+		  icon: 'none',
+		  duration: 2000
+		});
+	  } finally {
+		this.isLoading = false;
+	  }
+	},
     
     handleSubmit() {
       if (this.isEditing) {
@@ -211,59 +227,49 @@ export default {
     },
     
     async addPlate() {
-      // 组装车牌号
       const plateNumber = this.plateInputs.join('');
       const plateColor = this.plateColor;
       const carModel = this.carModel;
       const seatCount = this.seatCount;
       
-      console.log('添加的车牌信息:', { 
-        number: plateNumber, 
-        color: plateColor,
-        model: carModel,
-        seats: seatCount 
-      });
-      
-      // 验证车牌号格式
       if (!this.validatePlateNumber(plateNumber)) {
         uni.showToast({
           title: '请输入有效的车牌号',
           icon: 'none',
           duration: 2000
         });
-        this.closeModal();
-        return;
-      }
-
-      // 检查是否已存在
-      if (this.userCars.some(car => car.number === plateNumber)) {
-        uni.showToast({
-          title: '该车牌已存在',
-          icon: 'none',
-          duration: 2000
-        });
-        this.closeModal();
         return;
       }
 
       this.isLoading = true;
       
       try {
-        // 模拟API调用 - 使用静态数据
-        await new Promise(resolve => setTimeout(resolve, 500)); // 模拟网络延迟
-        
-        // 直接添加到前端数组
-        this.userCars.push({
+        const res = await post('/user/cars', {
           number: plateNumber,
           color: plateColor,
           model: carModel,
           seats: seatCount
+        }, {
+          showLoading: true,
+          loadingText: "正在添加车辆..."
         });
+        
+        if (res.code === 409) {
+          uni.showToast({
+            title: '该车牌已存在',
+            icon: 'none',
+            duration: 2000
+          });
+          return;
+        }
         
         uni.showToast({
           title: '添加成功',
           duration: 2000
         });
+        
+        // 刷新车辆列表
+        await this.fetchUserCars();
         
       } catch (error) {
         console.error('添加车牌失败:', error);
@@ -277,53 +283,50 @@ export default {
         this.isLoading = false;
       }
     },
-    
     async updatePlate() {
-      // 组装车牌号
       const plateNumber = this.plateInputs.join('');
       const plateColor = this.plateColor;
       const carModel = this.carModel;
       const seatCount = this.seatCount;
       
-      console.log('修改的车牌信息:', { 
-        number: plateNumber, 
-        color: plateColor,
-        model: carModel,
-        seats: seatCount 
-      });
-      
-      // 验证车牌号格式
       if (!this.validatePlateNumber(plateNumber)) {
         uni.showToast({
           title: '请输入有效的车牌号',
           icon: 'none',
           duration: 2000
         });
-        this.closeModal();
         return;
       }
 
       this.isLoading = true;
       
       try {
-        // 模拟API调用 - 使用静态数据
-        await new Promise(resolve => setTimeout(resolve, 500)); // 模拟网络延迟
+        const res = await put(`/user/cars/${this.editingPlateNumber}`, {
+          number: plateNumber,
+          color: plateColor,
+          model: carModel,
+          seats: seatCount
+        }, {
+          showLoading: true,
+          loadingText: "正在更新车辆信息..."
+        });
         
-        // 更新车辆信息
-        const index = this.userCars.findIndex(car => car.number === this.editingPlateNumber);
-        if (index !== -1) {
-          this.userCars[index] = {
-            number: plateNumber,
-            color: plateColor,
-            model: carModel,
-            seats: seatCount
-          };
+        if (res.code === 409) {
+          uni.showToast({
+            title: '该车牌已存在',
+            icon: 'none',
+            duration: 2000
+          });
+          return;
         }
         
         uni.showToast({
           title: '修改成功',
           duration: 2000
         });
+        
+        // 刷新车辆列表
+        await this.fetchUserCars();
         
       } catch (error) {
         console.error('修改车牌失败:', error);
@@ -337,7 +340,6 @@ export default {
         this.isLoading = false;
       }
     },
-    
     validatePlateNumber(plateNumber) {
       // 基本格式验证
       const pattern = /^[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼使领][A-HJ-NP-Z][A-HJ-NP-Z0-9]{4,5}[A-HJ-NP-Z0-9挂学警港澳]$/;
@@ -356,19 +358,22 @@ export default {
       uni.showModal({
         title: '提示',
         content: '确定要解绑车牌吗？',
-        success: (res) => {
+        success: async (res) => {
           if (res.confirm) {
             this.isLoading = true;
             try {
-              // 模拟API调用 - 使用静态数据
-              setTimeout(() => {
-                this.userCars = this.userCars.filter(car => car.number !== plateNumber);
+              const response = await del(`/user/cars/${plateNumber}`, {}, {
+                showLoading: true,
+                loadingText: "正在解绑车辆..."
+              });
+              
+              if (response.success) {
                 uni.showToast({
                   title: '解绑成功',
                   duration: 2000
                 });
-                this.isLoading = false;
-              }, 500);
+                await this.fetchUserCars();
+              }
             } catch (error) {
               console.error('解绑车牌失败:', error);
               uni.showToast({
@@ -376,6 +381,7 @@ export default {
                 icon: 'none',
                 duration: 2000
               });
+            } finally {
               this.isLoading = false;
             }
           }

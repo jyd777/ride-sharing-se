@@ -41,7 +41,7 @@ if (uni.restoreGlobal) {
   function resolveEasycom(component, easycom) {
     return typeof component === "string" ? easycom : component;
   }
-  const BASE_URL = "http://100.80.119.36:5000/api";
+  const BASE_URL = "http://100.78.182.47:5000/api";
   const requestInterceptor = {
     /**
       * 请求预处理
@@ -91,7 +91,7 @@ if (uni.restoreGlobal) {
       ...realOptions
     } = options;
     const token = uni.getStorageSync("access_token");
-    formatAppLog("log", "at utils/request.js:110", token);
+    formatAppLog("log", "at utils/request.js:111", token);
     options.header = options.header || {};
     if (token) {
       options.header["Authorization"] = `Bearer ${token}`;
@@ -118,8 +118,10 @@ if (uni.restoreGlobal) {
       });
     });
   };
-  const get = (url, data = {}, options = {}) => request({ url, data, method: "GET", ...options });
-  const post = (url, data = {}, options = {}) => request({ url, data, method: "POST", ...options });
+  const get = (url, data = {}, options = {}) => {
+    request({ url, data, method: "GET", ...options });
+  };
+  const post$1 = (url, data = {}, options = {}) => request({ url, data, method: "POST", ...options });
   function showToast(message) {
     uni.showToast({
       title: message,
@@ -176,7 +178,7 @@ if (uni.restoreGlobal) {
       * @returns Promise
       */
     register(data) {
-      return post("/auth/register", data, {
+      return post$1("/auth/register", data, {
         showLoading: true,
         loadingText: "正在注册..."
       });
@@ -187,7 +189,7 @@ if (uni.restoreGlobal) {
          * @returns Promise
          */
     login(data) {
-      return post("/auth/login", data, {
+      return post$1("/auth/login", data, {
         showLoading: true,
         loadingText: "正在登录..."
       });
@@ -233,10 +235,11 @@ if (uni.restoreGlobal) {
           formatAppLog("log", "at pages/index/login.vue:76", "登陆成功", res);
           uni.setStorageSync("access_token", res.data.access_token);
           uni.setStorageSync("user_info", res.data.user);
+          uni.setStorageSync("user_id", res.data.user.userId);
           this.goToHome();
         }).catch((err) => {
           var _a;
-          formatAppLog("log", "at pages/index/login.vue:84", "登陆失败：", err);
+          formatAppLog("log", "at pages/index/login.vue:85", "登陆失败：", err);
           uni.showToast({ title: ((_a = err.data) == null ? void 0 : _a.message) || "登录失败", icon: "none" });
         });
       },
@@ -316,7 +319,7 @@ if (uni.restoreGlobal) {
       ])) : vue.createCommentVNode("v-if", true)
     ]);
   }
-  const PagesIndexLogin = /* @__PURE__ */ _export_sfc(_sfc_main$g, [["render", _sfc_render$f], ["__scopeId", "data-v-fa14255b"], ["__file", "E:/Clone/ride-sharing-se/pages/index/login.vue"]]);
+  const PagesIndexLogin = /* @__PURE__ */ _export_sfc(_sfc_main$g, [["render", _sfc_render$f], ["__scopeId", "data-v-fa14255b"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/login.vue"]]);
   const _imports_0$4 = "/static/car-icon.png";
   const _imports_1$2 = "/static/launch-icon.png";
   const _imports_2$2 = "/static/chatlist.png";
@@ -402,7 +405,7 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const NavigationBar = /* @__PURE__ */ _export_sfc(_sfc_main$f, [["render", _sfc_render$e], ["__scopeId", "data-v-e29e7744"], ["__file", "E:/Clone/ride-sharing-se/components/NavigationBar.vue"]]);
+  const NavigationBar = /* @__PURE__ */ _export_sfc(_sfc_main$f, [["render", _sfc_render$e], ["__scopeId", "data-v-e29e7744"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/components/NavigationBar.vue"]]);
   const _sfc_main$e = {
     components: {
       NavigationBar
@@ -718,7 +721,7 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
     );
   }
-  const PagesIndexChatlist = /* @__PURE__ */ _export_sfc(_sfc_main$e, [["render", _sfc_render$d], ["__scopeId", "data-v-c2d98f75"], ["__file", "E:/Clone/ride-sharing-se/pages/index/chatlist.vue"]]);
+  const PagesIndexChatlist = /* @__PURE__ */ _export_sfc(_sfc_main$e, [["render", _sfc_render$d], ["__scopeId", "data-v-c2d98f75"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/chatlist.vue"]]);
   const _imports_0$3 = "/static/QR-code.png";
   const _sfc_main$d = {
     props: {
@@ -770,7 +773,7 @@ if (uni.restoreGlobal) {
       ])
     ])) : vue.createCommentVNode("v-if", true);
   }
-  const PaymentModal = /* @__PURE__ */ _export_sfc(_sfc_main$d, [["render", _sfc_render$c], ["__scopeId", "data-v-d0c78149"], ["__file", "E:/Clone/ride-sharing-se/components/PaymentModal.vue"]]);
+  const PaymentModal = /* @__PURE__ */ _export_sfc(_sfc_main$d, [["render", _sfc_render$c], ["__scopeId", "data-v-d0c78149"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/components/PaymentModal.vue"]]);
   const _imports_1$1 = "/static/start.png";
   const _imports_2$1 = "/static/dest.png";
   const _sfc_main$c = {
@@ -1146,7 +1149,7 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const PagesIndexTripInfo = /* @__PURE__ */ _export_sfc(_sfc_main$c, [["render", _sfc_render$b], ["__scopeId", "data-v-c77841f1"], ["__file", "E:/Clone/ride-sharing-se/pages/index/trip_info.vue"]]);
+  const PagesIndexTripInfo = /* @__PURE__ */ _export_sfc(_sfc_main$c, [["render", _sfc_render$b], ["__scopeId", "data-v-c77841f1"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/trip_info.vue"]]);
   const _sfc_main$b = {
     data() {
       return {
@@ -1364,7 +1367,59 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const PagesIndexRegister = /* @__PURE__ */ _export_sfc(_sfc_main$b, [["render", _sfc_render$a], ["__scopeId", "data-v-224dede7"], ["__file", "E:/Clone/ride-sharing-se/pages/index/register.vue"]]);
+  const PagesIndexRegister = /* @__PURE__ */ _export_sfc(_sfc_main$b, [["render", _sfc_render$a], ["__scopeId", "data-v-224dede7"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/register.vue"]]);
+  const fetchUserBaseInfo = (userId) => {
+    return get(`/user/basic/${userId}`).then((res) => {
+      return {
+        ...res.data,
+        age: typeof res.data.age === "number" ? res.data.age : null,
+        gender: res.data.gender === "男" ? "male" : "female",
+        avatar: res.data.avatar || getDefaultAvatar()
+      };
+    });
+  };
+  const fetchUserModifiableData = (userId) => {
+    return get(`/user/${userId}/modifiable_data`).then((res) => {
+      formatAppLog("log", "at api/user.js:40", res.data);
+      return {
+        ...res.data,
+        gender: res.data.gender === "男" ? "male" : "female",
+        avatar: res.data.avatar || getDefaultAvatar()
+      };
+    });
+  };
+  const fetchCars = (userId) => {
+    return get(`/user/cars/${userId}`).then((res) => {
+      formatAppLog("log", "at api/user.js:57", res.data);
+      return {
+        ...res.data
+      };
+    });
+  };
+  const updateUserInfo = (userId, data) => {
+    formatAppLog("log", "at api/user.js:74", data);
+    return post$1(`/user/update/${userId}`, data, {
+      showLoading: true,
+      loadingText: "正在更新用户信息..."
+    }).then((res) => {
+      if (res.code !== 200) {
+        throw new Error(res.message || "更新失败");
+      }
+      return res;
+    });
+  };
+  const uploadUserAvatar = (userId, filePath) => {
+    formatAppLog("log", "at api/user.js:93", userId);
+    formatAppLog("log", "at api/user.js:94", filePath);
+    return uni.uploadFile({
+      url: `/user/upload_avatar/${userId}`,
+      filePath,
+      name: "file",
+      formData: {
+        "user_id": userId
+      }
+    });
+  };
   const _sfc_main$a = {
     components: {
       NavigationBar
@@ -1453,15 +1508,32 @@ if (uni.restoreGlobal) {
         this.isEditing = false;
         this.editingPlateNumber = "";
       },
-      fetchUserCars() {
+      async fetchUserCars() {
         this.isLoading = true;
-        setTimeout(() => {
-          this.userCars = [
-            { number: "沪A12345", color: "blue", model: "特斯拉", seats: 5 },
-            { number: "京B67890", color: "yellow", model: "大众 帕萨特", seats: 5 }
-          ];
+        try {
+          const userId = uni.getStorageSync("user_id");
+          const res = await fetchCars(userId);
+          formatAppLog("log", "at pages/index/car_manage.vue:199", res);
+          this.userCars = res.map((car) => ({
+            car_id: car.car_id,
+            number: car.plate_number,
+            model: car.brand_model,
+            color: car.color || "blue",
+            // 默认颜色
+            seats: car.seats || 4
+            // 默认座位数
+          }));
+          formatAppLog("log", "at pages/index/car_manage.vue:208", this.userCars);
+        } catch (error2) {
+          formatAppLog("error", "at pages/index/car_manage.vue:210", "获取车辆列表失败:", error2);
+          uni.showToast({
+            title: "获取车辆列表失败",
+            icon: "none",
+            duration: 2e3
+          });
+        } finally {
           this.isLoading = false;
-        }, 500);
+        }
       },
       handleSubmit() {
         if (this.isEditing) {
@@ -1475,45 +1547,40 @@ if (uni.restoreGlobal) {
         const plateColor = this.plateColor;
         const carModel = this.carModel;
         const seatCount = this.seatCount;
-        formatAppLog("log", "at pages/index/car_manage.vue:220", "添加的车牌信息:", {
-          number: plateNumber,
-          color: plateColor,
-          model: carModel,
-          seats: seatCount
-        });
         if (!this.validatePlateNumber(plateNumber)) {
           uni.showToast({
             title: "请输入有效的车牌号",
             icon: "none",
             duration: 2e3
           });
-          this.closeModal();
-          return;
-        }
-        if (this.userCars.some((car) => car.number === plateNumber)) {
-          uni.showToast({
-            title: "该车牌已存在",
-            icon: "none",
-            duration: 2e3
-          });
-          this.closeModal();
           return;
         }
         this.isLoading = true;
         try {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          this.userCars.push({
+          const res = await post("/user/cars", {
             number: plateNumber,
             color: plateColor,
             model: carModel,
             seats: seatCount
+          }, {
+            showLoading: true,
+            loadingText: "正在添加车辆..."
           });
+          if (res.code === 409) {
+            uni.showToast({
+              title: "该车牌已存在",
+              icon: "none",
+              duration: 2e3
+            });
+            return;
+          }
           uni.showToast({
             title: "添加成功",
             duration: 2e3
           });
+          await this.fetchUserCars();
         } catch (error2) {
-          formatAppLog("error", "at pages/index/car_manage.vue:269", "添加车牌失败:", error2);
+          formatAppLog("error", "at pages/index/car_manage.vue:275", "添加车牌失败:", error2);
           uni.showToast({
             title: "操作失败，请稍后重试",
             icon: "none",
@@ -1529,39 +1596,40 @@ if (uni.restoreGlobal) {
         const plateColor = this.plateColor;
         const carModel = this.carModel;
         const seatCount = this.seatCount;
-        formatAppLog("log", "at pages/index/car_manage.vue:288", "修改的车牌信息:", {
-          number: plateNumber,
-          color: plateColor,
-          model: carModel,
-          seats: seatCount
-        });
         if (!this.validatePlateNumber(plateNumber)) {
           uni.showToast({
             title: "请输入有效的车牌号",
             icon: "none",
             duration: 2e3
           });
-          this.closeModal();
           return;
         }
         this.isLoading = true;
         try {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          const index = this.userCars.findIndex((car) => car.number === this.editingPlateNumber);
-          if (index !== -1) {
-            this.userCars[index] = {
-              number: plateNumber,
-              color: plateColor,
-              model: carModel,
-              seats: seatCount
-            };
+          const res = await put(`/user/cars/${this.editingPlateNumber}`, {
+            number: plateNumber,
+            color: plateColor,
+            model: carModel,
+            seats: seatCount
+          }, {
+            showLoading: true,
+            loadingText: "正在更新车辆信息..."
+          });
+          if (res.code === 409) {
+            uni.showToast({
+              title: "该车牌已存在",
+              icon: "none",
+              duration: 2e3
+            });
+            return;
           }
           uni.showToast({
             title: "修改成功",
             duration: 2e3
           });
+          await this.fetchUserCars();
         } catch (error2) {
-          formatAppLog("error", "at pages/index/car_manage.vue:329", "修改车牌失败:", error2);
+          formatAppLog("error", "at pages/index/car_manage.vue:332", "修改车牌失败:", error2);
           uni.showToast({
             title: "操作失败，请稍后重试",
             icon: "none",
@@ -1586,25 +1654,29 @@ if (uni.restoreGlobal) {
         uni.showModal({
           title: "提示",
           content: "确定要解绑车牌吗？",
-          success: (res) => {
+          success: async (res) => {
             if (res.confirm) {
               this.isLoading = true;
               try {
-                setTimeout(() => {
-                  this.userCars = this.userCars.filter((car) => car.number !== plateNumber);
+                const response = await del(`/user/cars/${plateNumber}`, {}, {
+                  showLoading: true,
+                  loadingText: "正在解绑车辆..."
+                });
+                if (response.success) {
                   uni.showToast({
                     title: "解绑成功",
                     duration: 2e3
                   });
-                  this.isLoading = false;
-                }, 500);
+                  await this.fetchUserCars();
+                }
               } catch (error2) {
-                formatAppLog("error", "at pages/index/car_manage.vue:373", "解绑车牌失败:", error2);
+                formatAppLog("error", "at pages/index/car_manage.vue:378", "解绑车牌失败:", error2);
                 uni.showToast({
                   title: "操作失败，请稍后重试",
                   icon: "none",
                   duration: 2e3
                 });
+              } finally {
                 this.isLoading = false;
               }
             }
@@ -1965,7 +2037,7 @@ if (uni.restoreGlobal) {
       ])) : vue.createCommentVNode("v-if", true)
     ]);
   }
-  const PagesIndexCarManage = /* @__PURE__ */ _export_sfc(_sfc_main$a, [["render", _sfc_render$9], ["__scopeId", "data-v-f62f82f0"], ["__file", "E:/Clone/ride-sharing-se/pages/index/car_manage.vue"]]);
+  const PagesIndexCarManage = /* @__PURE__ */ _export_sfc(_sfc_main$a, [["render", _sfc_render$9], ["__scopeId", "data-v-f62f82f0"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/car_manage.vue"]]);
   const _imports_0$2 = "/static/arrow-down.png";
   const _sfc_main$9 = {
     data() {
@@ -2364,7 +2436,7 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT */
     );
   }
-  const PagesIndexManage = /* @__PURE__ */ _export_sfc(_sfc_main$9, [["render", _sfc_render$8], ["__scopeId", "data-v-4652816d"], ["__file", "E:/Clone/ride-sharing-se/pages/index/manage.vue"]]);
+  const PagesIndexManage = /* @__PURE__ */ _export_sfc(_sfc_main$9, [["render", _sfc_render$8], ["__scopeId", "data-v-4652816d"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/manage.vue"]]);
   const _sfc_main$8 = {
     components: {
       NavigationBar
@@ -2900,16 +2972,7 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT */
     );
   }
-  const PagesIndexOrderLaunch = /* @__PURE__ */ _export_sfc(_sfc_main$8, [["render", _sfc_render$7], ["__file", "E:/Clone/ride-sharing-se/pages/index/order_launch.vue"]]);
-  const fetchUserBaseInfo = (userId) => {
-    return get(`/user/basic/${userId}`).then((res) => {
-      return {
-        ...res.data,
-        age: typeof res.data.age === "number" ? res.data.age : null,
-        avatar: res.data.avatar || getDefaultAvatar()
-      };
-    });
-  };
+  const PagesIndexOrderLaunch = /* @__PURE__ */ _export_sfc(_sfc_main$8, [["render", _sfc_render$7], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/order_launch.vue"]]);
   const _imports_0$1 = "/static/info-manage.png";
   const _imports_1 = "/static/car-manage.png";
   const _imports_2 = "/static/calendar.png";
@@ -2983,19 +3046,16 @@ if (uni.restoreGlobal) {
       info_manage() {
         uni.navigateTo({
           url: "/pages/index/info_manage"
-          // 登录成功后的跳转
         });
       },
       car_manage() {
         uni.navigateTo({
           url: "/pages/index/car_manage"
-          // 跳转到注册页面
         });
       },
       calendar() {
         uni.navigateTo({
           url: "/pages/index/calendar"
-          // 跳转到注册页面
         });
       },
       formatDate(dateString) {
@@ -3005,21 +3065,22 @@ if (uni.restoreGlobal) {
       viewAllTrips() {
         uni.navigateTo({
           url: "/pages/index/record"
-          // 跳转到注册页面
         });
       },
       async fetchUserData() {
         this.loading = true;
         try {
           const cacheUser = uni.getStorageSync("user_info");
-          formatAppLog("log", "at pages/index/person.vue:193", cacheUser);
           if (cacheUser) {
             this.user.name = cacheUser.username;
             this.user.avatar = cacheUser.avatar;
             this.user.age = cacheUser.age;
             this.user.gender = cacheUser.gender;
           }
-          const res = await fetchUserBaseInfo(cacheUser.userId);
+          formatAppLog("log", "at pages/index/person.vue:199", this.user.avatar);
+          const cacheUserID = uni.getStorageSync("user_id");
+          const res = await fetchUserBaseInfo(cacheUserID);
+          formatAppLog("log", "at pages/index/person.vue:204", res);
           const newUserData = {
             name: res.username,
             avatar: res.avatar,
@@ -3029,10 +3090,10 @@ if (uni.restoreGlobal) {
           if (JSON.stringify(this.user) !== JSON.stringify(newUserData)) {
             this.user = newUserData;
             uni.setStorageSync("user_info", newUserData);
-            conole.log(this.user);
+            formatAppLog("log", "at pages/index/person.vue:215", this.user);
           }
         } catch (error2) {
-          formatAppLog("error", "at pages/index/person.vue:216", "获取用户数据失败:", error2);
+          formatAppLog("error", "at pages/index/person.vue:218", "获取用户数据失败:", error2);
         }
       },
       viewDetails(tripId) {
@@ -3042,7 +3103,7 @@ if (uni.restoreGlobal) {
         this.isEditing = !this.isEditing;
       },
       saveChanges() {
-        formatAppLog("log", "at pages/index/person.vue:226", "保存修改:", this.user);
+        formatAppLog("log", "at pages/index/person.vue:228", "保存修改:", this.user);
         this.isEditing = false;
       },
       openFileInput() {
@@ -3257,7 +3318,7 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT */
     );
   }
-  const PagesIndexPerson = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$6], ["__file", "E:/Clone/ride-sharing-se/pages/index/person.vue"]]);
+  const PagesIndexPerson = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$6], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/person.vue"]]);
   var calendar = {
     /**
         * 农历1900-2100的润大小信息表
@@ -4874,7 +4935,7 @@ if (uni.restoreGlobal) {
       /* CLASS */
     );
   }
-  const CalendarItem = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$5], ["__scopeId", "data-v-65626c58"], ["__file", "E:/Clone/ride-sharing-se/uni_modules/uni-calendar/components/uni-calendar/uni-calendar-item.vue"]]);
+  const CalendarItem = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$5], ["__scopeId", "data-v-65626c58"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/uni_modules/uni-calendar/components/uni-calendar/uni-calendar-item.vue"]]);
   const { t } = initVueI18n(i18nMessages);
   const _sfc_main$5 = {
     components: {
@@ -5352,7 +5413,7 @@ if (uni.restoreGlobal) {
       )) : vue.createCommentVNode("v-if", true)
     ]);
   }
-  const __easycom_0 = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$4], ["__scopeId", "data-v-b6ab2cfb"], ["__file", "E:/Clone/ride-sharing-se/uni_modules/uni-calendar/components/uni-calendar/uni-calendar.vue"]]);
+  const __easycom_0 = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$4], ["__scopeId", "data-v-b6ab2cfb"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/uni_modules/uni-calendar/components/uni-calendar/uni-calendar.vue"]]);
   const _sfc_main$4 = {
     components: {
       NavigationBar
@@ -5573,7 +5634,39 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const PagesIndexCalendar = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__scopeId", "data-v-da8fb852"], ["__file", "E:/Clone/ride-sharing-se/pages/index/calendar.vue"]]);
+  const PagesIndexCalendar = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__scopeId", "data-v-da8fb852"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/calendar.vue"]]);
+  const saveFileToLocal = async (tempFilePath) => {
+    try {
+      const uploadDir = "_doc/upload/";
+      await createDirIfNotExists(uploadDir);
+      const fileName = `${Date.now()}.${tempFilePath.split(".").pop()}`;
+      const savePath = `${uploadDir}${fileName}`;
+      const { savedFilePath } = await uni.saveFile({
+        tempFilePath,
+        filePath: savePath
+      });
+      return savedFilePath;
+    } catch (error2) {
+      formatAppLog("error", "at utils/fileUtils.js:21", "保存文件到本地失败:", error2);
+      throw error2;
+    }
+  };
+  const createDirIfNotExists = async (dirPath) => {
+    try {
+      await uni.getFileInfo({
+        filePath: dirPath
+      });
+    } catch (error2) {
+      if (error2.errMsg.includes("file not found")) {
+        await uni.mkdir({
+          dirPath,
+          recursive: true
+        });
+      } else {
+        throw error2;
+      }
+    }
+  };
   const _sfc_main$3 = {
     components: {
       NavigationBar
@@ -5581,40 +5674,67 @@ if (uni.restoreGlobal) {
     data() {
       return {
         user: {
+          user_id: null,
           avatar: "",
-          // 初始为空，从后端获取
+          // 头像
           username: "",
-          gender: "male",
+          // 用户名
+          gender: "",
+          // 性别
           contact: ""
+          // 联系方式（对应 API 的 telephone）
         },
-        avatarError: "",
         originalUser: {},
-        defaultAvatar: "../../static/user_2.jpg"
+        // 保存原始数据用于比较
+        defaultAvatar: "../../static/user.jpeg",
+        // 直接使用路径
+        avatarError: ""
       };
     },
     created() {
-      this.fetchUserData();
+      this.fetchUserModifiableData();
     },
     methods: {
-      // 模拟从后端获取用户数据
-      fetchUserData() {
-        setTimeout(() => {
-          const mockData = {
-            avatar: "../../static/user_2.jpg",
-            username: "测试者",
-            gender: "female",
-            contact: "15800993469"
+      async fetchUserModifiableData() {
+        this.loading = true;
+        try {
+          const cacheUserID = uni.getStorageSync("user_id");
+          const res = await fetchUserModifiableData(cacheUserID);
+          formatAppLog("log", "at pages/index/info_manage.vue:88", res);
+          const userData = {
+            user_id: cacheUserID,
+            avatar: res.avatar || this.defaultAvatar,
+            // 默认头像兜底
+            username: res.username,
+            gender: res.gender,
+            // 默认性别
+            contact: res.telephone || ""
+            // API 返回的 telephone 映射为 contact
           };
-          this.user = { ...mockData };
-          this.originalUser = { ...mockData };
-        }, 500);
+          const gender = res.gender === "male" || res.gender === "female" ? res.gender : "male";
+          this.user = { ...userData };
+          formatAppLog("log", "at pages/index/info_manage.vue:104", this.user.avatar);
+          this.originalUser = { ...userData };
+          uni.setStorageSync("user_info", userData);
+        } catch (error2) {
+          formatAppLog("error", "at pages/index/info_manage.vue:111", "获取用户数据失败:", error2);
+          uni.showToast({ title: "获取信息失败", icon: "none" });
+        }
       },
       // 触发头像上传
-      triggerAvatarUpload() {
+      async triggerAvatarUpload() {
         uni.chooseImage({
           count: 1,
-          success: (res) => {
-            this.handleAvatarChange(res.tempFilePaths[0]);
+          sizeType: ["compressed"],
+          sourceType: ["album", "camera"],
+          success: async (res) => {
+            try {
+              const localFilePath = await saveFileToLocal(res.tempFilePaths[0]);
+              this.uploadAvatar(localFilePath);
+            } catch (error2) {
+              formatAppLog("error", "at pages/index/info_manage.vue:127", "保存图片到本地失败:", error2);
+              uni.showToast({ title: "保存图片失败", icon: "none" });
+            }
           }
         });
       },
@@ -5633,49 +5753,67 @@ if (uni.restoreGlobal) {
           }
         });
       },
+      async uploadAvatar(filePath) {
+        try {
+          uni.showLoading({ title: "上传中..." });
+          const cacheUserID = uni.getStorageSync("user_id");
+          const response = await uploadUserAvatar(cacheUserID, filePath);
+          formatAppLog("log", "at pages/index/info_manage.vue:158", response);
+          const res = JSON.parse(response.data);
+          if (res.code === 200) {
+            this.user.avatar = res.data.avatar_url;
+            uni.showToast({
+              title: "头像上传成功",
+              icon: "success"
+            });
+          } else {
+            throw new Error(res.message || "头像上传失败");
+          }
+        } catch (error2) {
+          formatAppLog("error", "at pages/index/info_manage.vue:171", "头像上传失败:", error2);
+          uni.showToast({
+            title: error2.message || "头像上传失败",
+            icon: "none"
+          });
+        } finally {
+          uni.hideLoading();
+        }
+      },
       handleImageError() {
         this.user.avatar = this.defaultAvatar;
       },
-      // 保存用户信息
       async saveProfile() {
         if (!this.user.username.trim()) {
-          uni.showToast({
-            title: "请输入用户名",
-            icon: "none"
-          });
+          uni.showToast({ title: "用户名不能为空", icon: "none" });
           return;
         }
         if (!/^1[3-9]\d{9}$/.test(this.user.contact)) {
-          uni.showToast({
-            title: "请输入有效的手机号",
-            icon: "none"
-          });
-          return;
-        }
-        const hasChanges = Object.keys(this.user).some(
-          (key) => JSON.stringify(this.user[key]) !== JSON.stringify(this.originalUser[key])
-        );
-        if (!hasChanges) {
-          uni.showToast({
-            title: "没有检测到任何修改",
-            icon: "none"
-          });
+          uni.showToast({ title: "请输入有效手机号", icon: "none" });
           return;
         }
         try {
-          formatAppLog("log", "at pages/index/info_manage.vue:165", "保存用户信息:", this.user);
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          uni.showToast({
-            title: "个人信息已保存",
-            icon: "success"
-          });
-          this.originalUser = { ...this.user };
+          uni.showLoading({ title: "保存中..." });
+          const cacheUserID = uni.getStorageSync("user_id");
+          const requestData = {
+            username: this.user.username,
+            gender: this.user.gender === "male" ? "男" : "女",
+            telephone: this.user.contact
+          };
+          const response = await updateUserInfo(cacheUserID, requestData);
+          if (response.code === 200) {
+            uni.showToast({ title: "保存成功", icon: "success" });
+            this.originalUser = { ...this.user };
+          } else {
+            throw new Error(response.message || "保存失败");
+          }
         } catch (error2) {
-          formatAppLog("error", "at pages/index/info_manage.vue:177", "保存失败:", error2);
+          formatAppLog("error", "at pages/index/info_manage.vue:220", "保存失败:", error2);
           uni.showToast({
-            title: "保存失败，请重试",
+            title: error2.message || "保存失败，请重试",
             icon: "none"
           });
+        } finally {
+          uni.hideLoading();
         }
       }
     }
@@ -5688,18 +5826,17 @@ if (uni.restoreGlobal) {
       vue.createElementVNode("div", { class: "profile-edit-card" }, [
         vue.createCommentVNode(" 头像上传区域 "),
         vue.createElementVNode("div", { class: "avatar-section" }, [
-          vue.createElementVNode("div", { class: "avatar-preview" }, [
-            vue.createElementVNode("img", {
-              src: $data.user.avatar,
-              alt: "用户头像",
-              class: "avatar-image"
-            }, null, 8, ["src"])
-          ]),
+          vue.createElementVNode("image", {
+            class: "avatar-image",
+            src: $data.user.avatar,
+            alt: "用户头像",
+            onError: _cache[0] || (_cache[0] = (...args) => $options.handleImageError && $options.handleImageError(...args))
+          }, null, 40, ["src"]),
           vue.createElementVNode(
             "button",
             {
               class: "upload-btn",
-              onClick: _cache[0] || (_cache[0] = (...args) => $options.triggerAvatarUpload && $options.triggerAvatarUpload(...args))
+              onClick: _cache[1] || (_cache[1] = (...args) => $options.triggerAvatarUpload && $options.triggerAvatarUpload(...args))
             },
             vue.toDisplayString($data.user.avatar === $data.defaultAvatar ? "上传头像" : "更换头像"),
             1
@@ -5725,7 +5862,7 @@ if (uni.restoreGlobal) {
               {
                 type: "text",
                 id: "username",
-                "onUpdate:modelValue": _cache[1] || (_cache[1] = ($event) => $data.user.username = $event),
+                "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => $data.user.username = $event),
                 placeholder: "请输入用户名",
                 style: { "width": "80%" }
               },
@@ -5742,7 +5879,7 @@ if (uni.restoreGlobal) {
               "select",
               {
                 id: "gender",
-                "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => $data.user.gender = $event),
+                "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $data.user.gender = $event),
                 class: "gender-select",
                 style: { "width": "70%" }
               },
@@ -5763,7 +5900,7 @@ if (uni.restoreGlobal) {
               {
                 type: "tel",
                 id: "contact",
-                "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $data.user.contact = $event),
+                "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => $data.user.contact = $event),
                 placeholder: "请输入手机号",
                 pattern: "[0-9]{11}",
                 style: { "width": "80%" }
@@ -5777,13 +5914,13 @@ if (uni.restoreGlobal) {
           ]),
           vue.createElementVNode("button", {
             class: "save-btn",
-            onClick: _cache[4] || (_cache[4] = (...args) => $options.saveProfile && $options.saveProfile(...args))
+            onClick: _cache[5] || (_cache[5] = (...args) => $options.saveProfile && $options.saveProfile(...args))
           }, "保存修改")
         ])
       ])
     ]);
   }
-  const PagesIndexInfoManage = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$2], ["__scopeId", "data-v-2cb089b3"], ["__file", "E:/Clone/ride-sharing-se/pages/index/info_manage.vue"]]);
+  const PagesIndexInfoManage = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$2], ["__scopeId", "data-v-2cb089b3"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/info_manage.vue"]]);
   const _imports_0 = "/static/atm-fill.png";
   const _sfc_main$2 = {
     data() {
@@ -6100,7 +6237,7 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT */
     );
   }
-  const PagesIndexHome = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["render", _sfc_render$1], ["__scopeId", "data-v-760d994e"], ["__file", "E:/Clone/ride-sharing-se/pages/index/home.vue"]]);
+  const PagesIndexHome = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["render", _sfc_render$1], ["__scopeId", "data-v-760d994e"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/home.vue"]]);
   const _sfc_main$1 = {
     data() {
       return {
@@ -6564,7 +6701,7 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT */
     );
   }
-  const PagesIndexRecord = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["render", _sfc_render], ["__scopeId", "data-v-01d8b9db"], ["__file", "E:/Clone/ride-sharing-se/pages/index/record.vue"]]);
+  const PagesIndexRecord = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["render", _sfc_render], ["__scopeId", "data-v-01d8b9db"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/record.vue"]]);
   __definePage("pages/index/login", PagesIndexLogin);
   __definePage("pages/index/chatlist", PagesIndexChatlist);
   __definePage("pages/index/trip_info", PagesIndexTripInfo);
@@ -6588,7 +6725,7 @@ if (uni.restoreGlobal) {
       formatAppLog("log", "at App.vue:10", "App Hide");
     }
   };
-  const App = /* @__PURE__ */ _export_sfc(_sfc_main, [["__file", "E:/Clone/ride-sharing-se/App.vue"]]);
+  const App = /* @__PURE__ */ _export_sfc(_sfc_main, [["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/App.vue"]]);
   function createApp() {
     const app = vue.createVueApp(App);
     return {

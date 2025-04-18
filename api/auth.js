@@ -24,3 +24,25 @@ export default {
 		})
 	}
 }
+
+/**
+ * @file 认证相关工具函数
+ */
+
+
+/**
+ * 获取当前登录用户ID
+ * @returns {number|null} 用户ID
+ */
+export const getCurrentUserId = () => {
+  const user_id=uni.getStorageSync('user_id');;
+  return payload?.user_id || null;
+};
+
+/**
+ * 检查是否已登录
+ * @returns {boolean}
+ */
+export const isLoggedIn = () => {
+  return !!getCurrentUserId();
+};

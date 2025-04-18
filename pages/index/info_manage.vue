@@ -2,20 +2,16 @@
   <div class="user-profile-container">
     <!-- 使用 NavigationBar 组件 -->
     <NavigationBar />
-    
     <div class="profile-edit-card">
-      
       <!-- 头像上传区域 -->
       <div class="avatar-section">
-        <div class="avatar-preview">
-          <img :src="user.avatar" alt="用户头像" class="avatar-image">
-        </div>
+        <image class="avatar-image" :src="user.avatar" alt="用户头像"  @error="handleImageError"/>
         <button class="upload-btn" @click="triggerAvatarUpload">
           {{ user.avatar === defaultAvatar ? '上传头像' : '更换头像' }}
         </button>
         <p v-if="avatarError" class="error-message">{{ avatarError }}</p>
       </div>
-      
+
       <!-- 用户信息表单 -->
       <div class="form-section">
         <div class="form-group">
@@ -25,10 +21,10 @@
             id="username" 
             v-model="user.username" 
             placeholder="请输入用户名"
-			style ="width:80%"
+            style ="width:80%"
           >
         </div>
-        
+
         <div class="form-group">
           <label for="gender">性别</label>
           <select id="gender" v-model="user.gender" class="gender-select"style ="width:70%">
@@ -36,8 +32,8 @@
             <option value="female">女</option>
           </select>
         </div>
-        
-        
+
+
         <div class="form-group">
           <label for="contact">联系方式</label>
           <input 
@@ -46,10 +42,10 @@
             v-model="user.contact" 
             placeholder="请输入手机号"
             pattern="[0-9]{11}"
-			style ="width:80%"
+            style ="width:80%"
           >
         </div>
-        
+
         <button class="save-btn" @click="saveProfile">保存修改</button>
       </div>
     </div>
@@ -58,6 +54,8 @@
 
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
+import { fetchUserBaseInfo, fetchUserProfile, fetchUserModifiableData, updateUserInfo, uploadUserAvatar } from '@/api/user.js';
+import { saveFileToLocal } from '@/utils/fileUtils'; // 假设这里有一个保存文件到本地的工具函数
 
 export default {
   components: {
@@ -66,119 +64,166 @@ export default {
   data() {
     return {
       user: {
-        avatar: '', // 初始为空，从后端获取
-        username: '',
-        gender: 'male',
-        contact: ''
+        user_id: null,
+        avatar: '',        // 头像
+        username: '',       // 用户名
+        gender: '',     // 性别
+        contact: ''        // 联系方式（对应 API 的 telephone）
       },
-      avatarError: '',
-      originalUser: {},
-	  defaultAvatar: '../../static/user_2.jpg' 
+      originalUser: {},     // 保存原始数据用于比较
+      defaultAvatar: '../../static/user.jpeg', // 直接使用路径
+      avatarError: ''
     };
   },
   created() {
-    this.fetchUserData();
+    this.fetchUserModifiableData();
   },
   methods: {
-    // 模拟从后端获取用户数据
-    fetchUserData() {
-      // 这里应该是API调用，我们使用setTimeout模拟异步请求
-      setTimeout(() => {
-        const mockData = {
-          avatar: '../../static/user_2.jpg',
-          username: '测试者',
-          gender: 'female',
-          contact: '15800993469'
+    async fetchUserModifiableData() {
+      this.loading = true;
+
+      try {
+        const cacheUserID = uni.getStorageSync('user_id');
+        const res = await fetchUserModifiableData(cacheUserID);
+        console.log(res);
+
+        // 映射 API 数据到本地字段
+        const userData = {
+          user_id: cacheUserID,
+          avatar: res.avatar || this.defaultAvatar, // 默认头像兜底
+          username: res.username,
+          gender: res.gender,            // 默认性别
+          contact: res.telephone || ''             // API 返回的 telephone 映射为 contact
         };
-        this.user = {...mockData};
-        this.originalUser = {...mockData}; // 保存原始数据
-      }, 500);
+        // 确保性别字段值合法，否则设置默认值
+        const gender = res.gender === 'male' || res.gender === 'female' 
+          ? res.gender 
+          : 'male'; // 默认值
+        // 更新数据和原始副本
+        this.user = { ...userData };
+        console.log(this.user.avatar);
+        this.originalUser = { ...userData };
+
+        // 存储到本地缓存
+        uni.setStorageSync('user_info', userData);
+
+      } catch (error) {
+        console.error('获取用户数据失败:', error);
+        uni.showToast({ title: '获取信息失败', icon: 'none' });
+      }
     },
-    
+
     // 触发头像上传
-    triggerAvatarUpload() {
+    async triggerAvatarUpload() {
       uni.chooseImage({
         count: 1,
-        success: (res) => {
-          this.handleAvatarChange(res.tempFilePaths[0]);
+        sizeType: ['compressed'],
+        sourceType: ['album', 'camera'],
+        success: async (res) => {
+          try {
+            const localFilePath = await saveFileToLocal(res.tempFilePaths[0]);
+            this.uploadAvatar(localFilePath);
+          } catch (error) {
+            console.error('保存图片到本地失败:', error);
+            uni.showToast({ title: '保存图片失败', icon: 'none' });
+          }
         }
       });
     },
-    
-	// 处理头像变更
-	handleAvatarChange(filePath) {
-	  if (!filePath) return;
-	  
-	  // 使用uni.getImageInfo代替Image对象
-	  uni.getImageInfo({
-		src: filePath,
-		success: (res) => {
-		  // 更新用户头像
-		  this.user.avatar = filePath;
-		  this.avatarError = '';
-		},
-		fail: () => {
-		  this.avatarError = '图片加载失败';
-		}
-	  });
-	},
-    
+
+    // 处理头像变更
+    handleAvatarChange(filePath) {
+      if (!filePath) return;
+
+      // 使用uni.getImageInfo代替Image对象
+      uni.getImageInfo({
+        src: filePath,
+        success: (res) => {
+          // 更新用户头像
+          this.user.avatar = filePath;
+          this.avatarError = '';
+        },
+        fail: () => {
+          this.avatarError = '图片加载失败';
+        }
+      });
+    },
+
+    async uploadAvatar(filePath) {
+      try {
+        uni.showLoading({ title: '上传中...' });
+        const cacheUserID = uni.getStorageSync('user_id'); 
+        // 调用上传API
+        const response = await uploadUserAvatar(cacheUserID, filePath);
+        console.log(response); // 打印上传结果
+        const res = JSON.parse(response.data);
+
+        if (res.code === 200) {
+          this.user.avatar = res.data.avatar_url;
+          uni.showToast({
+            title: '头像上传成功',
+            icon: 'success'
+          });
+        } else {
+          throw new Error(res.message || '头像上传失败');
+        }
+      } catch (error) {
+        console.error('头像上传失败:', error);
+        uni.showToast({
+          title: error.message || '头像上传失败',
+          icon: 'none'
+        });
+      } finally {
+        uni.hideLoading();
+      }
+    },
+
     handleImageError() {
       this.user.avatar = this.defaultAvatar;
     },
-    
-    // 保存用户信息
+
     async saveProfile() {
       // 验证用户名
       if (!this.user.username.trim()) {
-        uni.showToast({
-          title: '请输入用户名',
-          icon: 'none'
-        });
+        uni.showToast({ title: '用户名不能为空', icon: 'none' });
         return;
       }
-      
+
       // 验证手机号
       if (!/^1[3-9]\d{9}$/.test(this.user.contact)) {
-        uni.showToast({
-          title: '请输入有效的手机号',
-          icon: 'none'
-        });
+        uni.showToast({ title: '请输入有效手机号', icon: 'none' });
         return;
       }
-      
-      // 检查是否有修改
-      const hasChanges = Object.keys(this.user).some(
-        key => JSON.stringify(this.user[key]) !== JSON.stringify(this.originalUser[key])
-      );
-      
-      if (!hasChanges) {
-        uni.showToast({
-          title: '没有检测到任何修改',
-          icon: 'none'
-        });
-        return;
-      }
-      
+
       try {
-        // 这里应该是实际的API调用
-        console.log('保存用户信息:', this.user);
-        
-        // 模拟API请求延迟
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        uni.showToast({
-          title: '个人信息已保存',
-          icon: 'success'
-        });
-        this.originalUser = {...this.user};
-        
+        uni.showLoading({ title: '保存中...' });
+        const cacheUserID = uni.getStorageSync('user_id');
+
+        // 准备请求数据
+        const requestData = {
+          username: this.user.username,
+          gender: this.user.gender === 'male' ? '男' : '女',
+          telephone: this.user.contact
+        };
+
+        // 确保数据格式正确
+        const response = await updateUserInfo(cacheUserID, requestData);
+        // 检查响应是否成功
+        if (response.code === 200) {
+          uni.showToast({ title: '保存成功', icon: 'success' });
+          // 更新原始数据副本
+          this.originalUser = { ...this.user };
+        } else {
+          throw new Error(response.message || '保存失败');
+        }
       } catch (error) {
         console.error('保存失败:', error);
-        uni.showToast({
-          title: '保存失败，请重试',
-          icon: 'none'
+        uni.showToast({ 
+          title: error.message || '保存失败，请重试', 
+          icon: 'none' 
         });
+      } finally {
+        uni.hideLoading();
       }
     }
   }
@@ -217,19 +262,13 @@ export default {
   margin-bottom: 30px;
 }
 
-.avatar-preview {
+
+.avatar-image {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  overflow: hidden;
   border: 4px solid #084fa1;
   margin-bottom: 15px;
-}
-
-.avatar-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .upload-btn {
