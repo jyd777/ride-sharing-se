@@ -25,6 +25,22 @@
           >
         </div>
 
+        <!-- 新增性别选择 -->
+        <div class="form-group">
+          <label for="gender">性别</label>
+          <picker
+            mode="selector"
+            :range="genderList"
+            range-key="name"
+            @change="handleGenderChange"
+            class="info-picker"
+          >
+            <view class="picker-text">
+              {{ user.gender || '请选择性别' }}
+            </view>
+          </picker>
+        </div>
+
         <div class="form-group">
           <label for="contact">联系方式</label>
           <input 
@@ -37,6 +53,31 @@
           >
         </div>
 
+        <!-- 新增密码修改 -->
+        <div class="form-group">
+          <label for="password">新密码</label>
+          <input
+            id="password"
+            v-model="user.password"
+            type="password"
+            class="input"
+            placeholder="留空则不修改密码"
+            style="width:80%"
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="confirmPassword">确认新密码</label>
+          <input
+            id="confirmPassword"
+            v-model="user.confirmPassword"
+            type="password"
+            class="input"
+            placeholder="再次输入新密码"
+            style="width:80%"
+          >
+        </div>
+
         <button class="save-btn" @click="saveProfile">保存修改</button>
       </div>
     </div>
@@ -45,7 +86,12 @@
 
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
-import { fetchUserBaseInfo, fetchUserProfile, fetchUserModifiableData, updateUserInfo, uploadUserAvatar } from '@/api/user.js';
+import { 
+  fetchUserModifiableData, 
+  updateUserInfo, 
+  uploadUserAvatar,
+  getDefaultAvatar
+} from '@/api/user.js';
 import { saveFileToLocal } from '@/utils/fileUtils'; // 假设这里有一个保存文件到本地的工具函数
 
 export default {
@@ -58,11 +104,18 @@ export default {
         user_id: null,
         avatar: '',        // 头像
         username: '',       // 用户名
-        contact: ''        // 联系方式（对应 API 的 telephone）
+        gender: '',       // 新增性别字段
+        contact: '',
+        password: '',     // 新增密码字段
+        confirmPassword: '' // 新增确认密码字段
       },
       originalUser: {},     // 保存原始数据用于比较
       defaultAvatar: '../../static/user.jpeg', // 直接使用路径
-      avatarError: ''
+      avatarError: '',
+      genderList: [        // 性别选项
+        { name: '男', value: '男' },
+        { name: '女', value: '女' }
+      ]
     };
   },
   created() {
@@ -74,29 +127,35 @@ export default {
 
       try {
         const cacheUserID = uni.getStorageSync('user_id');
-		console.log(cacheUserID);
         const res = await fetchUserModifiableData(cacheUserID);
         console.log(res);
 
         // 映射 API 数据到本地字段
         const userData = {
           user_id: cacheUserID,
-          avatar: res.avatar || this.defaultAvatar, // 默认头像兜底
+          avatar: res.avatar || this.defaultAvatar,
           username: res.username,
-          contact: res.telephone || ''             // API 返回的 telephone 映射为 contact
+          gender: res.gender || '', // 新增性别字段
+          contact: res.telephone || '',
+          password: '',             // 密码字段初始为空
+          confirmPassword: ''       // 确认密码字段初始为空
         };
 
-        // 更新数据和原始副本
         this.user = { ...userData };
         this.originalUser = { ...userData };
 
-        // 存储到本地缓存
         uni.setStorageSync('user_info', userData);
 
       } catch (error) {
         console.error('获取用户数据失败:', error);
         uni.showToast({ title: '获取信息失败', icon: 'none' });
       }
+    },
+
+    // 处理性别选择变化
+    handleGenderChange(event) {
+      const selectedGenderIndex = event.detail.value;
+      this.user.gender = this.genderList[selectedGenderIndex].value;
     },
 
     // 触发头像上传
@@ -175,9 +234,21 @@ export default {
         return;
       }
 
+      // 验证性别
+      if (!this.user.gender) {
+        uni.showToast({ title: '请选择性别', icon: 'none' });
+        return;
+      }
+
       // 验证手机号
       if (!/^1[3-9]\d{9}$/.test(this.user.contact)) {
         uni.showToast({ title: '请输入有效手机号', icon: 'none' });
+        return;
+      }
+
+      // 验证密码
+      if (this.user.password && this.user.password !== this.user.confirmPassword) {
+        uni.showToast({ title: '两次输入的密码不一致', icon: 'none' });
         return;
       }
 
@@ -188,19 +259,32 @@ export default {
         // 准备请求数据
         const requestData = {
           username: this.user.username,
+          gender: this.user.gender,
           telephone: this.user.contact
         };
 
-        // 确保数据格式正确
+        // 如果有新密码，添加到请求数据中
+        if (this.user.password) {
+          requestData.password = this.user.password;
+        }
+
         const response = await updateUserInfo(cacheUserID, requestData);
-        // 检查响应是否成功
+        
         if (response.code === 200) {
           uni.showToast({ title: '保存成功', icon: 'success' });
-          // 更新原始数据副本
           this.originalUser = { ...this.user };
+          // 清空密码字段
+          this.user.password = '';
+          this.user.confirmPassword = '';
+		  setTimeout(() => {
+				uni.navigateTo({
+				url: '/pages/index/person'
+			});
+		  }, 2000);
         } else {
           throw new Error(response.message || '保存失败');
         }
+		
       } catch (error) {
         console.error('保存失败:', error);
         uni.showToast({ 
@@ -217,7 +301,7 @@ export default {
 
 <style scoped>
 .user-profile-container {
-  height: 100vh; /* 高度占据整个视口 */
+
   margin: 0 auto;
   padding: 20px;
   background-image: url('../../static/bg.jpg');
@@ -231,6 +315,7 @@ export default {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   padding: 20px;
   margin-top: 0px;
+  margin-bottom:40px;
 }
 
 .profile-edit-card h2 {
@@ -280,32 +365,28 @@ export default {
 }
 
 .form-group {
+  display: flex;
+  align-items: center;
   margin-bottom: 20px;
 }
 
 .form-group label {
-  display: block;
-  margin-bottom: 8px;
+  flex: 0 0 80px; /* 根据实际需要调整标签宽度 */
+  margin-bottom: 0;
   font-weight: 500;
   color: #555;
 }
 
 .form-group input,
-.form-group select {
-  width: 100%;
+.form-group .info-picker {
+  flex: 1;
   padding: 10px 15px;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 16px;
+  max-width: calc(100% - 100px); /* 减去标签宽度 */
 }
 
-.gender-select {
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  background-size: 1em;
-}
 
 .save-btn {
   width: 100%;
@@ -326,4 +407,6 @@ export default {
   margin-top: 8px;
   font-size: 14px;
 }
+
+
 </style>

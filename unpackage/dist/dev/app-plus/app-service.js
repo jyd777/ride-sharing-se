@@ -1375,7 +1375,7 @@ if (uni.restoreGlobal) {
         avatar: res.data.avatar || getDefaultAvatar()
       };
     }).catch((error2) => {
-      formatAppLog("error", "at api/user.js:18", "Error fetching user base info:", error2);
+      formatAppLog("error", "at api/user.js:19", "Error fetching user base info:", error2);
       throw error2;
     });
   };
@@ -1383,7 +1383,6 @@ if (uni.restoreGlobal) {
     return get(`/user/${userId}/modifiable_data`).then((res) => {
       return {
         ...res.data,
-        gender: res.data.gender === "男" ? "male" : "female",
         avatar: res.data.avatar || getDefaultAvatar()
       };
     });
@@ -1415,6 +1414,9 @@ if (uni.restoreGlobal) {
         "user_id": userId
       }
     });
+  };
+  const getDefaultAvatar = () => {
+    return "../../static/user.jpeg";
   };
   const _sfc_main$a = {
     components: {
@@ -3168,7 +3170,7 @@ if (uni.restoreGlobal) {
                 vue.createElementVNode("view", { class: "flex-row items-center self-stretch user-info" }, [
                   vue.createElementVNode("image", {
                     class: "gender-icon",
-                    src: $data.user.gender === "男" ? "../../static/male.png" : "../../static/female.png"
+                    src: $data.user.gender === "男" || $data.user.gender === "male" ? "../../static/male.png" : "../../static/female.png"
                   }, null, 8, ["src"]),
                   vue.createElementVNode(
                     "text",
@@ -5693,14 +5695,24 @@ if (uni.restoreGlobal) {
           // 头像
           username: "",
           // 用户名
-          contact: ""
-          // 联系方式（对应 API 的 telephone）
+          gender: "",
+          // 新增性别字段
+          contact: "",
+          password: "",
+          // 新增密码字段
+          confirmPassword: ""
+          // 新增确认密码字段
         },
         originalUser: {},
         // 保存原始数据用于比较
         defaultAvatar: "../../static/user.jpeg",
         // 直接使用路径
-        avatarError: ""
+        avatarError: "",
+        genderList: [
+          // 性别选项
+          { name: "男", value: "男" },
+          { name: "女", value: "女" }
+        ]
       };
     },
     created() {
@@ -5711,24 +5723,32 @@ if (uni.restoreGlobal) {
         this.loading = true;
         try {
           const cacheUserID = uni.getStorageSync("user_id");
-          formatAppLog("log", "at pages/index/info_manage.vue:77", cacheUserID);
           const res = await fetchUserModifiableData(cacheUserID);
-          formatAppLog("log", "at pages/index/info_manage.vue:79", res);
+          formatAppLog("log", "at pages/index/info_manage.vue:131", res);
           const userData = {
             user_id: cacheUserID,
             avatar: res.avatar || this.defaultAvatar,
-            // 默认头像兜底
             username: res.username,
-            contact: res.telephone || ""
-            // API 返回的 telephone 映射为 contact
+            gender: res.gender || "",
+            // 新增性别字段
+            contact: res.telephone || "",
+            password: "",
+            // 密码字段初始为空
+            confirmPassword: ""
+            // 确认密码字段初始为空
           };
           this.user = { ...userData };
           this.originalUser = { ...userData };
           uni.setStorageSync("user_info", userData);
         } catch (error2) {
-          formatAppLog("error", "at pages/index/info_manage.vue:97", "获取用户数据失败:", error2);
+          formatAppLog("error", "at pages/index/info_manage.vue:150", "获取用户数据失败:", error2);
           uni.showToast({ title: "获取信息失败", icon: "none" });
         }
+      },
+      // 处理性别选择变化
+      handleGenderChange(event) {
+        const selectedGenderIndex = event.detail.value;
+        this.user.gender = this.genderList[selectedGenderIndex].value;
       },
       // 触发头像上传
       async triggerAvatarUpload() {
@@ -5741,7 +5761,7 @@ if (uni.restoreGlobal) {
               const localFilePath = await saveFileToLocal(res.tempFilePaths[0]);
               this.uploadAvatar(localFilePath);
             } catch (error2) {
-              formatAppLog("error", "at pages/index/info_manage.vue:113", "保存图片到本地失败:", error2);
+              formatAppLog("error", "at pages/index/info_manage.vue:172", "保存图片到本地失败:", error2);
               uni.showToast({ title: "保存图片失败", icon: "none" });
             }
           }
@@ -5767,7 +5787,7 @@ if (uni.restoreGlobal) {
           uni.showLoading({ title: "上传中..." });
           const cacheUserID = uni.getStorageSync("user_id");
           const response = await uploadUserAvatar(cacheUserID, filePath);
-          formatAppLog("log", "at pages/index/info_manage.vue:144", response);
+          formatAppLog("log", "at pages/index/info_manage.vue:203", response);
           const res = JSON.parse(response.data);
           if (res.code === 200) {
             this.user.avatar = res.data.avatar_url;
@@ -5779,7 +5799,7 @@ if (uni.restoreGlobal) {
             throw new Error(res.message || "头像上传失败");
           }
         } catch (error2) {
-          formatAppLog("error", "at pages/index/info_manage.vue:157", "头像上传失败:", error2);
+          formatAppLog("error", "at pages/index/info_manage.vue:216", "头像上传失败:", error2);
           uni.showToast({
             title: error2.message || "头像上传失败",
             icon: "none"
@@ -5796,8 +5816,16 @@ if (uni.restoreGlobal) {
           uni.showToast({ title: "用户名不能为空", icon: "none" });
           return;
         }
+        if (!this.user.gender) {
+          uni.showToast({ title: "请选择性别", icon: "none" });
+          return;
+        }
         if (!/^1[3-9]\d{9}$/.test(this.user.contact)) {
           uni.showToast({ title: "请输入有效手机号", icon: "none" });
+          return;
+        }
+        if (this.user.password && this.user.password !== this.user.confirmPassword) {
+          uni.showToast({ title: "两次输入的密码不一致", icon: "none" });
           return;
         }
         try {
@@ -5805,17 +5833,28 @@ if (uni.restoreGlobal) {
           const cacheUserID = uni.getStorageSync("user_id");
           const requestData = {
             username: this.user.username,
+            gender: this.user.gender,
             telephone: this.user.contact
           };
+          if (this.user.password) {
+            requestData.password = this.user.password;
+          }
           const response = await updateUserInfo(cacheUserID, requestData);
           if (response.code === 200) {
             uni.showToast({ title: "保存成功", icon: "success" });
             this.originalUser = { ...this.user };
+            this.user.password = "";
+            this.user.confirmPassword = "";
+            setTimeout(() => {
+              uni.navigateTo({
+                url: "/pages/index/person"
+              });
+            }, 2e3);
           } else {
             throw new Error(response.message || "保存失败");
           }
         } catch (error2) {
-          formatAppLog("error", "at pages/index/info_manage.vue:205", "保存失败:", error2);
+          formatAppLog("error", "at pages/index/info_manage.vue:289", "保存失败:", error2);
           uni.showToast({
             title: error2.message || "保存失败，请重试",
             icon: "none"
@@ -5881,6 +5920,25 @@ if (uni.restoreGlobal) {
               [vue.vModelText, $data.user.username]
             ])
           ]),
+          vue.createCommentVNode(" 新增性别选择 "),
+          vue.createElementVNode("div", { class: "form-group" }, [
+            vue.createElementVNode("label", { for: "gender" }, "性别"),
+            vue.createElementVNode("picker", {
+              mode: "selector",
+              range: $data.genderList,
+              "range-key": "name",
+              onChange: _cache[3] || (_cache[3] = (...args) => $options.handleGenderChange && $options.handleGenderChange(...args)),
+              class: "info-picker"
+            }, [
+              vue.createElementVNode(
+                "view",
+                { class: "picker-text" },
+                vue.toDisplayString($data.user.gender || "请选择性别"),
+                1
+                /* TEXT */
+              )
+            ], 40, ["range"])
+          ]),
           vue.createElementVNode("div", { class: "form-group" }, [
             vue.createElementVNode("label", { for: "contact" }, "联系方式"),
             vue.withDirectives(vue.createElementVNode(
@@ -5888,7 +5946,7 @@ if (uni.restoreGlobal) {
               {
                 type: "tel",
                 id: "contact",
-                "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $data.user.contact = $event),
+                "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => $data.user.contact = $event),
                 placeholder: "请输入手机号",
                 pattern: "[0-9]{11}",
                 style: { "width": "80%" }
@@ -5900,9 +5958,48 @@ if (uni.restoreGlobal) {
               [vue.vModelText, $data.user.contact]
             ])
           ]),
+          vue.createCommentVNode(" 新增密码修改 "),
+          vue.createElementVNode("div", { class: "form-group" }, [
+            vue.createElementVNode("label", { for: "password" }, "新密码"),
+            vue.withDirectives(vue.createElementVNode(
+              "input",
+              {
+                id: "password",
+                "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => $data.user.password = $event),
+                type: "password",
+                class: "input",
+                placeholder: "留空则不修改密码",
+                style: { "width": "80%" }
+              },
+              null,
+              512
+              /* NEED_PATCH */
+            ), [
+              [vue.vModelText, $data.user.password]
+            ])
+          ]),
+          vue.createElementVNode("div", { class: "form-group" }, [
+            vue.createElementVNode("label", { for: "confirmPassword" }, "确认新密码"),
+            vue.withDirectives(vue.createElementVNode(
+              "input",
+              {
+                id: "confirmPassword",
+                "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => $data.user.confirmPassword = $event),
+                type: "password",
+                class: "input",
+                placeholder: "再次输入新密码",
+                style: { "width": "80%" }
+              },
+              null,
+              512
+              /* NEED_PATCH */
+            ), [
+              [vue.vModelText, $data.user.confirmPassword]
+            ])
+          ]),
           vue.createElementVNode("button", {
             class: "save-btn",
-            onClick: _cache[4] || (_cache[4] = (...args) => $options.saveProfile && $options.saveProfile(...args))
+            onClick: _cache[7] || (_cache[7] = (...args) => $options.saveProfile && $options.saveProfile(...args))
           }, "保存修改")
         ])
       ])

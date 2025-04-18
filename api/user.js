@@ -2,6 +2,7 @@ import { get, post } from '@/utils/request.js'
 
 /**
  * 获取当前用户基本信息
+ * @param {number} userId - 用户ID
  * @returns {Promise<UserInfo>}
  */
 export const fetchUserBaseInfo = (userId) => {
@@ -16,18 +17,7 @@ export const fetchUserBaseInfo = (userId) => {
     })
     .catch(error => {
       console.error('Error fetching user base info:', error);
-      // 可以选择以下任一处理方式：
-      // 1. 抛出错误给调用者处理
       throw error;
-      
-      // 2. 返回一个默认值或错误对象
-      // return {
-      //   error: 'Failed to fetch user info',
-      //   details: error.message
-      // };
-      
-      // 3. 返回null或undefined
-      // return null;
     });
 };
 
@@ -54,10 +44,8 @@ export const fetchUserModifiableData = (userId) => {
   return get(`/user/${userId}/modifiable_data`).then(res => {
     return {
       ...res.data,
-	  gender: res.data.gender === '男' ? 'male' : 'female',
-	  avatar: res.data.avatar || getDefaultAvatar() 
+      avatar: res.data.avatar || getDefaultAvatar() 
     };
-	
   });
 };
 
@@ -71,11 +59,8 @@ export const fetchCars = (userId) => {
     return {
       ...res.data
     };
-	
   });
 };
-
-
 
 /**
  * 更新用户信息
@@ -122,11 +107,11 @@ export const fetchBasicUserInfo = () => {
 
 /**
  * 获取用户默认头像
+ * @returns {string}
  */
-export const getUserDefaultAvatar = () => {
-	return '../../static/user.jpeg';
+export const getDefaultAvatar = () => {
+  return '../../static/user.jpeg';
 }
-
 
 // 类型定义
 /**

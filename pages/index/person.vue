@@ -14,7 +14,7 @@
           <view class="flex-row items-center self-stretch user-info">
                          <image 
                            class="gender-icon"
-                           :src="user.gender === '男' ? '../../static/male.png' : '../../static/female.png'"
+                           :src="(user.gender === '男'||user.gender === 'male') ? '../../static/male.png' : '../../static/female.png'"
                          />
             <text class="user-age">{{ user.age }}岁</text>
           </view>
