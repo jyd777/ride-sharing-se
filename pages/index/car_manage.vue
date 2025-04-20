@@ -36,18 +36,32 @@
       <div class="modal-content">
         <span class="close" @click="closeModal">&times;</span>
         <h2 style="margin-bottom:20px;">{{ modalTitle }}</h2>
-        <form @submit.prevent="handleSubmit">
+        <div class="form-container">
           <div class="form-group">
             <label for="plateNumber">车牌号码:</label>
             <div class="plate-input-group">
-              <select v-model="plateInputs[0]" class="plate-select" required>
-                <option value="" disabled selected>省份</option>
-                <option v-for="prov in provinces" :key="prov" :value="prov">{{ prov }}</option>
-              </select>
-              <select v-model="plateInputs[1]" class="plate-select" required>
-                <option value="" disabled selected>字母</option>
-                <option v-for="ln in lettersNumbers" :key="ln" :value="ln">{{ ln }}</option>
-              </select>
+				<picker 
+				  mode="selector" 
+				  :range="provinces" 
+				  @change="onProvinceChange"
+				  class="plate-picker"
+				>
+				  <div class="picker-content">
+					{{ plateInputs[0] || '省份' }}
+				  </div>
+				</picker>
+				
+				<!-- 字母选择器 -->
+				<picker 
+				  mode="selector" 
+				  :range="lettersNumbers" 
+				  @change="onLetterChange"
+				  class="plate-picker"
+				>
+				  <div class="picker-content">
+					{{ plateInputs[1] || '字母' }}
+				  </div>
+				</picker>
               <input type="text" v-model="plateInputs[2]" class="plate-input" maxlength="1" pattern="[A-Z0-9]" placeholder="A" required>
               <input type="text" v-model="plateInputs[3]" class="plate-input" maxlength="1" pattern="[A-Z0-9]" placeholder="1" required>
               <input type="text" v-model="plateInputs[4]" class="plate-input" maxlength="1" pattern="[A-Z0-9]" placeholder="2" required>
@@ -55,17 +69,19 @@
               <input type="text" v-model="plateInputs[6]" class="plate-input" maxlength="1" pattern="[A-Z0-9]" placeholder="4" required>
             </div>
           </div>
-          <div class="form-group">
-            <label for="plateColor">车牌颜色:</label>
-            <select v-model="plateColor" id="plateColor" class="color-select" required>
-              <option v-for="(colorValue, colorName) in colorMap" 
-                      :key="colorName" 
-                      :value="colorName"
-                      :style="{ backgroundColor: colorValue }">
-                {{ getColorName(colorName) }}
-              </option>
-            </select>
-          </div>
+			<div class="form-group">
+			  <label for="plateColor">车牌颜色:</label>
+			  <picker 
+				mode="selector" 
+				:range="colorOptions" 
+				@change="onColorChange"
+				class="color-picker"
+			  >
+				<div class="picker-content">  <!-- 移除动态颜色样式 -->
+				  {{ getColorName(plateColor) || '选择颜色' }}
+				</div>
+			  </picker>
+			</div>
           <div class="form-group">
             <label for="carModel">车辆型号:</label>
             <input type="text" 
@@ -87,8 +103,8 @@
                    required
                    @keypress="validateNumberInput">
           </div>
-          <button type="submit" class="confirm-btn">{{ submitButtonText }}</button>
-        </form>
+          <button class="confirm-btn" @click="handleButtonClick">{{ submitButtonText }}</button>
+        </div>
       </div>
     </div>
   </div>
@@ -96,8 +112,14 @@
 
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
-import {get} from '@/utils/request.js';
+import {get, post, put, del} from '@/utils/request.js';
 import {fetchCars} from '../../api/user';  
+import {
+  addCar,
+  updateCar,
+  unbindCar,
+  validatePlateNumber
+} from '../../api/car'; 
 export default {
   components: {
     NavigationBar
@@ -120,7 +142,7 @@ export default {
       lettersNumbers: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split(''),
       plateInputs: Array(7).fill(''),
       plateColor: 'blue',
-      carModel: '',
+      colorOptions: ['蓝牌', '黄牌', '白牌', '黑牌', '绿牌', '黄绿牌', '临牌'],
       colorMap: {
         blue: '#1E90FF',
         yellow: '#FFD700',
@@ -131,13 +153,27 @@ export default {
         temporary: '#FFA500'
       },
       isLoading: false,
-      seatCount: 4
+      seatCount: 4,
     };
   },
   mounted() {
     this.fetchUserCars();
   },
   methods: {
+	  // 颜色选择变化
+    onColorChange(e) {
+      const colorKeys = Object.keys(this.colorMap);
+      this.plateColor = colorKeys[e.detail.value];
+    },
+	  // 省份选择变化
+	  onProvinceChange(e) {
+		this.plateInputs[0] = this.provinces[e.detail.value];
+	  },
+	  
+	  // 字母选择变化
+	  onLetterChange(e) {
+		this.plateInputs[1] = this.lettersNumbers[e.detail.value];
+	  },
     getColorName(colorName) {
       const map = {
         'yellow-green': '黄绿牌',
@@ -240,176 +276,209 @@ export default {
 		this.isLoading = false;
 	  }
 	},   
-    handleSubmit() {
-      if (this.isEditing) {
-        this.updatePlate();
+  // 新的按钮点击处理方法
+  handleButtonClick() {
+    // 执行表单验证
+    if (!this.validateForm()) {
+      return;
+    }
+    
+    // 根据模式调用不同方法
+    if (this.isEditing) {
+      this.updatePlate();
+    } else {
+      this.addPlate();
+    }
+  },
+  
+  // 表单验证方法
+  validateForm() {
+    const plateNumber = this.plateInputs.join('');
+    
+    // 车牌号验证
+    if (!validatePlateNumber(plateNumber)) {
+      uni.showToast({
+        title: '请输入有效的车牌号',
+        icon: 'none',
+        duration: 2000
+      });
+      return false;
+    }
+    
+    // 必填字段验证
+    if (!this.plateColor || !this.carModel || !this.seatCount) {
+      uni.showToast({
+        title: '请填写完整信息',
+        icon: 'none',
+        duration: 2000
+      });
+      return false;
+    }
+    
+    return true;
+  },
+    
+  // 修改 addPlate 方法
+  async addPlate() {
+    const plateNumber = this.plateInputs.join('');
+    if (!validatePlateNumber(plateNumber)) {
+      uni.showToast({
+        title: '请输入有效的车牌号',
+        icon: 'none',
+        duration: 2000
+      });
+      return;
+    }
+
+    this.isLoading = true;
+    
+    try {
+      const userId = uni.getStorageSync('user_id');
+      const res = await addCar(userId, {
+        number: plateNumber,
+        color: this.plateColor,
+        model: this.carModel,
+        seats: this.seatCount
+      });
+      
+      let failMsg = '车辆信息不匹配';
+      console.log(res.message);
+      if (res.message === '车辆信息不匹配') {
+        failMsg = '车辆信息不匹配';
+        uni.showToast({
+          title: failMsg,
+          icon: 'none',
+          duration: 2000
+        });
       } else {
-        this.addPlate();
-      }
-    },
-    
-    async addPlate() {
-      const plateNumber = this.plateInputs.join('');
-      const plateColor = this.plateColor;
-      const carModel = this.carModel;
-      const seatCount = this.seatCount;
-      
-      if (!this.validatePlateNumber(plateNumber)) {
-        uni.showToast({
-          title: '请输入有效的车牌号',
-          icon: 'none',
-          duration: 2000
-        });
-        return;
-      }
-
-      this.isLoading = true;
-      
-      try {
-        const res = await post('/user/cars', {
-          number: plateNumber,
-          color: plateColor,
-          model: carModel,
-          seats: seatCount
-        }, {
-          showLoading: true,
-          loadingText: "正在添加车辆..."
-        });
-        
-        if (res.code === 409) {
-          uni.showToast({
-            title: '该车牌已存在',
-            icon: 'none',
-            duration: 2000
-          });
-          return;
+        let successMsg = '添加成功';
+        if (res.message === '关联成功') {
+          successMsg = '关联成功';
+        } else if (res.message === '车辆已关联') {
+          successMsg = '该车辆已关联';
         }
         
         uni.showToast({
-          title: '添加成功',
+          title: successMsg,
+          icon: 'success',
           duration: 2000
         });
         
-        // 刷新车辆列表
         await this.fetchUserCars();
-        
-      } catch (error) {
-        console.error('添加车牌失败:', error);
-        uni.showToast({
-          title: '操作失败，请稍后重试',
-          icon: 'none',
-          duration: 2000
-        });
-      } finally {
-        this.closeModal();
-        this.isLoading = false;
       }
-    },
-    async updatePlate() {
-      const plateNumber = this.plateInputs.join('');
-      const plateColor = this.plateColor;
-      const carModel = this.carModel;
-      const seatCount = this.seatCount;
-      
-      if (!this.validatePlateNumber(plateNumber)) {
-        uni.showToast({
-          title: '请输入有效的车牌号',
-          icon: 'none',
-          duration: 2000
-        });
-        return;
-      }
+    } catch (error) {
+      console.error('操作失败:', error);
+      uni.showToast({
+        title: '操作失败，请稍后重试',
+        icon: 'none',
+        duration: 2000
+      });
+    } finally {
+      this.closeModal();
+      this.isLoading = false;
+    }
+  },
 
-      this.isLoading = true;
-      
-      try {
-        const res = await put(`/user/cars/${this.editingPlateNumber}`, {
-          number: plateNumber,
-          color: plateColor,
-          model: carModel,
-          seats: seatCount
-        }, {
-          showLoading: true,
-          loadingText: "正在更新车辆信息..."
-        });
-        
-        if (res.code === 409) {
-          uni.showToast({
-            title: '该车牌已存在',
-            icon: 'none',
-            duration: 2000
-          });
-          return;
-        }
-        
+  // 修改 updatePlate 方法
+  async updatePlate() {
+    const plateNumber = this.plateInputs.join('');
+    if (!validatePlateNumber(plateNumber)) {
+      uni.showToast({
+        title: '请输入有效的车牌号',
+        icon: 'none',
+        duration: 2000
+      });
+      return;
+    }
+
+    this.isLoading = true;
+    
+    try {
+      const userId = uni.getStorageSync('user_id');
+      const res = await updateCar(userId, this.editingPlateNumber, {
+        number: plateNumber,
+        color: this.plateColor,
+        model: this.carModel,
+        seats: this.seatCount
+      });
+
+      let failMsg = '车辆信息不匹配';
+      console.log(res.message);
+      if (res.message === '车辆信息不匹配') {
+        failMsg = '车辆信息不匹配';
         uni.showToast({
-          title: '修改成功',
-          duration: 2000
-        });
-        
-        // 刷新车辆列表
-        await this.fetchUserCars();
-        
-      } catch (error) {
-        console.error('修改车牌失败:', error);
-        uni.showToast({
-          title: '操作失败，请稍后重试',
+          title: failMsg,
           icon: 'none',
           duration: 2000
         });
-      } finally {
-        this.closeModal();
-        this.isLoading = false;
-      }
-    },
-    validatePlateNumber(plateNumber) {
-      // 基本格式验证
-      const pattern = /^[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼使领][A-HJ-NP-Z][A-HJ-NP-Z0-9]{4,5}[A-HJ-NP-Z0-9挂学警港澳]$/;
-      return pattern.test(plateNumber);
-    },
-    
-    validateNumberInput(event) {
-      const keyCode = event.keyCode;
-      // 只允许数字输入 (0-9) 和退格键(8)、Tab键(9)
-      if ((keyCode < 48 || keyCode > 57) && keyCode !== 8 && keyCode !== 9) {
-        event.preventDefault();
-      }
-    },
-    
-    unbindCar(plateNumber) {
-      uni.showModal({
-        title: '提示',
-        content: '确定要解绑车牌吗？',
-        success: async (res) => {
-          if (res.confirm) {
-            this.isLoading = true;
-            try {
-              const response = await del(`/user/cars/${plateNumber}`, {}, {
-                showLoading: true,
-                loadingText: "正在解绑车辆..."
-              });
-              
-              if (response.success) {
-                uni.showToast({
-                  title: '解绑成功',
-                  duration: 2000
-                });
-                await this.fetchUserCars();
-              }
-            } catch (error) {
-              console.error('解绑车牌失败:', error);
+      } else {
+        let successMsg = '修改成功';
+        if (res.message === '合并成功') {
+          successMsg = '车辆信息已合并';
+        }
+        console.log("ok");
+        uni.showToast({
+          title: successMsg,
+          icon: 'success',
+          duration: 2000
+        });
+        
+        await this.fetchUserCars();
+      }    
+    } catch (error) {
+      console.error('修改车牌失败:', error);
+      uni.showToast({
+        title: '操作失败，请稍后重试',
+        icon: 'none',
+        duration: 2000
+      });
+    } finally {
+      this.closeModal();
+      this.isLoading = false;
+    }
+  },
+
+  // 修改 unbindCar 方法
+  unbindCar(plateNumber) {
+    uni.showModal({
+      title: '提示',
+      content: '确定要解绑车牌吗？',
+      success: async (res) => {
+        if (res.confirm) {
+          this.isLoading = true;
+          try {
+            const userId = uni.getStorageSync('user_id');
+            const response = await unbindCar(userId, plateNumber);
+            
+            if (response.code === 200) {
               uni.showToast({
-                title: '操作失败，请稍后重试',
+                title: '解绑成功',
+                icon: 'success',
+                duration: 2000
+              });
+              await this.fetchUserCars();
+            } else {
+              uni.showToast({
+                title: response.message || '解绑失败',
                 icon: 'none',
                 duration: 2000
               });
-            } finally {
-              this.isLoading = false;
             }
+          } catch (error) {
+            console.error('解绑车牌失败:', error);
+            uni.showToast({
+              title: '操作失败，请稍后重试',
+              icon: 'none',
+              duration: 2000
+            });
+          } finally {
+            this.isLoading = false;
           }
         }
-      });
-    }
+      }
+    });
+  },
+
   }
 };
 </script>
@@ -641,5 +710,39 @@ input[type="number"]::-webkit-outer-spin-button {
 
 .confirm-btn:hover {
   background-color: #0062cc;
+}
+
+/* 添加 picker 相关样式 */
+.plate-picker {
+  height: 30px;
+  min-width: 30px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  margin-right: 5px;
+}
+
+.picker-content {
+  font-size: 14px;
+  color: #333;
+}
+
+/* 确保输入框对齐 */
+.plate-input-group {
+  display: flex;
+  align-items: center;
+}
+
+.color-picker {
+  width: 93.5%;
+  height: 40px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
 }
 </style>

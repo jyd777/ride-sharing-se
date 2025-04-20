@@ -212,8 +212,10 @@ export const post = (url, data = {}, options = {}) =>
  * @param {Object} data - 请求体数据
  * @param {Object} [options] - 额外配置
  */
+	
 export const put = (url, data = {}, options = {}) =>
-  request({ url, data, method: 'PUT', ...options })
+	request({ url, data, method: 'PUT', ...options });
+
 
 /**
  * DELETE请求
@@ -282,6 +284,7 @@ function handleNetworkError(statusCode) {
     401: '未授权',
     403: '禁止访问',
     404: '资源不存在',
+	409: '信息不匹配',
     500: '服务器内部错误',
     502: '网关错误'
   };
@@ -307,6 +310,10 @@ function handleBusinessCode(data) {
     case 403: // 无权限
       showToast('无访问权限');
       return Promise.reject(new Error('无权限'));
+	  
+	case 409: // 信息不匹配
+	  showToast('信息不匹配');
+	  return Promise.reject(new Error('信息不匹配'));  
       
     default:   // 其他业务错误
       const errMsg = data?.message || `业务错误[${data?.code}]`;

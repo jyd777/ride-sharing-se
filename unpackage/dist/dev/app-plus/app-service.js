@@ -119,7 +119,9 @@ if (uni.restoreGlobal) {
     });
   };
   const get = (url, data = {}, options = {}) => request({ url, data, method: "GET", ...options });
-  const post$1 = (url, data = {}, options = {}) => request({ url, data, method: "POST", ...options });
+  const post = (url, data = {}, options = {}) => request({ url, data, method: "POST", ...options });
+  const put = (url, data = {}, options = {}) => request({ url, data, method: "PUT", ...options });
+  const del = (url, data = {}, options = {}) => request({ url, data, method: "DELETE", ...options });
   function showToast(message) {
     uni.showToast({
       title: message,
@@ -146,6 +148,7 @@ if (uni.restoreGlobal) {
       401: "未授权",
       403: "禁止访问",
       404: "资源不存在",
+      409: "信息不匹配",
       500: "服务器内部错误",
       502: "网关错误"
     };
@@ -163,6 +166,9 @@ if (uni.restoreGlobal) {
       case 403:
         showToast("无访问权限");
         return Promise.reject(new Error("无权限"));
+      case 409:
+        showToast("信息不匹配");
+        return Promise.reject(new Error("信息不匹配"));
       default:
         const errMsg = (data == null ? void 0 : data.message) || `业务错误[${data == null ? void 0 : data.code}]`;
         showToast(errMsg);
@@ -176,7 +182,7 @@ if (uni.restoreGlobal) {
       * @returns Promise
       */
     register(data) {
-      return post$1("/auth/register", data, {
+      return post("/auth/register", data, {
         showLoading: true,
         loadingText: "正在注册..."
       });
@@ -187,7 +193,7 @@ if (uni.restoreGlobal) {
          * @returns Promise
          */
     login(data) {
-      return post$1("/auth/login", data, {
+      return post("/auth/login", data, {
         showLoading: true,
         loadingText: "正在登录..."
       });
@@ -1395,7 +1401,7 @@ if (uni.restoreGlobal) {
     });
   };
   const updateUserInfo = (userId, data) => {
-    return post$1(`/user/update/${userId}`, data, {
+    return post(`/user/update/${userId}`, data, {
       showLoading: true,
       loadingText: "正在更新用户信息..."
     }).then((res) => {
@@ -1406,7 +1412,7 @@ if (uni.restoreGlobal) {
     });
   };
   const uploadUserAvatar = (userId, base64Data) => {
-    return post$1(`/user/upload_avatar/${userId}`, {
+    return post(`/user/upload_avatar/${userId}`, {
       base64_data: base64Data
     }, {
       showLoading: true,
@@ -1420,6 +1426,46 @@ if (uni.restoreGlobal) {
   };
   const getDefaultAvatar = () => {
     return "../../static/user.jpeg";
+  };
+  const addCar = async (userId, carData) => {
+    try {
+      const res = await post(`/user/cars/${userId}`, carData, {
+        showLoading: true,
+        loadingText: "正在添加车辆..."
+      });
+      return res;
+    } catch (error2) {
+      formatAppLog("error", "at api/car.js:13", "添加车辆失败:", error2);
+      throw error2;
+    }
+  };
+  const updateCar = async (userId, oldPlateNumber, carData) => {
+    try {
+      const res = await put(`/user/cars/${userId}/${oldPlateNumber}`, carData, {
+        showLoading: true,
+        loadingText: "正在更新车辆信息..."
+      });
+      return res;
+    } catch (error2) {
+      formatAppLog("error", "at api/car.js:27", "更新车辆失败:", error2);
+      throw error2;
+    }
+  };
+  const unbindCar = async (userId, plateNumber) => {
+    try {
+      const res = await del(`/user/cars/${userId}/${plateNumber}`, {}, {
+        showLoading: true,
+        loadingText: "正在解绑车辆..."
+      });
+      return res;
+    } catch (error2) {
+      formatAppLog("error", "at api/car.js:41", "解绑车辆失败:", error2);
+      throw error2;
+    }
+  };
+  const validatePlateNumber = (plateNumber) => {
+    const pattern = /^[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼使领][A-HJ-NP-Z]([A-HJ-NP-Z0-9]{4}[A-HJ-NP-Z0-9挂学警港澳]|[0-9]{5})$/;
+    return pattern.test(plateNumber);
   };
   const _sfc_main$a = {
     components: {
@@ -1443,7 +1489,7 @@ if (uni.restoreGlobal) {
         lettersNumbers: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".split(""),
         plateInputs: Array(7).fill(""),
         plateColor: "blue",
-        carModel: "",
+        colorOptions: ["蓝牌", "黄牌", "白牌", "黑牌", "绿牌", "黄绿牌", "临牌"],
         colorMap: {
           blue: "#1E90FF",
           yellow: "#FFD700",
@@ -1461,6 +1507,19 @@ if (uni.restoreGlobal) {
       this.fetchUserCars();
     },
     methods: {
+      // 颜色选择变化
+      onColorChange(e) {
+        const colorKeys = Object.keys(this.colorMap);
+        this.plateColor = colorKeys[e.detail.value];
+      },
+      // 省份选择变化
+      onProvinceChange(e) {
+        this.plateInputs[0] = this.provinces[e.detail.value];
+      },
+      // 字母选择变化
+      onLetterChange(e) {
+        this.plateInputs[1] = this.lettersNumbers[e.detail.value];
+      },
       getColorName(colorName) {
         const map = {
           "yellow-green": "黄绿牌",
@@ -1514,10 +1573,10 @@ if (uni.restoreGlobal) {
         try {
           const userId = uni.getStorageSync("user_id");
           const res = await fetchCars(userId);
-          formatAppLog("log", "at pages/index/car_manage.vue:199", "fetch car res", res);
+          formatAppLog("log", "at pages/index/car_manage.vue:235", "fetch car res", res);
           if (!res || typeof res !== "object") {
             this.userCars = [];
-            formatAppLog("log", "at pages/index/car_manage.vue:204", "没有车辆数据或数据格式不正确");
+            formatAppLog("log", "at pages/index/car_manage.vue:240", "没有车辆数据或数据格式不正确");
             return;
           }
           const carsArray = Object.values(res);
@@ -1530,7 +1589,7 @@ if (uni.restoreGlobal) {
             seats: car.seats || 4
             // 默认座位数
           }));
-          formatAppLog("log", "at pages/index/car_manage.vue:220", this.userCars);
+          formatAppLog("log", "at pages/index/car_manage.vue:256", this.userCars);
           if (this.userCars.length === 0) {
             uni.showToast({
               title: "您还没有添加车辆，请点击下方按钮添加",
@@ -1539,7 +1598,7 @@ if (uni.restoreGlobal) {
             });
           }
         } catch (error2) {
-          formatAppLog("error", "at pages/index/car_manage.vue:231", "获取车辆列表失败:", error2);
+          formatAppLog("error", "at pages/index/car_manage.vue:267", "获取车辆列表失败:", error2);
           this.userCars = [];
           uni.showToast({
             title: "获取车辆列表失败，请稍后重试",
@@ -1550,19 +1609,42 @@ if (uni.restoreGlobal) {
           this.isLoading = false;
         }
       },
-      handleSubmit() {
+      // 新的按钮点击处理方法
+      handleButtonClick() {
+        if (!this.validateForm()) {
+          return;
+        }
         if (this.isEditing) {
           this.updatePlate();
         } else {
           this.addPlate();
         }
       },
+      // 表单验证方法
+      validateForm() {
+        const plateNumber = this.plateInputs.join("");
+        if (!validatePlateNumber(plateNumber)) {
+          uni.showToast({
+            title: "请输入有效的车牌号",
+            icon: "none",
+            duration: 2e3
+          });
+          return false;
+        }
+        if (!this.plateColor || !this.carModel || !this.seatCount) {
+          uni.showToast({
+            title: "请填写完整信息",
+            icon: "none",
+            duration: 2e3
+          });
+          return false;
+        }
+        return true;
+      },
+      // 修改 addPlate 方法
       async addPlate() {
         const plateNumber = this.plateInputs.join("");
-        const plateColor = this.plateColor;
-        const carModel = this.carModel;
-        const seatCount = this.seatCount;
-        if (!this.validatePlateNumber(plateNumber)) {
+        if (!validatePlateNumber(plateNumber)) {
           uni.showToast({
             title: "请输入有效的车牌号",
             icon: "none",
@@ -1572,30 +1654,38 @@ if (uni.restoreGlobal) {
         }
         this.isLoading = true;
         try {
-          const res = await post("/user/cars", {
+          const userId = uni.getStorageSync("user_id");
+          const res = await addCar(userId, {
             number: plateNumber,
-            color: plateColor,
-            model: carModel,
-            seats: seatCount
-          }, {
-            showLoading: true,
-            loadingText: "正在添加车辆..."
+            color: this.plateColor,
+            model: this.carModel,
+            seats: this.seatCount
           });
-          if (res.code === 409) {
+          let failMsg = "车辆信息不匹配";
+          formatAppLog("log", "at pages/index/car_manage.vue:345", res.message);
+          if (res.message === "车辆信息不匹配") {
+            failMsg = "车辆信息不匹配";
             uni.showToast({
-              title: "该车牌已存在",
+              title: failMsg,
               icon: "none",
               duration: 2e3
             });
-            return;
+          } else {
+            let successMsg = "添加成功";
+            if (res.message === "关联成功") {
+              successMsg = "关联成功";
+            } else if (res.message === "车辆已关联") {
+              successMsg = "该车辆已关联";
+            }
+            uni.showToast({
+              title: successMsg,
+              icon: "success",
+              duration: 2e3
+            });
+            await this.fetchUserCars();
           }
-          uni.showToast({
-            title: "添加成功",
-            duration: 2e3
-          });
-          await this.fetchUserCars();
         } catch (error2) {
-          formatAppLog("error", "at pages/index/car_manage.vue:297", "添加车牌失败:", error2);
+          formatAppLog("error", "at pages/index/car_manage.vue:370", "操作失败:", error2);
           uni.showToast({
             title: "操作失败，请稍后重试",
             icon: "none",
@@ -1606,12 +1696,10 @@ if (uni.restoreGlobal) {
           this.isLoading = false;
         }
       },
+      // 修改 updatePlate 方法
       async updatePlate() {
         const plateNumber = this.plateInputs.join("");
-        const plateColor = this.plateColor;
-        const carModel = this.carModel;
-        const seatCount = this.seatCount;
-        if (!this.validatePlateNumber(plateNumber)) {
+        if (!validatePlateNumber(plateNumber)) {
           uni.showToast({
             title: "请输入有效的车牌号",
             icon: "none",
@@ -1621,30 +1709,37 @@ if (uni.restoreGlobal) {
         }
         this.isLoading = true;
         try {
-          const res = await put(`/user/cars/${this.editingPlateNumber}`, {
+          const userId = uni.getStorageSync("user_id");
+          const res = await updateCar(userId, this.editingPlateNumber, {
             number: plateNumber,
-            color: plateColor,
-            model: carModel,
-            seats: seatCount
-          }, {
-            showLoading: true,
-            loadingText: "正在更新车辆信息..."
+            color: this.plateColor,
+            model: this.carModel,
+            seats: this.seatCount
           });
-          if (res.code === 409) {
+          let failMsg = "车辆信息不匹配";
+          formatAppLog("log", "at pages/index/car_manage.vue:406", res.message);
+          if (res.message === "车辆信息不匹配") {
+            failMsg = "车辆信息不匹配";
             uni.showToast({
-              title: "该车牌已存在",
+              title: failMsg,
               icon: "none",
               duration: 2e3
             });
-            return;
+          } else {
+            let successMsg = "修改成功";
+            if (res.message === "合并成功") {
+              successMsg = "车辆信息已合并";
+            }
+            formatAppLog("log", "at pages/index/car_manage.vue:419", "ok");
+            uni.showToast({
+              title: successMsg,
+              icon: "success",
+              duration: 2e3
+            });
+            await this.fetchUserCars();
           }
-          uni.showToast({
-            title: "修改成功",
-            duration: 2e3
-          });
-          await this.fetchUserCars();
         } catch (error2) {
-          formatAppLog("error", "at pages/index/car_manage.vue:354", "修改车牌失败:", error2);
+          formatAppLog("error", "at pages/index/car_manage.vue:429", "修改车牌失败:", error2);
           uni.showToast({
             title: "操作失败，请稍后重试",
             icon: "none",
@@ -1655,16 +1750,7 @@ if (uni.restoreGlobal) {
           this.isLoading = false;
         }
       },
-      validatePlateNumber(plateNumber) {
-        const pattern = /^[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼使领][A-HJ-NP-Z][A-HJ-NP-Z0-9]{4,5}[A-HJ-NP-Z0-9挂学警港澳]$/;
-        return pattern.test(plateNumber);
-      },
-      validateNumberInput(event) {
-        const keyCode = event.keyCode;
-        if ((keyCode < 48 || keyCode > 57) && keyCode !== 8 && keyCode !== 9) {
-          event.preventDefault();
-        }
-      },
+      // 修改 unbindCar 方法
       unbindCar(plateNumber) {
         uni.showModal({
           title: "提示",
@@ -1673,19 +1759,24 @@ if (uni.restoreGlobal) {
             if (res.confirm) {
               this.isLoading = true;
               try {
-                const response = await del(`/user/cars/${plateNumber}`, {}, {
-                  showLoading: true,
-                  loadingText: "正在解绑车辆..."
-                });
-                if (response.success) {
+                const userId = uni.getStorageSync("user_id");
+                const response = await unbindCar(userId, plateNumber);
+                if (response.code === 200) {
                   uni.showToast({
                     title: "解绑成功",
+                    icon: "success",
                     duration: 2e3
                   });
                   await this.fetchUserCars();
+                } else {
+                  uni.showToast({
+                    title: response.message || "解绑失败",
+                    icon: "none",
+                    duration: 2e3
+                  });
                 }
               } catch (error2) {
-                formatAppLog("error", "at pages/index/car_manage.vue:400", "解绑车牌失败:", error2);
+                formatAppLog("error", "at pages/index/car_manage.vue:468", "解绑车牌失败:", error2);
                 uni.showToast({
                   title: "操作失败，请稍后重试",
                   icon: "none",
@@ -1799,255 +1890,201 @@ if (uni.restoreGlobal) {
             1
             /* TEXT */
           ),
-          vue.createElementVNode(
-            "form",
-            {
-              onSubmit: _cache[13] || (_cache[13] = vue.withModifiers((...args) => $options.handleSubmit && $options.handleSubmit(...args), ["prevent"]))
-            },
-            [
-              vue.createElementVNode("div", { class: "form-group" }, [
-                vue.createElementVNode("label", { for: "plateNumber" }, "车牌号码:"),
-                vue.createElementVNode("div", { class: "plate-input-group" }, [
-                  vue.withDirectives(vue.createElementVNode(
-                    "select",
-                    {
-                      "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => $data.plateInputs[0] = $event),
-                      class: "plate-select",
-                      required: ""
-                    },
-                    [
-                      vue.createElementVNode("option", {
-                        value: "",
-                        disabled: "",
-                        selected: ""
-                      }, "省份"),
-                      (vue.openBlock(true), vue.createElementBlock(
-                        vue.Fragment,
-                        null,
-                        vue.renderList($data.provinces, (prov) => {
-                          return vue.openBlock(), vue.createElementBlock("option", {
-                            key: prov,
-                            value: prov
-                          }, vue.toDisplayString(prov), 9, ["value"]);
-                        }),
-                        128
-                        /* KEYED_FRAGMENT */
-                      ))
-                    ],
-                    512
-                    /* NEED_PATCH */
-                  ), [
-                    [vue.vModelSelect, $data.plateInputs[0]]
-                  ]),
-                  vue.withDirectives(vue.createElementVNode(
-                    "select",
-                    {
-                      "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $data.plateInputs[1] = $event),
-                      class: "plate-select",
-                      required: ""
-                    },
-                    [
-                      vue.createElementVNode("option", {
-                        value: "",
-                        disabled: "",
-                        selected: ""
-                      }, "字母"),
-                      (vue.openBlock(true), vue.createElementBlock(
-                        vue.Fragment,
-                        null,
-                        vue.renderList($data.lettersNumbers, (ln) => {
-                          return vue.openBlock(), vue.createElementBlock("option", {
-                            key: ln,
-                            value: ln
-                          }, vue.toDisplayString(ln), 9, ["value"]);
-                        }),
-                        128
-                        /* KEYED_FRAGMENT */
-                      ))
-                    ],
-                    512
-                    /* NEED_PATCH */
-                  ), [
-                    [vue.vModelSelect, $data.plateInputs[1]]
-                  ]),
-                  vue.withDirectives(vue.createElementVNode(
-                    "input",
-                    {
-                      type: "text",
-                      "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => $data.plateInputs[2] = $event),
-                      class: "plate-input",
-                      maxlength: "1",
-                      pattern: "[A-Z0-9]",
-                      placeholder: "A",
-                      required: ""
-                    },
-                    null,
-                    512
-                    /* NEED_PATCH */
-                  ), [
-                    [vue.vModelText, $data.plateInputs[2]]
-                  ]),
-                  vue.withDirectives(vue.createElementVNode(
-                    "input",
-                    {
-                      type: "text",
-                      "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => $data.plateInputs[3] = $event),
-                      class: "plate-input",
-                      maxlength: "1",
-                      pattern: "[A-Z0-9]",
-                      placeholder: "1",
-                      required: ""
-                    },
-                    null,
-                    512
-                    /* NEED_PATCH */
-                  ), [
-                    [vue.vModelText, $data.plateInputs[3]]
-                  ]),
-                  vue.withDirectives(vue.createElementVNode(
-                    "input",
-                    {
-                      type: "text",
-                      "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => $data.plateInputs[4] = $event),
-                      class: "plate-input",
-                      maxlength: "1",
-                      pattern: "[A-Z0-9]",
-                      placeholder: "2",
-                      required: ""
-                    },
-                    null,
-                    512
-                    /* NEED_PATCH */
-                  ), [
-                    [vue.vModelText, $data.plateInputs[4]]
-                  ]),
-                  vue.withDirectives(vue.createElementVNode(
-                    "input",
-                    {
-                      type: "text",
-                      "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => $data.plateInputs[5] = $event),
-                      class: "plate-input",
-                      maxlength: "1",
-                      pattern: "[A-Z0-9]",
-                      placeholder: "3",
-                      required: ""
-                    },
-                    null,
-                    512
-                    /* NEED_PATCH */
-                  ), [
-                    [vue.vModelText, $data.plateInputs[5]]
-                  ]),
-                  vue.withDirectives(vue.createElementVNode(
-                    "input",
-                    {
-                      type: "text",
-                      "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => $data.plateInputs[6] = $event),
-                      class: "plate-input",
-                      maxlength: "1",
-                      pattern: "[A-Z0-9]",
-                      placeholder: "4",
-                      required: ""
-                    },
-                    null,
-                    512
-                    /* NEED_PATCH */
-                  ), [
-                    [vue.vModelText, $data.plateInputs[6]]
-                  ])
-                ])
-              ]),
-              vue.createElementVNode("div", { class: "form-group" }, [
-                vue.createElementVNode("label", { for: "plateColor" }, "车牌颜色:"),
-                vue.withDirectives(vue.createElementVNode(
-                  "select",
-                  {
-                    "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => $data.plateColor = $event),
-                    id: "plateColor",
-                    class: "color-select",
-                    required: ""
-                  },
-                  [
-                    (vue.openBlock(true), vue.createElementBlock(
-                      vue.Fragment,
-                      null,
-                      vue.renderList($data.colorMap, (colorValue, colorName) => {
-                        return vue.openBlock(), vue.createElementBlock("option", {
-                          key: colorName,
-                          value: colorName,
-                          style: vue.normalizeStyle({ backgroundColor: colorValue })
-                        }, vue.toDisplayString($options.getColorName(colorName)), 13, ["value"]);
-                      }),
-                      128
-                      /* KEYED_FRAGMENT */
-                    ))
-                  ],
-                  512
-                  /* NEED_PATCH */
-                ), [
-                  [vue.vModelSelect, $data.plateColor]
-                ])
-              ]),
-              vue.createElementVNode("div", { class: "form-group" }, [
-                vue.createElementVNode("label", { for: "carModel" }, "车辆型号:"),
+          vue.createElementVNode("div", { class: "form-container" }, [
+            vue.createElementVNode("div", { class: "form-group" }, [
+              vue.createElementVNode("label", { for: "plateNumber" }, "车牌号码:"),
+              vue.createElementVNode("div", { class: "plate-input-group" }, [
+                vue.createElementVNode("picker", {
+                  mode: "selector",
+                  range: $data.provinces,
+                  onChange: _cache[2] || (_cache[2] = (...args) => $options.onProvinceChange && $options.onProvinceChange(...args)),
+                  class: "plate-picker"
+                }, [
+                  vue.createElementVNode(
+                    "div",
+                    { class: "picker-content" },
+                    vue.toDisplayString($data.plateInputs[0] || "省份"),
+                    1
+                    /* TEXT */
+                  )
+                ], 40, ["range"]),
+                vue.createCommentVNode(" 字母选择器 "),
+                vue.createElementVNode("picker", {
+                  mode: "selector",
+                  range: $data.lettersNumbers,
+                  onChange: _cache[3] || (_cache[3] = (...args) => $options.onLetterChange && $options.onLetterChange(...args)),
+                  class: "plate-picker"
+                }, [
+                  vue.createElementVNode(
+                    "div",
+                    { class: "picker-content" },
+                    vue.toDisplayString($data.plateInputs[1] || "字母"),
+                    1
+                    /* TEXT */
+                  )
+                ], 40, ["range"]),
                 vue.withDirectives(vue.createElementVNode(
                   "input",
                   {
                     type: "text",
-                    "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => $data.carModel = $event),
-                    id: "carModel",
-                    class: "color-select",
-                    placeholder: "请输入车辆型号",
+                    "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => $data.plateInputs[2] = $event),
+                    class: "plate-input",
+                    maxlength: "1",
+                    pattern: "[A-Z0-9]",
+                    placeholder: "A",
                     required: ""
                   },
                   null,
                   512
                   /* NEED_PATCH */
                 ), [
-                  [vue.vModelText, $data.carModel]
-                ])
-              ]),
-              vue.createElementVNode("div", { class: "form-group" }, [
-                vue.createElementVNode("label", { for: "seatCount" }, "座位数量:"),
+                  [vue.vModelText, $data.plateInputs[2]]
+                ]),
                 vue.withDirectives(vue.createElementVNode(
                   "input",
                   {
-                    type: "number",
-                    "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => $data.seatCount = $event),
-                    id: "seatCount",
-                    class: "color-select",
-                    min: "1",
-                    max: "20",
-                    placeholder: "请输入座位数",
-                    required: "",
-                    onKeypress: _cache[12] || (_cache[12] = (...args) => $options.validateNumberInput && $options.validateNumberInput(...args))
+                    type: "text",
+                    "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => $data.plateInputs[3] = $event),
+                    class: "plate-input",
+                    maxlength: "1",
+                    pattern: "[A-Z0-9]",
+                    placeholder: "1",
+                    required: ""
                   },
                   null,
-                  544
-                  /* NEED_HYDRATION, NEED_PATCH */
+                  512
+                  /* NEED_PATCH */
                 ), [
-                  [
-                    vue.vModelText,
-                    $data.seatCount,
-                    void 0,
-                    { number: true }
-                  ]
+                  [vue.vModelText, $data.plateInputs[3]]
+                ]),
+                vue.withDirectives(vue.createElementVNode(
+                  "input",
+                  {
+                    type: "text",
+                    "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => $data.plateInputs[4] = $event),
+                    class: "plate-input",
+                    maxlength: "1",
+                    pattern: "[A-Z0-9]",
+                    placeholder: "2",
+                    required: ""
+                  },
+                  null,
+                  512
+                  /* NEED_PATCH */
+                ), [
+                  [vue.vModelText, $data.plateInputs[4]]
+                ]),
+                vue.withDirectives(vue.createElementVNode(
+                  "input",
+                  {
+                    type: "text",
+                    "onUpdate:modelValue": _cache[7] || (_cache[7] = ($event) => $data.plateInputs[5] = $event),
+                    class: "plate-input",
+                    maxlength: "1",
+                    pattern: "[A-Z0-9]",
+                    placeholder: "3",
+                    required: ""
+                  },
+                  null,
+                  512
+                  /* NEED_PATCH */
+                ), [
+                  [vue.vModelText, $data.plateInputs[5]]
+                ]),
+                vue.withDirectives(vue.createElementVNode(
+                  "input",
+                  {
+                    type: "text",
+                    "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => $data.plateInputs[6] = $event),
+                    class: "plate-input",
+                    maxlength: "1",
+                    pattern: "[A-Z0-9]",
+                    placeholder: "4",
+                    required: ""
+                  },
+                  null,
+                  512
+                  /* NEED_PATCH */
+                ), [
+                  [vue.vModelText, $data.plateInputs[6]]
                 ])
-              ]),
-              vue.createElementVNode(
-                "button",
+              ])
+            ]),
+            vue.createElementVNode("div", { class: "form-group" }, [
+              vue.createElementVNode("label", { for: "plateColor" }, "车牌颜色:"),
+              vue.createElementVNode("picker", {
+                mode: "selector",
+                range: $data.colorOptions,
+                onChange: _cache[9] || (_cache[9] = (...args) => $options.onColorChange && $options.onColorChange(...args)),
+                class: "color-picker"
+              }, [
+                vue.createElementVNode("div", { class: "picker-content" }, [
+                  vue.createCommentVNode(" 移除动态颜色样式 "),
+                  vue.createTextVNode(
+                    " " + vue.toDisplayString($options.getColorName($data.plateColor) || "选择颜色"),
+                    1
+                    /* TEXT */
+                  )
+                ])
+              ], 40, ["range"])
+            ]),
+            vue.createElementVNode("div", { class: "form-group" }, [
+              vue.createElementVNode("label", { for: "carModel" }, "车辆型号:"),
+              vue.withDirectives(vue.createElementVNode(
+                "input",
                 {
-                  type: "submit",
-                  class: "confirm-btn"
+                  type: "text",
+                  "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => _ctx.carModel = $event),
+                  id: "carModel",
+                  class: "color-select",
+                  placeholder: "请输入车辆型号",
+                  required: ""
                 },
-                vue.toDisplayString($data.submitButtonText),
-                1
-                /* TEXT */
-              )
-            ],
-            32
-            /* NEED_HYDRATION */
-          )
+                null,
+                512
+                /* NEED_PATCH */
+              ), [
+                [vue.vModelText, _ctx.carModel]
+              ])
+            ]),
+            vue.createElementVNode("div", { class: "form-group" }, [
+              vue.createElementVNode("label", { for: "seatCount" }, "座位数量:"),
+              vue.withDirectives(vue.createElementVNode(
+                "input",
+                {
+                  type: "number",
+                  "onUpdate:modelValue": _cache[11] || (_cache[11] = ($event) => $data.seatCount = $event),
+                  id: "seatCount",
+                  class: "color-select",
+                  min: "1",
+                  max: "20",
+                  placeholder: "请输入座位数",
+                  required: "",
+                  onKeypress: _cache[12] || (_cache[12] = (...args) => _ctx.validateNumberInput && _ctx.validateNumberInput(...args))
+                },
+                null,
+                544
+                /* NEED_HYDRATION, NEED_PATCH */
+              ), [
+                [
+                  vue.vModelText,
+                  $data.seatCount,
+                  void 0,
+                  { number: true }
+                ]
+              ])
+            ]),
+            vue.createElementVNode(
+              "button",
+              {
+                class: "confirm-btn",
+                onClick: _cache[13] || (_cache[13] = (...args) => $options.handleButtonClick && $options.handleButtonClick(...args))
+              },
+              vue.toDisplayString($data.submitButtonText),
+              1
+              /* TEXT */
+            )
+          ])
         ])
       ])) : vue.createCommentVNode("v-if", true)
     ]);
