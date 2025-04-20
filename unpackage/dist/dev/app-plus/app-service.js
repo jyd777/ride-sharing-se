@@ -3025,6 +3025,32 @@ if (uni.restoreGlobal) {
     );
   }
   const PagesIndexOrderLaunch = /* @__PURE__ */ _export_sfc(_sfc_main$8, [["render", _sfc_render$7], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/order_launch.vue"]]);
+  const fetchCalendarTrips = (year, month, userId) => {
+    return get(`/orders/calendar/${userId}`, {
+      params: { year, month }
+    }).then((response) => {
+      return response.data.map((trip) => ({
+        id: trip.order_id,
+        order_id: trip.order_id,
+        start_time: trip.start_time,
+        start_loc: trip.start_loc,
+        dest_loc: trip.dest_loc,
+        date: trip.start_time,
+        startPoint: trip.start_loc,
+        endPoint: trip.dest_loc,
+        price: trip.price,
+        car_type: trip.car_type,
+        carType: trip.car_type || "未指定车型",
+        status: trip.status,
+        userAvatar: trip.initiator.avatar || "../../static/user.jpeg",
+        orderCount: trip.participants_count || 0,
+        initiator: trip.initiator
+      }));
+    });
+  };
+  function fetchUserTrips(userId) {
+    return get(`/orders/user/${userId}/trips`);
+  }
   const _imports_0$1 = "/static/info-manage.png";
   const _imports_1 = "/static/car-manage.png";
   const _imports_2 = "/static/calendar.png";
@@ -3043,55 +3069,12 @@ if (uni.restoreGlobal) {
           gender: ""
         },
         isEditing: false,
-        trips: [
-          {
-            id: 1,
-            date: "2023-03-07T14:30:00",
-            startPoint: "创新港(2号)停车场",
-            endPoint: "上海市·台铃电动车(文汇路店)",
-            price: 41,
-            carType: "奔驰 奔驰EQC",
-            orderCount: 15,
-            userAvatar: "../../static/user.jpeg"
-          },
-          {
-            id: 2,
-            date: "2023-03-08T08:35:00",
-            startPoint: "纪丰路327号3号楼",
-            endPoint: "苏州市·苏州大学附属理想眼科医院",
-            price: 62,
-            carType: "宝马 宝马3系",
-            orderCount: 8,
-            userAvatar: "../../static/user.jpeg"
-          },
-          {
-            id: 3,
-            date: "2023-02-28T17:05:00",
-            startPoint: "汉庭酒店(上海安亭汽车城)",
-            endPoint: "南通市·丝绸路与通源路交叉口",
-            price: 87,
-            carType: "宝马 宝马5系",
-            orderCount: 12,
-            userAvatar: "../../static/user.jpeg"
-          },
-          {
-            id: 4,
-            date: "2023-01-15T10:00:00",
-            startPoint: "张江高科技园区",
-            endPoint: "上海市·浦东新区世纪大道",
-            price: 55,
-            carType: "特斯拉 Model 3",
-            orderCount: 10,
-            userAvatar: "../../static/user.jpeg"
-          }
-        ]
+        trips: []
       };
     },
     computed: {
       recentTrips() {
-        const threeMonthsAgo = /* @__PURE__ */ new Date();
-        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-        return this.trips.sort((a, b) => new Date(b.date) - new Date(a.date));
+        return this.trips;
       }
     },
     methods: {
@@ -3141,10 +3124,10 @@ if (uni.restoreGlobal) {
           if (JSON.stringify(this.user) !== JSON.stringify(newUserData)) {
             this.user = newUserData;
             uni.setStorageSync("user_info", newUserData);
-            formatAppLog("log", "at pages/index/person.vue:212", this.user);
+            formatAppLog("log", "at pages/index/person.vue:171", this.user);
           }
         } catch (error2) {
-          formatAppLog("error", "at pages/index/person.vue:215", "获取用户数据失败:", error2);
+          formatAppLog("error", "at pages/index/person.vue:174", "获取用户数据失败:", error2);
         }
       },
       viewDetails(tripId) {
@@ -3154,7 +3137,7 @@ if (uni.restoreGlobal) {
         this.isEditing = !this.isEditing;
       },
       saveChanges() {
-        formatAppLog("log", "at pages/index/person.vue:225", "保存修改:", this.user);
+        formatAppLog("log", "at pages/index/person.vue:184", "保存修改:", this.user);
         this.isEditing = false;
       },
       openFileInput() {
@@ -3170,12 +3153,37 @@ if (uni.restoreGlobal) {
           reader.readAsDataURL(file);
         }
       },
-      fetchUserCars() {
+      async fetchUserTrips() {
+        try {
+          const cacheUserID = uni.getStorageSync("user_id");
+          if (!cacheUserID) {
+            formatAppLog("error", "at pages/index/person.vue:204", "用户ID不存在");
+            return;
+          }
+          const res = await fetchUserTrips(cacheUserID);
+          if (res.code === 200) {
+            this.trips = res.data.map((trip) => ({
+              id: trip.id,
+              date: trip.date,
+              startPoint: trip.startPoint,
+              endPoint: trip.endPoint,
+              price: trip.price,
+              carType: trip.carType,
+              userAvatar: trip.userAvatar,
+              orderCount: trip.orderCount,
+              status: trip.status
+            }));
+          } else {
+            formatAppLog("error", "at pages/index/person.vue:222", "获取行程数据失败:", res.error);
+          }
+        } catch (error2) {
+          formatAppLog("error", "at pages/index/person.vue:225", "获取行程数据异常:", error2);
+        }
       }
     },
     mounted() {
       this.fetchUserData();
-      this.fetchUserCars();
+      this.fetchUserTrips();
     }
   };
   function _sfc_render$6(_ctx, _cache, $props, $setup, $data, $options) {
@@ -5472,48 +5480,8 @@ if (uni.restoreGlobal) {
     data() {
       return {
         selectedDate: this.getTodayDate(),
-        trips: [
-          {
-            id: 1,
-            date: "2025-04-01T14:30:00",
-            startPoint: "创新港(2号)停车场",
-            endPoint: "上海市·台铃电动车(文汇路店)",
-            price: 41,
-            carType: "奔驰 奔驰EQC",
-            orderCount: 15,
-            userAvatar: "/static/user.jpeg"
-          },
-          {
-            id: 2,
-            date: "2025-04-08T08:35:00",
-            startPoint: "纪丰路327号3号楼",
-            endPoint: "苏州市·苏州大学附属理想眼科医院",
-            price: 62,
-            carType: "宝马 宝马3系",
-            orderCount: 8,
-            userAvatar: "/static/user.jpeg"
-          },
-          {
-            id: 3,
-            date: "2025-04-08T17:05:00",
-            startPoint: "汉庭酒店(上海安亭汽车城)",
-            endPoint: "南通市·丝绸路与通源路交叉口",
-            price: 87,
-            carType: "宝马 宝马5系",
-            orderCount: 12,
-            userAvatar: "/static/user.jpeg"
-          },
-          {
-            id: 4,
-            date: "2025-04-15T10:00:00",
-            startPoint: "张江高科技园区",
-            endPoint: "上海市·浦东新区世纪大道",
-            price: 55,
-            carType: "特斯拉 Model 3",
-            orderCount: 10,
-            userAvatar: "/static/user.jpeg"
-          }
-        ]
+        trips: [],
+        isLoading: false
       };
     },
     computed: {
@@ -5522,18 +5490,35 @@ if (uni.restoreGlobal) {
           return [];
         const selectedDateStr = this.selectedDate.split(" ")[0];
         return this.trips.filter((trip) => {
-          const tripDateStr = new Date(trip.date).toISOString().split("T")[0];
+          const tripDateStr = new Date(trip.start_time).toISOString().split("T")[0];
           return tripDateStr === selectedDateStr;
         });
       }
     },
     methods: {
+      async fetchTripsForMonth(year, month) {
+        try {
+          const cacheUserID = uni.getStorageSync("user_id");
+          this.isLoading = true;
+          this.trips = await fetchCalendarTrips(year, month, cacheUserID);
+        } catch (error2) {
+          formatAppLog("error", "at pages/index/calendar.vue:99", "Error fetching trips:", error2);
+          uni.showToast({
+            title: "获取行程失败",
+            icon: "none"
+          });
+        } finally {
+          this.isLoading = false;
+        }
+      },
       getTodayDate() {
         const today = /* @__PURE__ */ new Date();
         return `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
       },
       onDateChange(e) {
         this.selectedDate = e.fulldate;
+        const date = new Date(e.fulldate);
+        this.fetchTripsForMonth(date.getFullYear(), date.getMonth() + 1);
       },
       formatDisplayDate(dateStr) {
         const date = new Date(dateStr);
@@ -5547,9 +5532,12 @@ if (uni.restoreGlobal) {
       viewDetails(tripId) {
         uni.navigateTo({
           url: `/pages/index/trip_info?id=${tripId}`
-          // 修改为正确的路径
         });
       }
+    },
+    mounted() {
+      const today = /* @__PURE__ */ new Date();
+      this.fetchTripsForMonth(today.getFullYear(), today.getMonth() + 1);
     }
   };
   function _sfc_render$3(_ctx, _cache, $props, $setup, $data, $options) {

@@ -93,6 +93,7 @@
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
 import { fetchUserBaseInfo} from '../../api/user'; 
+import { fetchUserTrips } from '../../api/order';
 export default {
   components: {
     NavigationBar
@@ -107,56 +108,14 @@ export default {
         gender: ''
       },
       isEditing: false,
-      trips: [
-        {
-          id: 1,
-          date: '2023-03-07T14:30:00',
-          startPoint: '创新港(2号)停车场',
-          endPoint: '上海市·台铃电动车(文汇路店)',
-          price: 41,
-          carType: '奔驰 奔驰EQC',
-          orderCount: 15,
-          userAvatar: '../../static/user.jpeg'
-        },
-        {
-          id: 2,
-          date: '2023-03-08T08:35:00',
-          startPoint: '纪丰路327号3号楼',
-          endPoint: '苏州市·苏州大学附属理想眼科医院',
-          price: 62,
-          carType: '宝马 宝马3系',
-          orderCount: 8,
-          userAvatar: '../../static/user.jpeg'
-        },
-        {
-          id: 3,
-          date: '2023-02-28T17:05:00',
-          startPoint: '汉庭酒店(上海安亭汽车城)',
-          endPoint: '南通市·丝绸路与通源路交叉口',
-          price: 87,
-          carType: '宝马 宝马5系',
-          orderCount: 12,
-          userAvatar: '../../static/user.jpeg'
-        },
-        {
-          id: 4,
-          date: '2023-01-15T10:00:00',
-          startPoint: '张江高科技园区',
-          endPoint: '上海市·浦东新区世纪大道',
-          price: 55,
-          carType: '特斯拉 Model 3',
-          orderCount: 10,
-          userAvatar: '../../static/user.jpeg'
-        }
-      ],
+      trips: [],
     }
   },
   computed: {
-    recentTrips() {
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      return this.trips.sort((a, b) => new Date(b.date) - new Date(a.date));
-    }
+	  recentTrips() {
+		// 直接返回 trips，因为后端已经按时间倒序并限制了数量
+		return this.trips;
+	  }
   },
   methods: {
     info_manage() {
@@ -238,13 +197,39 @@ export default {
         reader.readAsDataURL(file);
       }
     },
-    fetchUserCars() {
-      // 实际项目中这里应该调用API获取用户车辆信息
+    async fetchUserTrips() {
+      try {
+        const cacheUserID = uni.getStorageSync('user_id');
+        if (!cacheUserID) {
+          console.error('用户ID不存在');
+          return;
+        }
+        
+        const res = await fetchUserTrips(cacheUserID);
+        if (res.code === 200) {
+          this.trips = res.data.map(trip => ({
+            id: trip.id,
+            date: trip.date,
+            startPoint: trip.startPoint,
+            endPoint: trip.endPoint,
+            price: trip.price,
+            carType: trip.carType,
+            userAvatar: trip.userAvatar,
+            orderCount: trip.orderCount,
+            status: trip.status
+          }));
+        } else {
+          console.error('获取行程数据失败:', res.error);
+        }
+      } catch (error) {
+        console.error('获取行程数据异常:', error);
+      }
     }
+
   },
   mounted() {
     this.fetchUserData();
-    this.fetchUserCars();
+    this.fetchUserTrips(); 
   }
 };
 </script>
