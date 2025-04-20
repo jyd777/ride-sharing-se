@@ -102,6 +102,10 @@
               </view>
             </view>
           </view>
+          <!-- 新增：拒绝原因显示 -->
+          <view class="audit-reason" v-if="order.status === 'rejected' && order.rejectReason">
+            <text>拒绝原因: {{ order.rejectReason }}</text>
+          </view>
         </view>
       </view>
     </scroll-view>
@@ -125,7 +129,9 @@ export default {
      // 新增订单状态选项
      statusOptions: [
        { name: '全部', value: 'all' },
-       { name: '待支付', value: 'pending' },
+	   { name: '待审核', value: 'pending' },
+	   { name: '被拒绝', value: 'rejected' },
+       { name: '待支付', value: 'to-pay' },
        { name: '已完成', value: 'completed' },
        { name: '待评价', value: 'to-review' },
        { name: '未开始', value: 'not-started' },
@@ -156,7 +162,7 @@ export default {
         carType: '奔驰 奔驰EQC',
         orderCount: 15,
         userAvatar: '../../static/user.jpeg',
-        status: 'pending' // 新增状态字段
+        status: 'to-pay' // 新增状态字段
       },
       {
         id: 2,
@@ -205,7 +211,20 @@ export default {
         orderCount: 5,
         userAvatar: '../../static/user.jpeg',
         status: 'to-review'
-      }
+      },
+	  {
+	    id: 6,
+	    infoType: '乘客',
+	    date: '2024年3月15日10:00',
+	    startPoint: '北京西站',
+	    endPoint: '首都国际机场',
+	    price: 80,
+	    carType: '奥迪 A6L',
+	    orderCount: 3,
+	    userAvatar: '../../static/user.jpeg',
+	    status: 'rejected',
+	    rejectReason: '出发时间不符合要求' // 新增拒绝原因
+	  }
     ]
    };
   },
@@ -303,11 +322,13 @@ export default {
     // 新增方法：获取状态对应的文本
     getStatusText(status) {
       const map = {
-        'pending': '待支付',
+        'pending': '待审核',
         'completed': '已完成',
         'to-review': '待评价',
         'not-started': '未开始',
-        'in-progress': '进行中'
+        'in-progress': '进行中',
+		'to-pay': '待支付',
+		'rejected': '被拒绝'
       };
       return map[status] || '未知状态';
     },
@@ -527,7 +548,11 @@ export default {
 }
 
 .status-pending {
-  background-color: #FF9500; /* 橙色 - 待支付 */
+  background-color: #FF9500; /* 橙色 - 待审核 */
+}
+
+.status-to-pay {
+  background-color: #FFCC00; /* 亮黄色 - 待支付 */
 }
 
 .status-completed {
@@ -545,4 +570,19 @@ export default {
 .status-in-progress {
   background-color: #5856D6; /* 紫色 - 进行中 */
 }
+
+.status-rejected {
+  background-color: #FF3B30; /* 红色 - 已拒绝 */
+}
+/* 新增拒绝原因样式 (与manage.vue一致) */
+.audit-reason {
+  margin-top: 8px;
+  padding: 5px;
+  background-color: #FFF2F0;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #FF3B30;
+}
+
+
 </style>

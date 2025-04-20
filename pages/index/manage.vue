@@ -93,6 +93,11 @@
 
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
+import { 
+  fetchManagedOrders, 
+  approveOrder, 
+  rejectOrder 
+} from '@/api/order.js'; 
 export default {
   data() {
     return {
@@ -113,153 +118,109 @@ export default {
       yearIndex: 0,
       months: ['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
       monthIndex: 0,
-      days: ['', ...Array.from({length: 31}, (_, i) => (i + 1).toString())],
-      dayIndex: 0,
-      orders: [
-        {
-          id: 1,
-          type: 'passenger',
-          status: 'pending',
-          date: '2023年3月7日14:30',
-          startPoint: '创新港(2号)停车场',
-          endPoint: '上海市·台铃电动车(文汇路店)',
-          price: 41,
-          carType: '宝马 宝马5系',
-          publisher: '张先生',
-          userAvatar: '../../static/user.jpeg'
-        },
-        {
-          id: 2,
-          type: 'driver',
-          status: 'pending',
-          date: '2025年3月8日08:35',
-          startPoint: '纪丰路327号3号楼',
-          endPoint: '苏州市·苏州大学附属理想眼科医院',
-          price: 62,
-          carType: '宝马 宝马3系',
-          publisher: '李女士',
-          userAvatar: '../../static/user.jpeg'
-        },
-        {
-          id: 3,
-          type: 'driver',
-          status: 'approved',
-          date: '2024年3月7日17:05',
-          startPoint: '汉庭酒店(上海安亭汽车城)',
-          endPoint: '南通市·丝绸路与通源路交叉口',
-          price: 87,
-          carType: '宝马 宝马5系',
-          publisher: '王先生',
-          userAvatar: '../../static/user.jpeg'
-        },
-        {
-          id: 4,
-          type: 'passenger',
-          status: 'rejected',
-          date: '2024年3月10日09:20',
-          startPoint: '上海交通大学闵行校区',
-          endPoint: '浦东国际机场',
-          price: 120,
-          carType: '宝马 宝马5系',
-          publisher: '赵同学',
-          rejectReason: '出发时间已过期',
-          userAvatar: '../../static/user.jpeg'
-        }
-      ]
+      orders: [] // 初始化为空数组，从API获取数据
     };
   },
   computed: {
     filteredOrders() {
       let filtered = this.orders;
-      const selectedStatus = this.statusOptions[this.statusIndex].value;
-      const selectedType = this.typeOptions[this.typeIndex].value;
-      
-      // 按状态筛选
-      if (selectedStatus !== 'all') {
-        filtered = filtered.filter(order => order.status === selectedStatus);
-      }
-      
-      // 按类型筛选
-      if (selectedType !== 'all') {
-        filtered = filtered.filter(order => order.type === selectedType);
-      }
-      
-      // 按时间筛选
-      const selectedYear = this.years[this.yearIndex];
-      const selectedMonth = this.months[this.monthIndex];
-      
-      if (selectedYear) {
-        filtered = filtered.filter(order => order.date.includes(`${selectedYear}年`));
-      }
-      
-      if (selectedMonth) {
-        filtered = filtered.filter(order => order.date.includes(`${selectedYear || ''}年${selectedMonth}月`));
-      }
-      
       return filtered;
     }
   },
   methods: {
-    getStatusClass(status) {
-      return {
-        'status-pending': status === 'pending',
-        'status-approved': status === 'approved',
-        'status-rejected': status === 'rejected'
-      };
+    async fetchOrders() {
+      try {
+        const params = {
+          status: this.statusOptions[this.statusIndex].value,
+          type: this.typeOptions[this.typeIndex].value,
+          year: this.years[this.yearIndex] || '',
+          month: this.months[this.monthIndex] || ''
+        };
+        const orders = await fetchManagedOrders(params);
+        this.orders = orders;
+      } catch (error) {
+        uni.showToast({
+          title: error.message || '获取订单失败',
+          icon: 'none'
+        });
+        console.error('获取订单失败:', error);
+      }
     },
-    getStatusText(status) {
-      const map = {
-        'pending': '待审核',
-        'approved': '已通过',
-        'rejected': '已拒绝'
-      };
-      return map[status] || status;
-    },
-    onStatusChange(e) {
-      this.statusIndex = e.detail.value;
-    },
-    onTypeChange(e) {
-      this.typeIndex = e.detail.value;
-    },
-    onYearChange(e) {
-      this.yearIndex = e.detail.value;
-      this.monthIndex = 0;
-    },
-    onMonthChange(e) {
-      this.monthIndex = e.detail.value;
-    },
-    approveOrder(orderId) {
-      // 实际开发中这里应该调用API
-      const order = this.orders.find(o => o.id === orderId);
-      if (order) {
-        order.status = 'approved';
+
+    async approveOrder(orderId) {
+      try {
+        await approveOrder(orderId);
         uni.showToast({
           title: '已通过审核',
           icon: 'success'
         });
+        this.fetchOrders(); // 刷新列表
+      } catch (error) {
+        uni.showToast({
+          title: error.message || '操作失败',
+          icon: 'none'
+        });
+        console.error('审核通过失败:', error);
       }
     },
-    rejectOrder(orderId) {
-      // 实际开发中这里应该弹出输入框让管理员输入拒绝原因
+
+    async rejectOrder(orderId) {
       uni.showModal({
         title: '输入拒绝原因',
         editable: true,
         placeholderText: '请输入拒绝原因',
-        success: (res) => {
+        success: async (res) => {
           if (res.confirm && res.content) {
-            const order = this.orders.find(o => o.id === orderId);
-            if (order) {
-              order.status = 'rejected';
-              order.rejectReason = res.content;
+            try {
+              await rejectOrder(orderId, res.content);
               uni.showToast({
                 title: '已拒绝该订单',
                 icon: 'success'
               });
+              this.fetchOrders(); // 刷新列表
+            } catch (error) {
+              uni.showToast({
+                title: error.message || '操作失败',
+                icon: 'none'
+              });
+              console.error('拒绝订单失败:', error);
             }
           }
         }
       });
-    }
+    },
+    getStatusClass(status) {
+      return {
+        'status-pending': status === 'pending',
+        'status-approved': status !== 'pending' && status !== 'rejected',
+        'status-rejected': status === 'rejected'
+      };
+    },
+    getStatusText(status) {
+      if (status === 'pending') return '待审核';
+      if (status === 'rejected') return '已拒绝';
+      return '已通过';
+    },
+    onStatusChange(e) {
+      this.statusIndex = e.detail.value;
+      this.fetchOrders();
+    },
+    onTypeChange(e) {
+      this.typeIndex = e.detail.value;
+      this.fetchOrders();
+    },
+    onYearChange(e) {
+      this.yearIndex = e.detail.value;
+      this.monthIndex = 0;
+      this.fetchOrders();
+    },
+    onMonthChange(e) {
+      this.monthIndex = e.detail.value;
+      this.fetchOrders();
+    },
+  },
+  mounted() {
+    this.fetchOrders(); // 组件加载时获取订单数据
   },
   components: {
     NavigationBar

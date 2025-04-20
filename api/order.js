@@ -1,4 +1,4 @@
-import { get, post, put, del } from '@/utils/request.js';
+import { get, post } from '@/utils/request.js';
 
 export const fetchCalendarTrips = (year, month, userId) => {
   return get(`/orders/calendar/${userId}`, { 
@@ -27,3 +27,40 @@ export const fetchCalendarTrips = (year, month, userId) => {
 export function fetchUserTrips(userId) {
   return get( `/orders/user/${userId}/trips`);
 }
+
+// 获取管理后台订单列表
+export const fetchManagedOrders = (params) => {
+	console.log(params.status||'all');
+  return get('/orders/manage/list', { 
+    params: {
+      status: params.status || 'all',
+      type: params.type || 'all',
+      year: params.year || '',
+      month: params.month || ''
+    }
+  }).then(response => {
+	  console.log(response.data);
+    return response.data.map(order => ({
+      id: order.id,
+      date: order.date,
+      startPoint: order.startPoint,
+      endPoint: order.endPoint,
+      price: order.price,
+      carType: order.carType || '未指定车型',
+      status: order.status,
+      publisher: order.publisher,
+      userAvatar: order.userAvatar || '../../static/user.jpeg',
+      rejectReason: order.rejectReason
+    }));
+  });
+};
+
+// 审核通过订单
+export const approveOrder = (orderId) => {
+  return post(`/orders/manage/${orderId}/approve`);
+};
+
+// 拒绝订单
+export const rejectOrder = (orderId, reason) => {
+  return post(`/orders/manage/${orderId}/reject`, { reason });
+};

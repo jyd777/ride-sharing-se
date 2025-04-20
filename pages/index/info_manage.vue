@@ -93,7 +93,6 @@ import { fetchUserBaseInfo,
   getDefaultAvatar,
   fetchUserAvatar
 } from '@/api/user.js';
-import { saveFileToLocal } from '@/utils/fileUtils'; // 假设这里有一个保存文件到本地的工具函数
 
 export default {
   components: {

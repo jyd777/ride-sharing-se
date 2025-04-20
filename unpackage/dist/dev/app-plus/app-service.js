@@ -41,7 +41,7 @@ if (uni.restoreGlobal) {
   function resolveEasycom(component, easycom) {
     return typeof component === "string" ? easycom : component;
   }
-  const BASE_URL = "http://10.0.0.8:5000/api";
+  const BASE_URL = "http://100.80.189.152:5000/api";
   const requestInterceptor = {
     /**
       * 请求预处理
@@ -2090,6 +2090,63 @@ if (uni.restoreGlobal) {
     ]);
   }
   const PagesIndexCarManage = /* @__PURE__ */ _export_sfc(_sfc_main$a, [["render", _sfc_render$9], ["__scopeId", "data-v-f62f82f0"], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/car_manage.vue"]]);
+  const fetchCalendarTrips = (year, month, userId) => {
+    return get(`/orders/calendar/${userId}`, {
+      params: { year, month }
+    }).then((response) => {
+      return response.data.map((trip) => ({
+        id: trip.order_id,
+        order_id: trip.order_id,
+        start_time: trip.start_time,
+        start_loc: trip.start_loc,
+        dest_loc: trip.dest_loc,
+        date: trip.start_time,
+        startPoint: trip.start_loc,
+        endPoint: trip.dest_loc,
+        price: trip.price,
+        car_type: trip.car_type,
+        carType: trip.car_type || "未指定车型",
+        status: trip.status,
+        userAvatar: trip.initiator.avatar || "../../static/user.jpeg",
+        orderCount: trip.participants_count || 0,
+        initiator: trip.initiator
+      }));
+    });
+  };
+  function fetchUserTrips(userId) {
+    return get(`/orders/user/${userId}/trips`);
+  }
+  const fetchManagedOrders = (params) => {
+    formatAppLog("log", "at api/order.js:33", params.status || "all");
+    return get("/orders/manage/list", {
+      params: {
+        status: params.status || "all",
+        type: params.type || "all",
+        year: params.year || "",
+        month: params.month || ""
+      }
+    }).then((response) => {
+      formatAppLog("log", "at api/order.js:42", response.data);
+      return response.data.map((order) => ({
+        id: order.id,
+        date: order.date,
+        startPoint: order.startPoint,
+        endPoint: order.endPoint,
+        price: order.price,
+        carType: order.carType || "未指定车型",
+        status: order.status,
+        publisher: order.publisher,
+        userAvatar: order.userAvatar || "../../static/user.jpeg",
+        rejectReason: order.rejectReason
+      }));
+    });
+  };
+  const approveOrder = (orderId) => {
+    return post(`/orders/manage/${orderId}/approve`);
+  };
+  const rejectOrder = (orderId, reason) => {
+    return post(`/orders/manage/${orderId}/reject`, { reason });
+  };
   const _imports_0$2 = "/static/arrow-down.png";
   const _sfc_main$9 = {
     data() {
@@ -2112,142 +2169,110 @@ if (uni.restoreGlobal) {
         yearIndex: 0,
         months: ["", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"],
         monthIndex: 0,
-        days: ["", ...Array.from({ length: 31 }, (_, i) => (i + 1).toString())],
-        dayIndex: 0,
-        orders: [
-          {
-            id: 1,
-            type: "passenger",
-            status: "pending",
-            date: "2023年3月7日14:30",
-            startPoint: "创新港(2号)停车场",
-            endPoint: "上海市·台铃电动车(文汇路店)",
-            price: 41,
-            carType: "宝马 宝马5系",
-            publisher: "张先生",
-            userAvatar: "../../static/user.jpeg"
-          },
-          {
-            id: 2,
-            type: "driver",
-            status: "pending",
-            date: "2025年3月8日08:35",
-            startPoint: "纪丰路327号3号楼",
-            endPoint: "苏州市·苏州大学附属理想眼科医院",
-            price: 62,
-            carType: "宝马 宝马3系",
-            publisher: "李女士",
-            userAvatar: "../../static/user.jpeg"
-          },
-          {
-            id: 3,
-            type: "driver",
-            status: "approved",
-            date: "2024年3月7日17:05",
-            startPoint: "汉庭酒店(上海安亭汽车城)",
-            endPoint: "南通市·丝绸路与通源路交叉口",
-            price: 87,
-            carType: "宝马 宝马5系",
-            publisher: "王先生",
-            userAvatar: "../../static/user.jpeg"
-          },
-          {
-            id: 4,
-            type: "passenger",
-            status: "rejected",
-            date: "2024年3月10日09:20",
-            startPoint: "上海交通大学闵行校区",
-            endPoint: "浦东国际机场",
-            price: 120,
-            carType: "宝马 宝马5系",
-            publisher: "赵同学",
-            rejectReason: "出发时间已过期",
-            userAvatar: "../../static/user.jpeg"
-          }
-        ]
+        orders: []
+        // 初始化为空数组，从API获取数据
       };
     },
     computed: {
       filteredOrders() {
         let filtered = this.orders;
-        const selectedStatus = this.statusOptions[this.statusIndex].value;
-        const selectedType = this.typeOptions[this.typeIndex].value;
-        if (selectedStatus !== "all") {
-          filtered = filtered.filter((order) => order.status === selectedStatus);
-        }
-        if (selectedType !== "all") {
-          filtered = filtered.filter((order) => order.type === selectedType);
-        }
-        const selectedYear = this.years[this.yearIndex];
-        const selectedMonth = this.months[this.monthIndex];
-        if (selectedYear) {
-          filtered = filtered.filter((order) => order.date.includes(`${selectedYear}年`));
-        }
-        if (selectedMonth) {
-          filtered = filtered.filter((order) => order.date.includes(`${selectedYear || ""}年${selectedMonth}月`));
-        }
         return filtered;
       }
     },
     methods: {
-      getStatusClass(status) {
-        return {
-          "status-pending": status === "pending",
-          "status-approved": status === "approved",
-          "status-rejected": status === "rejected"
-        };
+      async fetchOrders() {
+        try {
+          const params = {
+            status: this.statusOptions[this.statusIndex].value,
+            type: this.typeOptions[this.typeIndex].value,
+            year: this.years[this.yearIndex] || "",
+            month: this.months[this.monthIndex] || ""
+          };
+          const orders = await fetchManagedOrders(params);
+          this.orders = orders;
+        } catch (error2) {
+          uni.showToast({
+            title: error2.message || "获取订单失败",
+            icon: "none"
+          });
+          formatAppLog("error", "at pages/index/manage.vue:146", "获取订单失败:", error2);
+        }
       },
-      getStatusText(status) {
-        const map = {
-          "pending": "待审核",
-          "approved": "已通过",
-          "rejected": "已拒绝"
-        };
-        return map[status] || status;
-      },
-      onStatusChange(e) {
-        this.statusIndex = e.detail.value;
-      },
-      onTypeChange(e) {
-        this.typeIndex = e.detail.value;
-      },
-      onYearChange(e) {
-        this.yearIndex = e.detail.value;
-        this.monthIndex = 0;
-      },
-      onMonthChange(e) {
-        this.monthIndex = e.detail.value;
-      },
-      approveOrder(orderId) {
-        const order = this.orders.find((o) => o.id === orderId);
-        if (order) {
-          order.status = "approved";
+      async approveOrder(orderId) {
+        try {
+          await approveOrder(orderId);
           uni.showToast({
             title: "已通过审核",
             icon: "success"
           });
+          this.fetchOrders();
+        } catch (error2) {
+          uni.showToast({
+            title: error2.message || "操作失败",
+            icon: "none"
+          });
+          formatAppLog("error", "at pages/index/manage.vue:163", "审核通过失败:", error2);
         }
       },
-      rejectOrder(orderId) {
+      async rejectOrder(orderId) {
         uni.showModal({
           title: "输入拒绝原因",
           editable: true,
           placeholderText: "请输入拒绝原因",
-          success: (res) => {
+          success: async (res) => {
             if (res.confirm && res.content) {
-              const order = this.orders.find((o) => o.id === orderId);
-              if (order) {
-                order.status = "rejected";
-                order.rejectReason = res.content;
+              try {
+                await rejectOrder(orderId, res.content);
                 uni.showToast({
                   title: "已拒绝该订单",
                   icon: "success"
                 });
+                this.fetchOrders();
+              } catch (error2) {
+                uni.showToast({
+                  title: error2.message || "操作失败",
+                  icon: "none"
+                });
+                formatAppLog("error", "at pages/index/manage.vue:186", "拒绝订单失败:", error2);
               }
             }
           }
         });
+      },
+      getStatusClass(status) {
+        return {
+          "status-pending": status === "pending",
+          "status-approved": status !== "pending" && status !== "rejected",
+          "status-rejected": status === "rejected"
+        };
+      },
+      getStatusText(status) {
+        if (status === "pending")
+          return "待审核";
+        if (status === "rejected")
+          return "已拒绝";
+        return "已通过";
+      },
+      onStatusChange(e) {
+        this.statusIndex = e.detail.value;
+        this.fetchOrders();
+      },
+      onTypeChange(e) {
+        this.typeIndex = e.detail.value;
+        this.fetchOrders();
+      },
+      onYearChange(e) {
+        this.yearIndex = e.detail.value;
+        this.monthIndex = 0;
+        this.fetchOrders();
+      },
+      onMonthChange(e) {
+        this.monthIndex = e.detail.value;
+        this.fetchOrders();
       }
+    },
+    mounted() {
+      this.fetchOrders();
     },
     components: {
       NavigationBar
@@ -3025,32 +3050,6 @@ if (uni.restoreGlobal) {
     );
   }
   const PagesIndexOrderLaunch = /* @__PURE__ */ _export_sfc(_sfc_main$8, [["render", _sfc_render$7], ["__file", "C:/Users/jiang/Desktop/软工拼车/car-sharing/github/ride-sharing-se/pages/index/order_launch.vue"]]);
-  const fetchCalendarTrips = (year, month, userId) => {
-    return get(`/orders/calendar/${userId}`, {
-      params: { year, month }
-    }).then((response) => {
-      return response.data.map((trip) => ({
-        id: trip.order_id,
-        order_id: trip.order_id,
-        start_time: trip.start_time,
-        start_loc: trip.start_loc,
-        dest_loc: trip.dest_loc,
-        date: trip.start_time,
-        startPoint: trip.start_loc,
-        endPoint: trip.dest_loc,
-        price: trip.price,
-        car_type: trip.car_type,
-        carType: trip.car_type || "未指定车型",
-        status: trip.status,
-        userAvatar: trip.initiator.avatar || "../../static/user.jpeg",
-        orderCount: trip.participants_count || 0,
-        initiator: trip.initiator
-      }));
-    });
-  };
-  function fetchUserTrips(userId) {
-    return get(`/orders/user/${userId}/trips`);
-  }
   const _imports_0$1 = "/static/info-manage.png";
   const _imports_1 = "/static/car-manage.png";
   const _imports_2 = "/static/calendar.png";
@@ -5716,7 +5715,7 @@ if (uni.restoreGlobal) {
           const cacheUserID = uni.getStorageSync("user_id");
           const res = await fetchModifiableData(cacheUserID);
           const avatar = await fetchUserAvatar(cacheUserID);
-          formatAppLog("log", "at pages/index/info_manage.vue:134", res);
+          formatAppLog("log", "at pages/index/info_manage.vue:133", res);
           const userData = {
             user_id: cacheUserID,
             avatar: avatar || this.defaultAvatar,
@@ -5727,7 +5726,7 @@ if (uni.restoreGlobal) {
           this.user = { ...userData };
           this.originalUser = { ...userData };
         } catch (error2) {
-          formatAppLog("error", "at pages/index/info_manage.vue:146", "获取用户数据失败:", error2);
+          formatAppLog("error", "at pages/index/info_manage.vue:145", "获取用户数据失败:", error2);
           uni.showToast({ title: "获取信息失败", icon: "none" });
         }
       },
@@ -5756,7 +5755,7 @@ if (uni.restoreGlobal) {
                     this.uploadAvatar(base64Data);
                   };
                   reader.onerror = (err) => {
-                    formatAppLog("error", "at pages/index/info_manage.vue:180", "读取文件失败:", err);
+                    formatAppLog("error", "at pages/index/info_manage.vue:179", "读取文件失败:", err);
                     uni.showToast({
                       title: "读取文件失败: " + err.message,
                       icon: "none"
@@ -5764,14 +5763,14 @@ if (uni.restoreGlobal) {
                   };
                 });
               }, (error2) => {
-                formatAppLog("error", "at pages/index/info_manage.vue:188", "解析文件路径失败:", error2);
+                formatAppLog("error", "at pages/index/info_manage.vue:187", "解析文件路径失败:", error2);
                 uni.showToast({
                   title: "解析文件路径失败: " + error2.message,
                   icon: "none"
                 });
               });
             } catch (error2) {
-              formatAppLog("error", "at pages/index/info_manage.vue:195", "头像处理失败:", error2);
+              formatAppLog("error", "at pages/index/info_manage.vue:194", "头像处理失败:", error2);
               uni.showToast({
                 title: "头像处理失败: " + error2.message,
                 icon: "none"
@@ -5826,7 +5825,7 @@ if (uni.restoreGlobal) {
             icon: "success"
           });
         } catch (error2) {
-          formatAppLog("error", "at pages/index/info_manage.vue:259", "头像上传失败:", error2);
+          formatAppLog("error", "at pages/index/info_manage.vue:258", "头像上传失败:", error2);
           uni.showToast({
             title: error2.message || "头像上传失败",
             icon: "none"
@@ -5881,7 +5880,7 @@ if (uni.restoreGlobal) {
             throw new Error(response.message || "保存失败");
           }
         } catch (error2) {
-          formatAppLog("error", "at pages/index/info_manage.vue:331", "保存失败:", error2);
+          formatAppLog("error", "at pages/index/info_manage.vue:330", "保存失败:", error2);
           uni.showToast({
             title: error2.message || "保存失败，请重试",
             icon: "none"
@@ -6364,7 +6363,9 @@ if (uni.restoreGlobal) {
         // 新增订单状态选项
         statusOptions: [
           { name: "全部", value: "all" },
-          { name: "待支付", value: "pending" },
+          { name: "待审核", value: "pending" },
+          { name: "被拒绝", value: "rejected" },
+          { name: "待支付", value: "to-pay" },
           { name: "已完成", value: "completed" },
           { name: "待评价", value: "to-review" },
           { name: "未开始", value: "not-started" },
@@ -6397,7 +6398,7 @@ if (uni.restoreGlobal) {
             carType: "奔驰 奔驰EQC",
             orderCount: 15,
             userAvatar: "../../static/user.jpeg",
-            status: "pending"
+            status: "to-pay"
             // 新增状态字段
           },
           {
@@ -6447,6 +6448,20 @@ if (uni.restoreGlobal) {
             orderCount: 5,
             userAvatar: "../../static/user.jpeg",
             status: "to-review"
+          },
+          {
+            id: 6,
+            infoType: "乘客",
+            date: "2024年3月15日10:00",
+            startPoint: "北京西站",
+            endPoint: "首都国际机场",
+            price: 80,
+            carType: "奥迪 A6L",
+            orderCount: 3,
+            userAvatar: "../../static/user.jpeg",
+            status: "rejected",
+            rejectReason: "出发时间不符合要求"
+            // 新增拒绝原因
           }
         ]
       };
@@ -6526,11 +6541,13 @@ if (uni.restoreGlobal) {
       // 新增方法：获取状态对应的文本
       getStatusText(status) {
         const map = {
-          "pending": "待支付",
+          "pending": "待审核",
           "completed": "已完成",
           "to-review": "待评价",
           "not-started": "未开始",
-          "in-progress": "进行中"
+          "in-progress": "进行中",
+          "to-pay": "待支付",
+          "rejected": "被拒绝"
         };
         return map[status] || "未知状态";
       },
@@ -6799,7 +6816,20 @@ if (uni.restoreGlobal) {
                           )
                         ])
                       ])
-                    ])
+                    ]),
+                    vue.createCommentVNode(" 新增：拒绝原因显示 "),
+                    order.status === "rejected" && order.rejectReason ? (vue.openBlock(), vue.createElementBlock("view", {
+                      key: 0,
+                      class: "audit-reason"
+                    }, [
+                      vue.createElementVNode(
+                        "text",
+                        null,
+                        "拒绝原因: " + vue.toDisplayString(order.rejectReason),
+                        1
+                        /* TEXT */
+                      )
+                    ])) : vue.createCommentVNode("v-if", true)
                   ])
                 ]);
               }),
