@@ -1,18 +1,19 @@
 {
 	"pages": [ 
 		{
-			"path": "pages/index/login",
-			"style": {
-				"navigationBarTitleText": "用户登录"
-			}
-		},
-		{
 			"path" : "pages/index/chatlist",
 			"style" : 
 			{
 				"navigationBarTitleText" : "聊天列表"
 			}
 		},
+		{
+			"path": "pages/index/login",
+			"style": {
+				"navigationBarTitleText": "用户登录"
+			}
+		},
+
 		{
 			"path" : "pages/index/chat",
 			"style" : 
