@@ -1,10 +1,7 @@
 <template>
   <div>
     <!-- 欢迎界面 -->
-    <div v-if="showWelcome" class="welcome-screen">
-
-    </div>
-
+    <div v-if="showWelcome" class="welcome-screen"></div>
 
     <!-- 登录界面 -->
     <view v-if="!showWelcome" class="container">
@@ -40,6 +37,8 @@
 </template>
 
 <script>
+import authApi from '@/api/auth.js'
+	
 export default {
   data() {
     return {
@@ -47,31 +46,64 @@ export default {
         username: '',
         password: ''
       },
-      showWelcome: true // 控制显示欢迎界面
+      showWelcome: true,
+      loading: false
     };
   },
   mounted() {
     setTimeout(() => {
-      this.showWelcome = false; // 5秒后隐藏欢迎界面
-    }, 5000);
+      this.showWelcome = false;
+    }, 500);
   },
   methods: {
     login() {
-      // 登录逻辑，例如 API 请求
-      //console.log('登录用户:', this.credentials);
-      uni.navigateTo({
-        url: '/pages/index/home' // 登录成功后的跳转
-      });
+	  // 验证输入
+      if (!this.credentials.username || !this.credentials.password) {
+        uni.showToast({
+          title: '用户名和密码不能为空',
+          icon: 'none'
+        });
+        return;
+      }
+	  
+	  console.log(typeof authApi.login); 
+	  
+	  // 调用登陆API
+	  authApi.login({
+	  	username: this.credentials.username,
+	  	password: this.credentials.password,
+	  }).then(res => {
+	  	console.log("登陆成功", res);
+		
+		// 存储Token和用户信息（同步存储）
+		uni.setStorageSync('access_token', res.data.access_token);
+		uni.setStorageSync('user_info', res.data.user);
+		uni.setStorageSync('user_id', res.data.user.userId);
+		
+		this.goToHome()
+	  }).catch(err => {
+	  	console.log('登陆失败：', err);
+		uni.showToast({ title: err.data?.message || '登录失败', icon: 'none' });
+	  });
     },
+	
     goToRegister() {
       uni.navigateTo({
-        url: '/pages/index/register' // 跳转到注册页面
+        url: '/pages/index/register'
       });
-    }
+    },
+	
+	goToHome() {
+	  uni.navigateTo({
+	    url: '/pages/index/home'
+	  });
+	},
   }
 };
 </script>
+
 <style scoped>
+/* 保持原有样式不变 */
 .welcome-screen {
   position: fixed;
   top: 0;
@@ -83,22 +115,16 @@ export default {
   align-items: center;
   justify-content: center;
   background-color: white;
-  transition: opacity 2s ease; /* 添加过渡效果 */
+  transition: opacity 2s ease;
   opacity: 1;
-  z-index: 1000; /* 确保欢迎界面在最上层 */
+  z-index: 1000;
   background-image: url('../../static/welcome.png');
   background-size: cover;
   background-position: center;
-  transform: scale(0.8); /* 缩小到 50% 的大小 */
-  transform-origin: center; /* 缩放的中心点 */
+  transform: scale(0.3);
+  transform-origin: center;
 }
 
-.welcome-image {
-  max-width: 80%;
-  height: auto;
-}
-
-/* 登录界面样式 */
 .container {
   padding: 0;
   display: flex;
@@ -106,7 +132,7 @@ export default {
   align-items: center;
   justify-content: center;
   height: 100vh;
-  background-image: url('../../static/bg.jpg'); /* 修改后的路径 */
+  background-image: url('../../static/bg.jpg');
   background-size: cover;
   background-position: center;
 }
@@ -114,13 +140,13 @@ export default {
 .card {
   width: 80%;
   max-width: 400px;
-  background-color: rgba(255, 255, 255, 0.9); /* 半透明背景 */
+  background-color: rgba(255, 255, 255, 0.9);
   border-radius: 8px;
   padding: 20px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.9); /* 增加阴影效果 */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.9);
   display: flex;
   flex-direction: column;
-  align-items: center; /* 使内容居中 */
+  align-items: center;
 }
 
 .card-title {
@@ -130,21 +156,21 @@ export default {
 }
 
 .card-body {
-  width: 100%; /* 使输入框和按钮宽度一致 */
+  width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center; /* 使输入框和按钮水平居中 */
+  align-items: center;
 }
 
 .input-group {
   margin-bottom: 20px;
-  width: 88%; /* 父容器宽度 */
+  width: 88%;
   display: flex;
-  justify-content: center; /* 水平居中 */
+  justify-content: center;
 }
 
 .input {
-  width: 262px; /* 输入框固定宽度 */
+  width: 262px;
   padding: 10px;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
@@ -153,13 +179,13 @@ export default {
 
 .button-group {
   margin-bottom: 10px;
-  width: 100%; /* 父容器宽度 */
+  width: 100%;
   display: flex;
-  justify-content: center; /* 水平居中 */
+  justify-content: center;
 }
 
 .primary-button {
-  width: 262px; /* 按钮固定宽度 */
+  width: 262px;
   height: 45px;
   padding: 10px;
   background-color: #007aff;
@@ -170,17 +196,17 @@ export default {
   font-weight: bold;
   cursor: pointer;
   transition: background-color 0.1s ease;
-  display: flex; /* 启用 flex 布局 */
-  align-items: center; /* 垂直居中 */
-  justify-content: center; /* 水平居中 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .primary-button:hover {
-  background-color: #005bb5; /* 悬停时背景颜色变亮 */
+  background-color: #005bb5;
 }
 
 .default-button {
-  width: 262px; /* 按钮固定宽度 */
+  width: 262px;
   height: 45px;
   padding: 10px;
   background-color: #f5f5f5;
@@ -191,13 +217,13 @@ export default {
   font-weight: bold;
   cursor: pointer;
   transition: background-color 0.1s ease;
-  display: flex; /* 启用 flex 布局 */
-  align-items: center; /* 垂直居中 */
-  justify-content: center; /* 水平居中 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .default-button:hover {
-  background-color: #e0e0e0; /* 悬停时背景颜色变亮 */
+  background-color: #e0e0e0;
 }
 
 .register-link {

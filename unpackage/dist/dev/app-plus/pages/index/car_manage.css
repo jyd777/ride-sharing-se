@@ -39,15 +39,18 @@
   border-radius: 10px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   display: flex;
+  justify-content: center; /* 垂直居中 */
+  align-items: center; /* 水平居中 */
   flex-direction: column;
   padding: 15px;
   margin-bottom: 20px;
-  width: 90%;
+  width: 100%;
   height: auto;
   min-height: 100px;
   margin-top: 0px;
 }
 .car-scroll[data-v-f62f82f0] {
+  width:100%;
   max-height: 200px;
   overflow-y: auto;
   margin-bottom: 10px;
@@ -220,4 +223,36 @@ uni-input[type="number"][data-v-f62f82f0]::-webkit-outer-spin-button {
 }
 .confirm-btn[data-v-f62f82f0]:hover {
   background-color: #0062cc;
+}
+
+/* 添加 picker 相关样式 */
+.plate-picker[data-v-f62f82f0] {
+  height: 30px;
+  min-width: 30px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  margin-right: 5px;
+}
+.picker-content[data-v-f62f82f0] {
+  font-size: 14px;
+  color: #333;
+}
+
+/* 确保输入框对齐 */
+.plate-input-group[data-v-f62f82f0] {
+  display: flex;
+  align-items: center;
+}
+.color-picker[data-v-f62f82f0] {
+  width: 93.5%;
+  height: 40px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
 }

@@ -4,6 +4,7 @@
       <view class="card-title text-h5">用户注册</view>
       <view class="card-body">
         <form ref="form">
+          <!-- 用户名 -->
           <div class="input-group">
             <label for="username">用户名</label>
             <input
@@ -14,6 +15,7 @@
               required
             />
           </div>
+          <!-- 真实姓名 -->
           <div class="input-group">
             <label for="true_username">真实姓名</label>
             <input
@@ -24,6 +26,7 @@
               required
             />
           </div>
+          <!-- 身份证号 -->
           <div class="input-group">
             <label for="identity_num">身份证号</label>
             <input
@@ -34,20 +37,22 @@
               required
             />
           </div>
-		<div class="input-group">
-		  <label for="gender">性别</label>
-		  <select
-			id="gender"
-			v-model="user.gender"
-			class="input"
-			required
-			style="width: 280px; padding: 8px; font-size: 14px; border: 1px solid #e0e0e0; border-radius: 4px; appearance: none; background-color: white; cursor: pointer;"
-			@click="setDropdownWidth"
-		  >
-			<option value="男" style="font-size: 14px;">男</option>
-			<option value="女" style="font-size: 14px;">女</option>
-		  </select>
-		</div>
+          <!-- 性别选择 -->
+          <div class="input-group">
+            <label for="gender">性别</label>
+            <picker
+              mode="selector"
+              :range="genderList"
+              range-key="name"
+              @change="handleGenderChange"
+              class="info-picker"
+            >
+              <view class="picker-text">
+                {{ selectedGender ? selectedGender.name : '请选择性别' }}
+              </view>
+            </picker>
+          </div>
+          <!-- 电话号码 -->
           <div class="input-group">
             <label for="telephone">电话号码</label>
             <input
@@ -58,6 +63,7 @@
               required
             />
           </div>
+          <!-- 密码 -->
           <div class="input-group">
             <label for="password">密码</label>
             <input
@@ -68,6 +74,7 @@
               required
             />
           </div>
+          <!-- 确认密码 -->
           <div class="input-group">
             <label for="confirmPassword">确认密码</label>
             <input
@@ -78,6 +85,7 @@
               required
             />
           </div>
+          <!-- 注册按钮 -->
           <div class="button-group">
             <button
               class="primary-button"
@@ -98,10 +106,11 @@
 </template>
 
 <script>
+import authApi from '@/api/auth.js'
+	
 export default {
   data() {
     return {
-      valid: false,
       user: {
         username: '',
         true_username: '',
@@ -110,10 +119,20 @@ export default {
         telephone: '',
         password: '',
         confirmPassword: ''
-      }
+      },
+      genderList: [
+        { name: '男', value: '男' },
+        { name: '女', value: '女' }
+      ],
+      selectedGender: null
     };
   },
   methods: {
+    handleGenderChange(event) {
+      const selectedGenderIndex = event.detail.value;
+      this.selectedGender = this.genderList[selectedGenderIndex];
+      this.user.gender = this.selectedGender.value;
+    },
     register() {
       if (
         this.user.username &&
@@ -124,10 +143,21 @@ export default {
         this.user.password &&
         this.user.password === this.user.confirmPassword
       ) {
-        console.log('注册用户:', this.user);
-        uni.navigateTo({
-          url: '/pages/index/login' // 注册成功后跳转到登录页面
-        });
+		// 调用注册API
+		authApi.register({
+			username: this.user.username,
+			realname: this.user.true_username,
+			identity_id: this.user.identity_num,
+			gender: this.user.gender,
+			telephone: this.user.telephone,
+			password: this.user.password
+		}).then(res => {
+			console.log("注册成功", res);
+			this.goToLogin(); // 跳转到登陆界面
+		}).catch(err => {
+			console.log('注册失败：', err);
+		})
+		
       } else {
         uni.showToast({
           title: '请填写所有必填项，并确保两次密码一致！',
@@ -135,16 +165,13 @@ export default {
         });
       }
     },
+	
     goToLogin() {
       uni.navigateTo({
-        url: '/pages/index/login' // 跳转到登录页面
+        url: '/pages/index/login'
       });
     }
-  },
-    setDropdownWidth() {
-      const selectElement = document.getElementById('gender');
-      selectElement.style.width = '280px'; // 设置下拉框宽度
-    }
+  }
 };
 </script>
 
@@ -163,7 +190,7 @@ export default {
 
 .card {
   width: 80%;
-  margin-top:-30px;
+  margin-top: -30px;
   max-width: 400px;
   background-color: rgba(255, 255, 255, 0.9);
   border-radius: 8px;
@@ -185,8 +212,8 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  overflow-y: auto; /* 超出部分显示滚动条 */
-  max-height: 400px; /* 设置最大高度 */
+  overflow-y: auto;
+  max-height: 400px;
 }
 
 .input-group {
@@ -205,10 +232,25 @@ export default {
 
 .input {
   width: 262px;
-  padding: 8px; /* 缩短高度 */
+  padding: 8px;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
-  font-size: 14px; /* 缩小字体 */
+  font-size: 14px;
+}
+
+.info-picker {
+  width: 262px;
+  padding: 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: white;
+  cursor: pointer;
+}
+
+.picker-text {
+  font-size: 14px;
+  color: #333;
 }
 
 .button-group {
@@ -220,13 +262,13 @@ export default {
 
 .primary-button {
   width: 262px;
-  height: 36px; /* 缩短按钮高度 */
-  padding: 8px; /* 缩短按钮内边距 */
+  height: 36px;
+  padding: 8px;
   background-color: #007aff;
   color: #ffffff;
   border: none;
   border-radius: 4px;
-  font-size: 14px; /* 缩小字体 */
+  font-size: 14px;
   font-weight: bold;
   cursor: pointer;
   transition: background-color 0.1s ease;
@@ -241,13 +283,13 @@ export default {
 
 .default-button {
   width: 262px;
-  height: 36px; /* 缩短按钮高度 */
-  padding: 8px; /* 缩短按钮内边距 */
+  height: 36px;
+  padding: 8px;
   background-color: #f5f5f5;
   color: #333333;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
-  font-size: 14px; /* 缩小字体 */
+  font-size: 14px;
   font-weight: bold;
   cursor: pointer;
   transition: background-color 0.1s ease;
@@ -263,5 +305,4 @@ export default {
 .register-link {
   text-align: center;
 }
-
 </style>
