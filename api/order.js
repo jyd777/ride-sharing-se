@@ -1,5 +1,17 @@
 import { get, post } from '@/utils/request.js';
 
+/**
+ * 发布订单
+ * @param {Object} orderData - 订单数据
+ * @returns {Promise} - 返回后端响应
+ */
+export const publishOrder = (orderData) => {
+  return post('/orders', orderData, {
+    showLoading: true,
+    loadingText: '正在发布...'
+  });
+};
+
 export const fetchCalendarTrips = (year, month, userId) => {
   return get(`/orders/calendar/${userId}`, { 
     params: { year, month }
@@ -63,4 +75,21 @@ export const approveOrder = (orderId) => {
 // 拒绝订单
 export const rejectOrder = (orderId, reason) => {
   return post(`/orders/manage/${orderId}/reject`, { reason });
+};
+
+// 获取单个行程（订单）的详细信息
+export const fetchTripDetail = (orderId) => {
+    // Endpoint changed from /trip/{id} to /orders/{id} based on convention
+    return get(`/orders/${orderId}`);
+};
+
+// --- Order Actions ---
+
+// 提交行程（订单）评价
+export const submitTripRating = (orderId, ratingData) => {
+    // Endpoint changed from /trip/{id}/rate to /orders/{id}/rate
+    return post(`/orders/${orderId}/rate`, ratingData, {
+        showLoading: true,
+        loadingText: '正在提交评价...'
+    });
 };

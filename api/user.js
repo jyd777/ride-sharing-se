@@ -102,16 +102,33 @@ export const uploadUserAvatar = (userId, base64Data) => {
  */
 export const fetchUserAvatar = (userId) => {
   return get(`/user/avatar/${userId}`).then(res => {
+    if (!res || !res.data) {
+        console.error('Invalid data received for user avatar:', res);
+        return getDefaultAvatar(); // Return default on error/invalid data
+    }
     return res.data.avatar_url || getDefaultAvatar();
+  }).catch(error => {
+      console.error('Error fetching user avatar:', error);
+      return getDefaultAvatar(); // Return default on fetch error
   });
 };
 
 /**
- * 获取用户简要信息（用于性能敏感场景）
+ * 获取用户简要信息（用于性能敏感场景） - Endpoint needs verification
  * @returns {Promise<BasicUserInfo>}
  */
 export const fetchBasicUserInfo = () => {
-  return get('/user/basic');
+  // Verify if this endpoint requires userId or gets current logged-in user implicitly
+  return get('/user/basic').then(res => {
+       if (!res || !res.data) {
+         console.error('Invalid data received for basic user info:', res);
+         throw new Error('Failed to fetch basic user info');
+      }
+      return res.data; // Assuming response structure matches BasicUserInfo
+  }).catch(error => {
+      console.error('Error fetching basic user info:', error);
+      throw error;
+  });
 };
 
 /**
