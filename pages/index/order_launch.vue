@@ -184,8 +184,8 @@
 
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
-import { get, post } from '@/utils/request.js';
-
+import { publishOrder } from '@/api/order.js';
+import {fetchUserVehicles} from '@/api/user.js';
 export default {
   components: {
     NavigationBar
@@ -269,11 +269,11 @@ export default {
     },
     async fetchVehicleList() {
       if (!this.userId) return;
-    
+
       uni.showLoading({ title: '加载车辆...' });
       try {
-        const res = await get(`/user/cars/${this.userId}`);
-        
+        const res = await fetchUserVehicles(this.userId);
+
         if (Array.isArray(res.data)) {
           console.log(res.data);
           this.vehicleList = res.data; // 保留完整的车辆信息
@@ -577,16 +577,14 @@ export default {
       uni.showLoading({ title: '正在发布...' });
 
       try {
-        const res = await post('/orders', orderData, {
-          showLoading: false // 手动控制loading
-        });
+        const res = await publishOrder(orderData);
 
         uni.hideLoading();
 
         if (res.code === 200) {
-          console.log('订单发布成功，后端返回:', res.data);
+          console.log('订单发布成功');
           uni.showToast({
-            title: `发布成功！订单ID: ${res.data.orderId}`,
+            title: `发布成功`,
             icon: 'success',
             duration: 2000
           });

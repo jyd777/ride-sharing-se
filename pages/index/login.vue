@@ -79,6 +79,7 @@ export default {
 		uni.setStorageSync('access_token', res.data.access_token);
 		uni.setStorageSync('user_info', res.data.user);
 		uni.setStorageSync('user_id', res.data.user.userId);
+		uni.setStorageSync('is_manager',res.data.user.isManager);
 		
 		this.goToHome()
 	  }).catch(err => {

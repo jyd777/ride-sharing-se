@@ -144,7 +144,9 @@ export default {
           icon: 'none'
         });
         console.error('获取订单失败:', error);
-      }
+      }finally {
+      this.loading = false;
+    }
     },
 
     async approveOrder(orderId) {

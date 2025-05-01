@@ -4,17 +4,17 @@
       <view class="modal-header">
         <text>请支付 {{ amount }} 元</text>
       </view>
-      <view class="modal-body">
-        <img src="../static/QR-code.png" class="qr-code" alt="QR Code">
-      </view>
       <view class="modal-footer">
-        <button class="close-button" @click="closeModal">关闭</button>
+        <button class="close-button" @click="closeModal">关闭付款</button>
+        <button class="confirm-button" @click="confirmPayment">确认支付</button>
       </view>
     </view>
   </view>
 </template>
 
 <script>
+import { payOrder } from '@/api/order.js';
+
 export default {
   props: {
     visible: {
@@ -24,15 +24,34 @@ export default {
     amount: {
       type: Number,
       required: true
+    },
+    orderId: {
+      type: Number,
+      required: true
     }
   },
   methods: {
     closeModal() {
       this.$emit('close');
+    },
+    confirmPayment() {
+      if (!this.orderId) {
+        uni.showToast({ title: '订单ID丢失，无法支付', icon: 'error' });
+        return;
+      }
+
+      // 调用封装的支付接口
+      payOrder(this.orderId)
+        .then(() => {
+          uni.showToast({ title: '支付成功', icon: 'success' });
+          this.$emit('refresh'); // 通知父组件刷新界面
+          this.closeModal(); // 关闭弹窗
+        })
+        .catch((err) => {
+          console.error('支付失败:', err);
+          uni.showToast({ title: '支付失败，请重试', icon: 'none' });
+        });
     }
-  },
-  mounted() {
-    // 移除加载 qrcode 库的逻辑
   }
 };
 </script>
@@ -40,7 +59,7 @@ export default {
 <style scoped>
 .modal {
   position: fixed;
-  top: 0;
+  top: 30%;
   left: 0;
   width: 100%;
   height: 100%;
@@ -72,21 +91,29 @@ export default {
 }
 
 .qr-code {
-  width: 100%;
-  height: 100%;
+  width: 80%;
+  height: 80%;
 }
 
 .modal-footer {
   display: flex;
   justify-content: center;
 }
-
+.confirm-button,
 .close-button {
-  padding: 10px 20px;
-  font-size: 14px;
-  background-color: #007aff;
-  color: white;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight:bold;
   border: none;
   border-radius: 5px;
+}
+.close-button {
+  background-color: #ccc;
+  color: #333;
+}
+
+.confirm-button {
+  background-color: #007aff;
+  color: white;
 }
 </style>

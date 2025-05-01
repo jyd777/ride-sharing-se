@@ -175,8 +175,10 @@ export default {
 	  }
     },
     viewDetails(tripId) {
-      this.$router.push({ name: 'Detail', params: { id: tripId } });
-    },
+      uni.navigateTo({
+        url: `/pages/index/trip_info?id=${tripId}`
+      });
+    }, 
     toggleEdit() {
       this.isEditing = !this.isEditing;
     },

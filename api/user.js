@@ -1,5 +1,10 @@
 import { get, post } from '@/utils/request.js'
 
+// 获取用户车辆列表
+export const fetchUserVehicles = (userId) => {
+  return get(`/user/cars/${userId}`);
+};
+
 /**
  * 获取当前用户基本信息
  * @param {number} userId - 用户ID
