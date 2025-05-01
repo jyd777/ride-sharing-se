@@ -25,14 +25,21 @@
           >
         </div>
 
+        <!-- 新增性别选择 -->
         <div class="form-group">
           <label for="gender">性别</label>
-          <select id="gender" v-model="user.gender" class="gender-select"style ="width:70%">
-            <option value="male">男</option>
-            <option value="female">女</option>
-          </select>
+          <picker
+            mode="selector"
+            :range="genderList"
+            range-key="name"
+            @change="handleGenderChange"
+            class="info-picker"
+          >
+            <view class="picker-text">
+              {{ user.gender || '请选择性别' }}
+            </view>
+          </picker>
         </div>
-
 
         <div class="form-group">
           <label for="contact">联系方式</label>
@@ -46,6 +53,31 @@
           >
         </div>
 
+        <!-- 新增密码修改 -->
+        <div class="form-group">
+          <label for="password">新密码</label>
+          <input
+            id="password"
+            v-model="user.password"
+            type="password"
+            class="input"
+            placeholder="留空则不修改密码"
+            style="width:80%"
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="confirmPassword">确认新密码</label>
+          <input
+            id="confirmPassword"
+            v-model="user.confirmPassword"
+            type="password"
+            class="input"
+            placeholder="再次输入新密码"
+            style="width:80%"
+          >
+        </div>
+
         <button class="save-btn" @click="saveProfile">保存修改</button>
       </div>
     </div>
@@ -54,8 +86,13 @@
 
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
-import { fetchUserBaseInfo, fetchUserProfile, fetchUserModifiableData, updateUserInfo, uploadUserAvatar } from '@/api/user.js';
-import { saveFileToLocal } from '@/utils/fileUtils'; // 假设这里有一个保存文件到本地的工具函数
+import { fetchUserBaseInfo,
+  fetchModifiableData, 
+  updateUserInfo, 
+  uploadUserAvatar,
+  getDefaultAvatar,
+  fetchUserAvatar
+} from '@/api/user.js';
 
 export default {
   components: {
@@ -67,117 +104,166 @@ export default {
         user_id: null,
         avatar: '',        // 头像
         username: '',       // 用户名
-        gender: '',     // 性别
-        contact: ''        // 联系方式（对应 API 的 telephone）
+        gender: '',       // 新增性别字段
+        contact: '',
+        password: '',     // 新增密码字段
+        confirmPassword: '' // 新增确认密码字段
       },
       originalUser: {},     // 保存原始数据用于比较
       defaultAvatar: '../../static/user.jpeg', // 直接使用路径
-      avatarError: ''
+      avatarError: '',
+      genderList: [        // 性别选项
+        { name: '男', value: '男' },
+        { name: '女', value: '女' }
+      ]
     };
   },
   created() {
     this.fetchUserModifiableData();
   },
   methods: {
-    async fetchUserModifiableData() {
-      this.loading = true;
+  async fetchUserModifiableData() {
+    this.loading = true;
+    try {
+      const cacheUserID = uni.getStorageSync('user_id');
+      const res = await fetchModifiableData(cacheUserID);
+      
+      // 获取用户头像
+      const avatar = await fetchUserAvatar(cacheUserID);
+	  console.log(res);
+      const userData = {
+        user_id: cacheUserID,
+        avatar: avatar || this.defaultAvatar,
+        gender: res.gender,
+		contact: res.telephone,
+		username: res.username
+      };
 
-      try {
-        const cacheUserID = uni.getStorageSync('user_id');
-        const res = await fetchUserModifiableData(cacheUserID);
-        console.log(res);
+      this.user = { ...userData };
+      this.originalUser = { ...userData };
+    } catch (error) {
+      console.error('获取用户数据失败:', error);
+      uni.showToast({ title: '获取信息失败', icon: 'none' });
+    }
+  },
 
-        // 映射 API 数据到本地字段
-        const userData = {
-          user_id: cacheUserID,
-          avatar: res.avatar || this.defaultAvatar, // 默认头像兜底
-          username: res.username,
-          gender: res.gender,            // 默认性别
-          contact: res.telephone || ''             // API 返回的 telephone 映射为 contact
-        };
-        // 确保性别字段值合法，否则设置默认值
-        const gender = res.gender === 'male' || res.gender === 'female' 
-          ? res.gender 
-          : 'male'; // 默认值
-        // 更新数据和原始副本
-        this.user = { ...userData };
-        console.log(this.user.avatar);
-        this.originalUser = { ...userData };
-
-        // 存储到本地缓存
-        uni.setStorageSync('user_info', userData);
-
-      } catch (error) {
-        console.error('获取用户数据失败:', error);
-        uni.showToast({ title: '获取信息失败', icon: 'none' });
-      }
+    // 处理性别选择变化
+    handleGenderChange(event) {
+      const selectedGenderIndex = event.detail.value;
+      this.user.gender = this.genderList[selectedGenderIndex].value;
     },
 
     // 触发头像上传
-    async triggerAvatarUpload() {
-      uni.chooseImage({
-        count: 1,
-        sizeType: ['compressed'],
-        sourceType: ['album', 'camera'],
-        success: async (res) => {
-          try {
-            const localFilePath = await saveFileToLocal(res.tempFilePaths[0]);
-            this.uploadAvatar(localFilePath);
-          } catch (error) {
-            console.error('保存图片到本地失败:', error);
-            uni.showToast({ title: '保存图片失败', icon: 'none' });
-          }
-        }
-      });
-    },
-
     // 处理头像变更
-    handleAvatarChange(filePath) {
-      if (!filePath) return;
+	async triggerAvatarUpload() {
+	  uni.chooseImage({
+		count: 1,
+		sizeType: ['compressed'], // 压缩图片
+		sourceType: ['album', 'camera'],
+		success: async (res) => {
+		  try {
+			const filePath = res.tempFilePaths[0];
+			
+			// 使用 plus.io.resolveLocalFileSystemURL 解析文件路径
+			plus.io.resolveLocalFileSystemURL(filePath, (entry) => {
+			  // entry 是一个 FileEntry 对象
+			  entry.file((file) => {
+				// 使用 FileReader 读取文件内容
+				const reader = new plus.io.FileReader();
+				reader.readAsDataURL(file); // 读取为 Data URL
+				reader.onloadend = (e) => {
+				  const base64Data = e.target.result; // 获取 Base64 数据
+				  this.uploadAvatar(base64Data); // 调用上传方法
+				};
+				reader.onerror = (err) => {
+				  console.error('读取文件失败:', err);
+				  uni.showToast({ 
+					title: '读取文件失败: ' + err.message, 
+					icon: 'none' 
+				  });
+				};
+			  });
+			}, (error) => {
+			  console.error('解析文件路径失败:', error);
+			  uni.showToast({ 
+				title: '解析文件路径失败: ' + error.message, 
+				icon: 'none' 
+			  });
+			});
+		  } catch (error) {
+			console.error('头像处理失败:', error);
+			uni.showToast({ 
+			  title: '头像处理失败: ' + error.message, 
+			  icon: 'none' 
+			});
+		  }
+		}
+	  });
+	},
 
-      // 使用uni.getImageInfo代替Image对象
-      uni.getImageInfo({
-        src: filePath,
+	// 图片压缩方法(可选)
+	compressImage(filePath) {
+	  return new Promise((resolve, reject) => {
+		uni.compressImage({
+		  src: filePath,
+		  quality: 80, // 质量80%
+		  success: res => resolve(res.tempFilePath),
+		  fail: err => reject(err)
+		});
+	  });
+	},
+
+  fileToBase64(filePath) {
+    return new Promise((resolve, reject) => {
+      // 使用uni.getFileSystemManager()代替nativeFileManager
+      const fs = uni.getFileSystemManager();
+      fs.readFile({
+        filePath: filePath,
+        encoding: 'base64',
         success: (res) => {
-          // 更新用户头像
-          this.user.avatar = filePath;
-          this.avatarError = '';
+          // 获取文件类型
+          const fileType = this.getFileType(filePath);
+          resolve(`data:image/${fileType};base64,${res.data}`);
         },
-        fail: () => {
-          this.avatarError = '图片加载失败';
+        fail: (err) => {
+          reject(err);
         }
       });
-    },
+    });
+  },
 
-    async uploadAvatar(filePath) {
-      try {
-        uni.showLoading({ title: '上传中...' });
-        const cacheUserID = uni.getStorageSync('user_id'); 
-        // 调用上传API
-        const response = await uploadUserAvatar(cacheUserID, filePath);
-        console.log(response); // 打印上传结果
-        const res = JSON.parse(response.data);
+  // 获取文件类型
+  getFileType(filePath) {
+    const extension = filePath.split('.').pop().toLowerCase();
+    return extension === 'png' ? 'png' : 'jpeg'; // 默认jpeg
+  },
 
-        if (res.code === 200) {
-          this.user.avatar = res.data.avatar_url;
-          uni.showToast({
-            title: '头像上传成功',
-            icon: 'success'
-          });
-        } else {
-          throw new Error(res.message || '头像上传失败');
-        }
-      } catch (error) {
-        console.error('头像上传失败:', error);
-        uni.showToast({
-          title: error.message || '头像上传失败',
-          icon: 'none'
-        });
-      } finally {
-        uni.hideLoading();
-      }
-    },
+  async uploadAvatar(base64Data) {
+    try {
+      uni.showLoading({ title: '上传中...' });
+      const cacheUserID = uni.getStorageSync('user_id'); 
+      await uploadUserAvatar(cacheUserID, base64Data);
+      
+      // 获取更新后的头像
+      const newAvatar = await fetchUserAvatar(cacheUserID);
+      this.user.avatar = newAvatar;
+	   // 获取更新后的头像
+	   this.user.avatar = newAvatar;
 
+      uni.showToast({
+        title: '头像上传成功',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('头像上传失败:', error);
+      uni.showToast({
+        title: error.message || '头像上传失败',
+        icon: 'none'
+      });
+    } finally {
+      uni.hideLoading();
+    }
+  },
     handleImageError() {
       this.user.avatar = this.defaultAvatar;
     },
@@ -189,9 +275,21 @@ export default {
         return;
       }
 
+      // 验证性别
+      if (!this.user.gender) {
+        uni.showToast({ title: '请选择性别', icon: 'none' });
+        return;
+      }
+
       // 验证手机号
       if (!/^1[3-9]\d{9}$/.test(this.user.contact)) {
         uni.showToast({ title: '请输入有效手机号', icon: 'none' });
+        return;
+      }
+
+      // 验证密码
+      if (this.user.password && this.user.password !== this.user.confirmPassword) {
+        uni.showToast({ title: '两次输入的密码不一致', icon: 'none' });
         return;
       }
 
@@ -202,20 +300,32 @@ export default {
         // 准备请求数据
         const requestData = {
           username: this.user.username,
-          gender: this.user.gender === 'male' ? '男' : '女',
+          gender: this.user.gender,
           telephone: this.user.contact
         };
 
-        // 确保数据格式正确
+        // 如果有新密码，添加到请求数据中
+        if (this.user.password) {
+          requestData.password = this.user.password;
+        }
+
         const response = await updateUserInfo(cacheUserID, requestData);
-        // 检查响应是否成功
+        
         if (response.code === 200) {
           uni.showToast({ title: '保存成功', icon: 'success' });
-          // 更新原始数据副本
           this.originalUser = { ...this.user };
+          // 清空密码字段
+          this.user.password = '';
+          this.user.confirmPassword = '';
+		  setTimeout(() => {
+				uni.navigateTo({
+				url: '/pages/index/person'
+			});
+		  }, 2000);
         } else {
           throw new Error(response.message || '保存失败');
         }
+		
       } catch (error) {
         console.error('保存失败:', error);
         uni.showToast({ 
@@ -232,7 +342,7 @@ export default {
 
 <style scoped>
 .user-profile-container {
-  height: 100vh; /* 高度占据整个视口 */
+
   margin: 0 auto;
   padding: 20px;
   background-image: url('../../static/bg.jpg');
@@ -246,6 +356,7 @@ export default {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   padding: 20px;
   margin-top: 0px;
+  margin-bottom:40px;
 }
 
 .profile-edit-card h2 {
@@ -295,32 +406,28 @@ export default {
 }
 
 .form-group {
+  display: flex;
+  align-items: center;
   margin-bottom: 20px;
 }
 
 .form-group label {
-  display: block;
-  margin-bottom: 8px;
+  flex: 0 0 80px; /* 根据实际需要调整标签宽度 */
+  margin-bottom: 0;
   font-weight: 500;
   color: #555;
 }
 
 .form-group input,
-.form-group select {
-  width: 100%;
+.form-group .info-picker {
+  flex: 1;
   padding: 10px 15px;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 16px;
+  max-width: calc(100% - 100px); /* 减去标签宽度 */
 }
 
-.gender-select {
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  background-size: 1em;
-}
 
 .save-btn {
   width: 100%;
@@ -341,4 +448,6 @@ export default {
   margin-top: 8px;
   font-size: 14px;
 }
+
+
 </style>

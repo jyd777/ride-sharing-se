@@ -62,8 +62,10 @@
   </view>
 </template>
 
+
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
+import { fetchCalendarTrips } from '@/api/order.js';
 
 export default {
   components: {
@@ -72,62 +74,38 @@ export default {
   data() {
     return {
       selectedDate: this.getTodayDate(),
-      trips: [
-        {
-          id: 1,
-          date: '2025-04-01T14:30:00',
-          startPoint: '创新港(2号)停车场',
-          endPoint: '上海市·台铃电动车(文汇路店)',
-          price: 41,
-          carType: '奔驰 奔驰EQC',
-          orderCount: 15,
-          userAvatar: '/static/user.jpeg'
-        },
-        {
-          id: 2,
-          date: '2025-04-08T08:35:00',
-          startPoint: '纪丰路327号3号楼',
-          endPoint: '苏州市·苏州大学附属理想眼科医院',
-          price: 62,
-          carType: '宝马 宝马3系',
-          orderCount: 8,
-          userAvatar: '/static/user.jpeg'
-        },
-        {
-          id: 3,
-          date: '2025-04-08T17:05:00',
-          startPoint: '汉庭酒店(上海安亭汽车城)',
-          endPoint: '南通市·丝绸路与通源路交叉口',
-          price: 87,
-          carType: '宝马 宝马5系',
-          orderCount: 12,
-          userAvatar: '/static/user.jpeg'
-        },
-        {
-          id: 4,
-          date: '2025-04-15T10:00:00',
-          startPoint: '张江高科技园区',
-          endPoint: '上海市·浦东新区世纪大道',
-          price: 55,
-          carType: '特斯拉 Model 3',
-          orderCount: 10,
-          userAvatar: '/static/user.jpeg'
-        }
-      ]
+      trips: [],
+      isLoading: false
     };
   },
   computed: {
     selectedTrips() {
       if (!this.selectedDate) return [];
       
-      const selectedDateStr = this.selectedDate.split(' ')[0]; // 获取 YYYY-MM-DD 部分
+      const selectedDateStr = this.selectedDate.split(' ')[0];
       return this.trips.filter(trip => {
-        const tripDateStr = new Date(trip.date).toISOString().split('T')[0];
+        const tripDateStr = new Date(trip.start_time).toISOString().split('T')[0];
         return tripDateStr === selectedDateStr;
       });
     }
   },
   methods: {
+    async fetchTripsForMonth(year, month) {
+      try {
+		const cacheUserID = uni.getStorageSync('user_id');
+        this.isLoading = true;
+        this.trips = await fetchCalendarTrips(year, month,cacheUserID);
+      } catch (error) {
+        console.error('Error fetching trips:', error);
+        uni.showToast({
+          title: '获取行程失败',
+          icon: 'none'
+        });
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    
     getTodayDate() {
       const today = new Date();
       return `${today.getFullYear()}-${(today.getMonth()+1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
@@ -135,6 +113,8 @@ export default {
     
     onDateChange(e) {
       this.selectedDate = e.fulldate;
+      const date = new Date(e.fulldate);
+      this.fetchTripsForMonth(date.getFullYear(), date.getMonth() + 1);
     },
     
     formatDisplayDate(dateStr) {
@@ -150,9 +130,13 @@ export default {
     
     viewDetails(tripId) {
       uni.navigateTo({
-        url: `/pages/index/trip_info?id=${tripId}` // 修改为正确的路径
+        url: `/pages/index/trip_info?id=${tripId}`
       });
     }
+  },
+  mounted() {
+    const today = new Date();
+    this.fetchTripsForMonth(today.getFullYear(), today.getMonth() + 1);
   }
 };
 </script>

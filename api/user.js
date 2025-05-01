@@ -2,19 +2,23 @@ import { get, post } from '@/utils/request.js'
 
 /**
  * 获取当前用户基本信息
+ * @param {number} userId - 用户ID
  * @returns {Promise<UserInfo>}
  */
 export const fetchUserBaseInfo = (userId) => {
-	console.log('你好')
-  return get(`/user/basic/${userId}`).then(res => {
-	// 统一处理数据格式
-	return {
-	  ...res.data,
-	  age: typeof res.data.age === 'number' ? res.data.age : null,
-	  gender: res.data.gender === '男' ? 'male' : 'female',
-	  avatar: res.data.avatar || getDefaultAvatar() 
-	};
-  });
+  return get(`/user/basic/${userId}`)
+    .then(res => {
+      return {
+        ...res.data,
+        age: typeof res.data.age === 'number' ? res.data.age : null,
+        gender: res.data.gender === '男' ? 'male' : 'female',
+        avatar: res.data.avatar || getDefaultAvatar() 
+      };
+    })
+    .catch(error => {
+      console.error('Error fetching user base info:', error);
+      throw error;
+    });
 };
 
 /**
@@ -36,15 +40,12 @@ export const fetchUserProfile = (userId) => {
  * @param {number} userId - 用户ID
  * @returns {Promise}
  */
-export const fetchUserModifiableData = (userId) => {
-  return get(`/user/${userId}/modifiable_data`).then(res => {4
-  console.log(res.data);
+export const fetchModifiableData = (userId) => {
+  return get(`/user/${userId}/modifiable_data`).then(res => {
     return {
       ...res.data,
-	  gender: res.data.gender === '男' ? 'male' : 'female',
-	  avatar: res.data.avatar || getDefaultAvatar() 
+      avatar: res.data.avatar || getDefaultAvatar() 
     };
-	
   });
 };
 
@@ -55,15 +56,11 @@ export const fetchUserModifiableData = (userId) => {
  */
 export const fetchCars = (userId) => {
   return get(`/user/cars/${userId}`).then(res => {
-	console.log(res.data);
     return {
       ...res.data
     };
-	
   });
 };
-
-
 
 /**
  * 更新用户信息
@@ -72,7 +69,6 @@ export const fetchCars = (userId) => {
  * @returns Promise
  */
 export const updateUserInfo = (userId, data) => {
-	console.log(data);
   return post(`/user/update/${userId}`, data, {
     showLoading: true,
     loadingText: "正在更新用户信息..."
@@ -85,39 +81,63 @@ export const updateUserInfo = (userId, data) => {
 };
 
 /**
- * 上传用户头像
+ * 上传用户头像 (Base64版本)
  * @param {number} userId - 用户ID
- * @param {string} filePath - 文件路径
+ * @param {string} base64Data - Base64编码的图片数据
  * @returns {Promise}
  */
-export const uploadUserAvatar = (userId, filePath) => {
-	console.log(userId);
-	console.log(filePath);
-  return uni.uploadFile({
-    url: `/user/upload_avatar/${userId}`,
-    filePath: filePath,
-    name: 'file',
-    formData: {
-      'user_id': userId
-    }
+export const uploadUserAvatar = (userId, base64Data) => {
+  return post(`/user/upload_avatar/${userId}`, {
+    base64_data: base64Data
+  }, {
+    showLoading: true,
+    loadingText: "正在上传头像..."
   });
 };
 
 /**
- * 获取用户简要信息（用于性能敏感场景）
+ * 获取用户头像 (Base64版本)
+ * @param {number} userId - 用户ID
+ * @returns {Promise<string>} Base64编码的头像URL
+ */
+export const fetchUserAvatar = (userId) => {
+  return get(`/user/avatar/${userId}`).then(res => {
+    if (!res || !res.data) {
+        console.error('Invalid data received for user avatar:', res);
+        return getDefaultAvatar(); // Return default on error/invalid data
+    }
+    return res.data.avatar_url || getDefaultAvatar();
+  }).catch(error => {
+      console.error('Error fetching user avatar:', error);
+      return getDefaultAvatar(); // Return default on fetch error
+  });
+};
+
+/**
+ * 获取用户简要信息（用于性能敏感场景） - Endpoint needs verification
  * @returns {Promise<BasicUserInfo>}
  */
 export const fetchBasicUserInfo = () => {
-  return get('/user/basic');
+  // Verify if this endpoint requires userId or gets current logged-in user implicitly
+  return get('/user/basic').then(res => {
+       if (!res || !res.data) {
+         console.error('Invalid data received for basic user info:', res);
+         throw new Error('Failed to fetch basic user info');
+      }
+      return res.data; // Assuming response structure matches BasicUserInfo
+  }).catch(error => {
+      console.error('Error fetching basic user info:', error);
+      throw error;
+  });
 };
 
 /**
  * 获取用户默认头像
+ * @returns {string}
  */
-export const getUserDefaultAvatar = () => {
-	return '../../static/user.jpeg';
+export const getDefaultAvatar = () => {
+  return '../../static/user.jpeg';
 }
-
 
 // 类型定义
 /**

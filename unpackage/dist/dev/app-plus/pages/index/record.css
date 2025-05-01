@@ -184,7 +184,10 @@
   cursor: pointer;
 }
 .status-pending[data-v-01d8b9db] {
-  background-color: #FF9500; /* 橙色 - 待支付 */
+  background-color: #FF9500; /* 橙色 - 待审核 */
+}
+.status-to-pay[data-v-01d8b9db] {
+  background-color: #FFCC00; /* 亮黄色 - 待支付 */
 }
 .status-completed[data-v-01d8b9db] {
   background-color: #4CD964; /* 绿色 - 已完成 */
@@ -198,3 +201,17 @@
 .status-in-progress[data-v-01d8b9db] {
   background-color: #5856D6; /* 紫色 - 进行中 */
 }
+.status-rejected[data-v-01d8b9db] {
+  background-color: #FF3B30; /* 红色 - 已拒绝 */
+}
+/* 新增拒绝原因样式 (与manage.vue一致) */
+.audit-reason[data-v-01d8b9db] {
+  margin-top: 8px;
+  padding: 5px;
+  background-color: #FFF2F0;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #FF3B30;
+}
+
+
