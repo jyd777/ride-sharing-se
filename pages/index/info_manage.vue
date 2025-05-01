@@ -36,7 +36,7 @@
             class="info-picker"
           >
             <view class="picker-text">
-              {{ user.gender || '请选择性别' }}
+				{{ user.gender === 'male' ? '男' : (user.gender === 'female' ? '女' : '请选择性别') }}
             </view>
           </picker>
         </div>
@@ -87,7 +87,7 @@
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
 import { fetchUserBaseInfo,
-  fetchModifiableData, 
+  fetchUserModifiableData, 
   updateUserInfo, 
   uploadUserAvatar,
   getDefaultAvatar,
@@ -101,7 +101,6 @@ export default {
   data() {
     return {
       user: {
-        user_id: null,
         avatar: '',        // 头像
         username: '',       // 用户名
         gender: '',       // 新增性别字段
@@ -113,8 +112,8 @@ export default {
       defaultAvatar: '../../static/user.jpeg', // 直接使用路径
       avatarError: '',
       genderList: [        // 性别选项
-        { name: '男', value: '男' },
-        { name: '女', value: '女' }
+        { name: '男', value: 'male' },
+        { name: '女', value: 'female' }
       ]
     };
   },
@@ -125,14 +124,11 @@ export default {
   async fetchUserModifiableData() {
     this.loading = true;
     try {
-      const cacheUserID = uni.getStorageSync('user_id');
-      const res = await fetchModifiableData(cacheUserID);
+      const res = await fetchUserModifiableData();
+	  const avatar = await fetchUserAvatar();
       
-      // 获取用户头像
-      const avatar = await fetchUserAvatar(cacheUserID);
 	  console.log(res);
       const userData = {
-        user_id: cacheUserID,
         avatar: avatar || this.defaultAvatar,
         gender: res.gender,
 		contact: res.telephone,

@@ -28,7 +28,7 @@
                 <text class="time">{{ chat.time }}</text>
               </view>
               <view class="message-preview">
-                <text class="message">{{ chat.lastMessage }}</text>
+                <text class="message">{{ truncateMessage(chat.lastMessage, 75) }}</text>
                 <text v-if="chat.unreadCount > 0" class="unread-count">{{ chat.unreadCount }}</text>
               </view>
             </view>
@@ -47,6 +47,8 @@
 
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
+import { fetchUserConversations } from '../../api/chat';
+import { fetchBasicUserInfo } from '../../api/user';
 
 export default {
   components: {
@@ -58,71 +60,7 @@ export default {
         username: '测试者',
         avatar: '../../static/user_2.jpg'
       },
-      chatList: [
-        {
-          id: 1,
-          username: 'JYD777',
-          avatar: '../../static/user.jpeg',
-          lastMessage: '你好！你想拼车吗？',
-          time: '12:30',
-          unreadCount: 2,
-          isGroup: false
-        },
-        {
-          id: 2,
-          username: '拼车群',
-          members: [
-            {avatar: '../../static/user.jpeg'},
-            {avatar: '../../static/user_2.jpg'},
-            {avatar: '../../static/user_3.jpeg'},
-            {avatar: '../../static/user_4.jpg'}
-          ],
-          lastMessage: '张三: 明天有人去四平校区吗？',
-          time: '昨天',
-          unreadCount: 5,
-          isGroup: true
-        },
-        {
-          id: 3,
-          username: '李四',
-          avatar: '../../static/user_2.jpg',
-          lastMessage: '我大概14:30出发',
-          time: '昨天',
-          unreadCount: 0,
-          isGroup: false
-        },
-        {
-          id: 4,
-          username: '王五',
-          avatar: '../../static/user_3.jpeg',
-          lastMessage: '收到你的邀请',
-          time: '星期一',
-          unreadCount: 0,
-          isGroup: false
-        },
-        {
-          id: 5,
-          username: '嘉定拼车',
-          members: [
-            {avatar: '../../static/user.jpeg'},
-            {avatar: '../../static/user_3.jpeg'},
-            {avatar: '../../static/user_4.jpg'}
-          ],
-          lastMessage: '管理员: 本周拼车规则更新',
-          time: '星期日',
-          unreadCount: 10,
-          isGroup: true
-        },
-        {
-          id: 6,
-          username: '赵六',
-          avatar: '../../static/user_4.jpg',
-          lastMessage: '谢谢你的分享',
-          time: '2023/12/20',
-          unreadCount: 0,
-          isGroup: false
-        }
-      ],
+      ConversationList: [], // 会话列表 -- 从后端获取
       groupAvatarCache: {}, // 缓存已生成的群聊头像
       processedListWithAvatars: [] // 新增：存储已处理好的聊天列表
     };
@@ -136,35 +74,98 @@ export default {
     }
   },
   async created() {
-    await this.fetchCurrentUser();
-    await this.processChatList();
+    await this.fetchCurrentUser();            // 获取用户信息
+	await this.fetchConversationListData();   // 获取会话列表
+	await this.processConversationList();     // 处理会话列表数据
   },
   methods: {
     async fetchCurrentUser() {
-      // 模拟从后端获取当前用户信息
-      const mockResponse = {
-        data: {
-          username: '测试者',
-          avatar: '../../static/user_2.jpg'
-        }
-      };
-      this.currentUser = mockResponse.data;
+		fetchBasicUserInfo().then(res => {
+			this.currentUser.username = res.data.username;
+			this.currentUser.avatar = res.data.avatar;
+		}).catch(err => {
+			console.log('获取用户基本信息失败：', err);
+		});
     },
-    
-    async processChatList() {
-      // 处理聊天列表，确保所有头像都是解析后的URL
-      const processed = [];
-      for (const chat of this.chatList) {
-        if (chat.isGroup) {
-          const avatar = await this.generateGroupAvatar(chat.id, chat.members);
-          processed.push({...chat, avatar});
-        } else {
-          processed.push({...chat});
-        }
-      }
-      this.processedListWithAvatars = processed;
-    },
-    
+	
+	async fetchConversationListData() {
+		try {
+			const res = await fetchUserConversations();
+			console.log("会话列表数据:", res);
+			this.ConversationList = res;
+		} catch (err) {
+			console.log('获取用户会话列表失败：', err);
+		}
+	},
+	
+	async processConversationList() {
+		try {
+			const processed = [];
+			const currentUserId = uni.getStorageSync('user_info').user_id;
+			for (const conversation of this.ConversationList) {
+				const processedConversation = {
+					id: conversation.id || undefined,
+					isGroup: conversation.type === 'group',
+					lastMessage: conversation.lastMessage?.content || '',
+					time: this.formatTime(conversation.lastMessage?.created_at),
+					unreadCount: conversation.unreadCount || 0,
+					tripId: conversation.tripId || null
+				};
+				
+				// 处理私聊会话
+				if (!processedConversation.isGroup) {
+					// 找到私聊的另一方参与者
+					const isValidParticipant = (p) => p?.userId && p.userId !== currentUserId;
+					const otherParticipant = conversation.participants?.find(isValidParticipant) || null;
+					
+					// 设置默认值				
+					processedConversation.username = otherParticipant?.realname || otherParticipant?.username || '未知用户';
+					processedConversation.avatar = otherParticipant?.avatar ? 'data:image/jpeg;base64,' + otherParticipant.avatar : '../../static/user.jpeg';
+				}
+				// 处理群聊会话
+				else {
+					processedConversation.username = conversation.title || '群聊';
+					
+					const participants = Array.isArray(conversation.participants) ? conversation.participants : [];
+					
+					// 获取群成员头像列表
+					const memberAvatars = participants
+					    .filter(p => p)
+					    .map(p => ({
+					      avatar: p.avatar ? `data:image/jpeg;base64,${p.avatar}` : '../../static/user.jpeg',
+					    }));
+					
+					processedConversation.members = memberAvatars;
+					
+					// 生成群头像
+					try {
+						processedConversation.avatar = memberAvatars.length > 0 ?
+							await this.generateGroupAvatar(conversation.id, memberAvatars) :
+							'../../static/default_group_avatar.png';
+						console.log(processedConversation.avatar);
+					} catch (e) {
+						console.error('生成群头像失败:', e);
+						processedConversation.avatar = '../../static/default_group_avatar.png';
+					}
+				}
+				
+				processed.push(processedConversation);
+			};
+			
+			// 按最后消息时间降序排序
+			processed.sort((a, b) => {
+			  const timeA = new Date(a.lastMessage?.created_at || 0).getTime();
+			  const timeB = new Date(b.lastMessage?.created_at || 0).getTime();
+			  return timeB - timeA;
+			});
+			
+			this.processedListWithAvatars = processed;
+			console.log("处理后的会话列表:", processed);
+		} catch (err) {
+			console.error('处理会话列表失败:', err);
+		}
+	},
+
     async generateGroupAvatar(groupId, members) {
       // 如果有缓存，直接返回
       if (this.groupAvatarCache[groupId]) {
@@ -172,25 +173,35 @@ export default {
       }
       
       // 获取前4个成员的头像
-      const avatars = members.slice(0, 4).map(m => m.avatar);
+      const validAvatars = members
+		.slice(0, 4)
+		.filter(member => member?.avatar)
+		.map(m => m.avatar);
+		
+	// 3. 处理特殊情况
+	  if (validAvatars.length === 0) {
+	    const defaultAvatar = '../../static/default_group_avatar.png';
+	    this.groupAvatarCache[groupId] = defaultAvatar;
+	    return defaultAvatar;
+	  }
       
-      if (avatars.length === 1) {
+      if (validAvatars.length === 1) {
         this.groupAvatarCache[groupId] = avatars[0];
         return avatars[0];
       }
       
       try {
         // 使用Canvas生成拼接头像
-        const tempFilePath = await this.drawGroupAvatar(avatars);
+        const tempFilePath = await this.drawGroupAvatar(validAvatars);
         this.groupAvatarCache[groupId] = tempFilePath;
         return tempFilePath;
       } catch (error) {
         console.error('生成群聊头像失败:', error);
-        return '../../static/default_group_avater.png';
+        return '../../static/default_group_avatar.png';
       }
     },
     
-    drawGroupAvatar(avatarUrls) {
+    async drawGroupAvatar(avatarUrls) {
       return new Promise((resolve, reject) => {
         const ctx = uni.createCanvasContext('groupAvatarCanvas');
         const canvasWidth = 100;
@@ -275,13 +286,48 @@ export default {
       });
     },
     
-    goToChat(chat) {
-	  console.log(`/pages/chat/chat?username=${chat.username}&avatar=${chat.avatar}`)
+    goToChat(conversation) {
       uni.navigateTo({
-        url: `/pages/chat/chat?username=${chat.username}&avatar=${chat.avatar}`
+        url: `/pages/index/chat?conversationId=${conversation.id}`,
+		success: () => {
+		  console.log('跳转成功');
+		},
+		fail: (err) => {
+		  console.error('跳转失败:', err);
+		}
       });
-    }
-  }
+    },
+	
+	// 辅助函数：截断消息显示长度
+	truncateMessage(text, maxLength = 15) {
+	  if (!text) return '';
+	  return text.length > maxLength 
+	    ? text.substring(0, maxLength) + '...' 
+	    : text;
+	},
+	
+	// 辅助函数：格式化时间显示
+	formatTime(timestamp) {
+	  if (!timestamp) return '';
+	  
+	  const now = new Date();
+	  const date = new Date(timestamp);
+	  const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+	  
+	  if (diffDays === 0) {
+	    // 今天显示时间
+	    return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+	  } else if (diffDays === 1) {
+	    return '昨天';
+	  } else if (diffDays < 7) {
+	    // 一周内显示星期几
+	    return ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][date.getDay()];
+	  } else {
+	    // 更早的显示日期
+	    return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+	  }
+	},
+  },
 };
 </script>
 
@@ -384,5 +430,13 @@ export default {
   text-align: center;
   border-radius: 9px;
   padding: 0 5px;
+}
+
+.message {
+  display: inline-block;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

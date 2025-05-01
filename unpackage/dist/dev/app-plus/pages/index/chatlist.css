@@ -110,3 +110,10 @@
   border-radius: 9px;
   padding: 0 5px;
 }
+.message[data-v-c2d98f75] {
+  display: inline-block;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

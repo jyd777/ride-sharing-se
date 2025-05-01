@@ -80,6 +80,7 @@ export default {
 		// 1. 存储Token和用户信息
 		uni.setStorageSync('access_token', res.data.access_token);
 		uni.setStorageSync('user_info', res.data.user);
+		console.log("user_info", uni.getStorageSync('user_info'));
 		
 		// 2. 连接socket
 		SocketService.connect(res.data.access_token)

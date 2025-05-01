@@ -143,37 +143,36 @@ export default {
 	  });
 	},
     async fetchUserData() {
-	  this.loading = true;
-	  try {
-		// 优先读取本地缓存
-		const cacheUser = uni.getStorageSync('user_info');  
-		// 无论是否有缓存都请求最新数据
-		if(cacheUser) {
-			this.user.name = cacheUser.username;
-			this.user.avatar = cacheUser.avatar;
-			this.user.age = cacheUser.age;
-			this.user.gender = cacheUser.gender;
-		}
-		// 无论是否有缓存都请求最新数据
-		const cacheUserID = uni.getStorageSync('user_id'); 
-		const res = await fetchUserBaseInfo(cacheUserID);
-		const newUserData = {
-		  user_id: res.user_id,
-		  name: res.username,
-		  avatar: res.avatar,
-		  age: res.age,
-		  gender: res.gender,
-		  userId: res.user_id
-		};
-
-		if (JSON.stringify(this.user) !== JSON.stringify(newUserData)) {
-		  this.user = newUserData;
-		  uni.setStorageSync('user_info', newUserData);
-		  console.log(this.user)
-		}
-	  } catch (error) {
-		  console.error('获取用户数据失败:', error);
+	  /**
+	   * <!> 获取用户数据
+	   */
+	  const cacheUser = uni.getStorageSync('user_info');  
+	  if (cacheUser) {
+	  	this.user.name = cacheUser.username;
+	  	this.user.avatar = cacheUser.avatar;
+	  	this.user.age = cacheUser.age;
+	  	this.user.gender = cacheUser.gender;
 	  }
+	  
+	  fetchUserBaseInfo()
+	  	.then(res => {
+	  		const newUserData = {
+	  			user_id: res.user_id,
+	  			name: res.username,
+	  			avatar: res.avatar,
+	  			age: res.age,
+	  			gender: res.gender,
+	  			userId: res.user_id
+	  		};
+	  		
+	  		if (JSON.stringify(this.user) !== JSON.stringify(newUserData)) {
+	  		  this.user = newUserData;
+	  		  uni.setStorageSync('user_info', newUserData);
+	  		};
+	  	})
+	  	.catch(error => {
+	  		console.error('获取用户数据失败:', error);
+	  	})
     },
     viewDetails(tripId) {
       this.$router.push({ name: 'Detail', params: { id: tripId } });
@@ -199,14 +198,8 @@ export default {
       }
     },
     async fetchUserTrips() {
-      try {
-        const cacheUserID = uni.getStorageSync('user_id');
-        if (!cacheUserID) {
-          console.error('用户ID不存在');
-          return;
-        }
-        
-        const res = await fetchUserTrips(cacheUserID);
+      try {       
+        const res = await fetchUserTrips();
         if (res.code === 200) {
           this.trips = res.data.map(trip => ({
             id: trip.id,

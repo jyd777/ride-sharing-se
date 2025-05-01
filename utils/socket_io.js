@@ -41,6 +41,18 @@ class SocketIOService {
 	}
 	
 	/**
+	 * 更新认证信息
+	 * @param {String|Object} [auth] - 动态认证信息
+	 */
+	updateAuth(token) {
+	  this.defaultOptions.auth.token = token;
+	  if (this.socket) {
+	    this.socket.auth = { token };
+	    this.socket.io.opts.query = { token };
+	  }
+	}
+	
+	/**
 	 * 初始化Socket连接
 	 * @param {String|Object} [auth] - 动态认证信息
 	 * @returns {Promise<void>}
@@ -162,6 +174,7 @@ class SocketIOService {
 	 * @param {Function} callback - 回调函数
 	 */
 	on(event, callback) {
+	  console.log('register', event)
 	  if (!this.eventListeners.has(event)) {
 	    this.eventListeners.set(event, new Set());
 	  }
@@ -273,3 +286,4 @@ export const SocketService = new SocketIOService({
     token: uni.getStorageSync('token') 
   },
 });
+

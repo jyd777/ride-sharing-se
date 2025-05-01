@@ -36,8 +36,8 @@ export const fetchCalendarTrips = (year, month, userId) => {
   });
 };
 
-export function fetchUserTrips(userId) {
-  return get( `/orders/user/${userId}/trips`);
+export function fetchUserTrips() {
+  return get( `/orders/user/trips`);
 }
 
 // 获取管理后台订单列表

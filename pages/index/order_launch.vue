@@ -222,7 +222,7 @@ export default {
   },
   onLoad() {
     // 从本地存储获取用户ID
-    const storedUserId = uni.getStorageSync('user_id');
+    const storedUserId = uni.getStorageSync('user_info').userId;
     if (storedUserId) {
       this.userId = parseInt(storedUserId);
       console.log("当前用户 ID:", this.userId);
@@ -234,7 +234,7 @@ export default {
         content: '您尚未登录，无法发布订单。是否前往登录？',
         success: (res) => {
           if (res.confirm) {
-            uni.navigateTo({ url: '/pages/login/login' });
+            uni.navigateTo({ url: '/pages/login' });
           } else {
             uni.navigateBack();
           }

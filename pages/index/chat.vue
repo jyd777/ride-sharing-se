@@ -9,9 +9,16 @@
         style="position: absolute; right: 70rpx;"
       />
     </view>
-    <view class="flex-col group" style="margin-bottom: 100rpx;">
+	
+    <scroll-view 
+		class="flex-col group message-container"
+		scroll-y 
+		:scroll-into-view="lastMsgId"
+		:scroll-with-animation="true"
+		style="margin-bottom: 100rpx;">
       <view
         v-for="(message, index) in messages"
+		:id="'msg-' + message.id"
         :key="index"
         :class="['flex-row', message.sender === 'user' ? 'justify-end' : 'justify-start']"
         style="display: flex; width: 100%; align-items: center;"
@@ -67,7 +74,7 @@
           <image class="userAvatar" :src="userAvatar" />
         </view>
       </view>
-    </view>
+    </scroll-view>
     
     <!-- 订单选择弹窗 -->
     <view v-if="showOrderPopupFlag" class="custom-popup-mask" @click="closeOrderPopup">
@@ -180,6 +187,8 @@
 
 <script>
 import OrderInvite from '../../components/OrderInvite.vue';
+import { fetchConversationMessages, sendMessage } from '../../api/chat';
+import { SocketService } from '../../utils/socket_io';
 
 export default {
   components: {
@@ -187,6 +196,7 @@ export default {
   },
   data() {
     return {
+	  conversationId: null, // 会话ID
       userAvatar: '../../static/user_2.jpg',
       otherAvatar: '../../static/user.jpeg',
       username: '测试者',          // 当前用户
@@ -215,36 +225,111 @@ export default {
       return this.orderType === 'driver' ? this.driverOrders : this.passengerOrders;
     }
   },
-  onLoad() {
-    this.getAvailableOrders();
+  onLoad(options) {
+	console.log('接收到的参数:', options);
+	this.conversationId = options.conversationId;
+	this.initChatPage();
+	
+	// 先移除可能存在的旧监听器
+	SocketService.off('new_message', this.handleNewMessage);
+	SocketService.off('message_error');
+	
+	// 加入Socket房间
+	SocketService.emit('join_conversation', {
+	  conversationId: this.conversationId
+	});
+	// 消息监听
+	SocketService.on('new_message', this.handleNewMessage);
+	SocketService.on('message_error', (error) => {
+	  uni.showToast({ title: error.error, icon: 'none' });
+	});
+  },
+  onUnload() {
+  	// 取消监听
+  	SocketService.off('new_message');
+  	SocketService.off('message_error');
   },
   methods: {
     goBack() {
       uni.navigateBack();
     },
+	
+	async initChatPage() {
+		console.log("初始化聊天界面");
+		try {
+			await this.fetchMessages();
+		} catch (err) {
+			console.error("初始化失败", err);
+		}
+	},
+	
+	async fetchMessages() {
+		// 获取会话消息
+		try {
+			const currentUserId = uni.getStorageSync('user_info').userId;
+			const currentUsername = uni.getStorageSync('user_info').username;
+			
+			const res = await fetchConversationMessages(this.conversationId);
+			
+			// 转换消息格式
+			this.messages = res.data.map(msg => {
+				// 判断消息发送者是否是当前用户
+				const isCurrentUser = msg.sender.user_id === currentUserId;
+				
+				return {
+					id: msg.message_id,
+					sender: isCurrentUser ? 'user' : 'other',
+					content: msg.content,
+					type: msg.type,
+					createdAt: new Date(msg.created_at),
+					senderInfo: {
+					  username: isCurrentUser ? currentUsername : msg.sender.username,
+					  avatar: msg.sender.avatar,
+					  realname: msg.sender.realname,
+					  userId: msg.sender.user_id
+					}
+				}
+			});
+		} catch (err) {
+			uni.showToast({
+			  title: '加载消息失败',
+			  icon: 'none'
+			});
+		}
+	},
     
     sendMessage() {
-      const msg = this.inputMessage.trim();
-      if (!msg) return;
-      
-      this.messages.push({
-        sender: 'user',
-        content: msg
-      });
-      
-      this.inputMessage = '';
-      this.scrollToBottom();
-      
-      // 模拟回复
-      setTimeout(() => {
-        this.messages.push({
-          sender: 'other',
-          content: this.getRandomReply()
-        });
-        this.scrollToBottom();
-      }, 500 + Math.random() * 1000);
+		const msg = this.inputMessage.trim();
+		if (!msg) return;
+		
+		this.inputMessage = '';
+		console.log("发送消息")
+		this.scrollToBottom();
+		
+		sendMessage(this.conversationId, msg);
     },
     
+	handleNewMessage(msg) {
+	  // 检查是否已经处理过该消息
+	  if (this.messages.some(m => m.id === msg.id)) {
+	    return;
+	  }
+	  
+	  // 回调函数：处理新消息
+	  console.log("接受到new_message信号");
+	  if (msg.conversationId === this.conversationId) {
+	    const isCurrentUser = msg.sender.userId === uni.getStorageSync('user_info').user_id;
+	    
+	    this.messages.push({
+	      id: msg.id,
+	      sender: isCurrentUser ? 'user' : 'other',
+	      content: msg.content,
+	      createdAt: new Date(msg.createdAt),
+	      senderInfo: msg.sender
+	    });
+	  }
+	},
+	
     getRandomReply() {
       const replies = [
         '收到你的消息了',
@@ -257,12 +342,11 @@ export default {
     },
     
     scrollToBottom() {
-      setTimeout(() => {
-        uni.pageScrollTo({
-          scrollTop: 99999,
-          duration: 300
-        });
-      }, 100);
+		// TODO:没用
+		console.log("滚动到底部")
+		if (this.messages.length > 0) {
+		  this.lastMsgId = 'msg-' + this.messages[this.messages.length - 1].id;
+		}
     },
     
     // 订单相关方法
@@ -648,5 +732,21 @@ export default {
 .preview-image {
   max-width: 100%;
   max-height: 100%;
+}
+
+.group {
+  margin-top: 79.17rpx;
+  padding: 0 22.92rpx;
+  /* 新增以下样式 */
+  height: calc(100vh - 180rpx);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.message-container {
+  height: calc(100vh - 200rpx - env(safe-area-inset-bottom));
+  padding-bottom: 120rpx;
+  overflow-anchor: none; /* 防止iOS跳动 */
+  -webkit-overflow-scrolling: touch;
 }
 </style>
