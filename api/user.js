@@ -5,6 +5,7 @@ import { get, post } from '@/utils/request.js'
  * @returns {Promise<UserInfo>}
  */
 export const fetchUserBaseInfo = (userId) => {
+	console.log('你好')
   return get(`/user/basic/${userId}`).then(res => {
 	// 统一处理数据格式
 	return {

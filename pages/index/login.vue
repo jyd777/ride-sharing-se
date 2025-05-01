@@ -38,6 +38,7 @@
 
 <script>
 import authApi from '@/api/auth.js'
+import { SocketService } from '../../utils/socket_io';
 	
 export default {
   data() {
@@ -66,22 +67,36 @@ export default {
         return;
       }
 	  
+	 // 显示加载状态
+	 uni.showLoading({ title: '登录中...', mask: true });
+
 	  // 调用登陆API
 	  authApi.login({
 	  	username: this.credentials.username,
-	  	password: this.credentials.password,
+	  	password: this.credentials.password
 	  }).then(res => {
 	  	console.log("登陆成功", res);
 		
-		// 存储Token和用户信息（同步存储）
+		// 1. 存储Token和用户信息
 		uni.setStorageSync('access_token', res.data.access_token);
 		uni.setStorageSync('user_info', res.data.user);
-		uni.setStorageSync('user_id', res.data.user.userId);
 		
-		this.goToHome()
+		// 2. 连接socket
+		SocketService.connect(res.data.access_token)
+			.then(() => console.log("连接成功"))
+			.catch(err => console.error('连接失败:', err));
+			
+	  }).then(() => {
+	  	// 跳转首页
+	  	this.goToHome();
 	  }).catch(err => {
 	  	console.log('登陆失败：', err);
-		uni.showToast({ title: err.data?.message || '登录失败', icon: 'none' });
+	  	uni.showToast({ 
+	  		title: err.data?.message || '登录失败', 
+	  		icon: 'none' 
+	  	});
+	  }).finally(() => {
+	  	uni.hideLoading();
 	  });
     },
 	

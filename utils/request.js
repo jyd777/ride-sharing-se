@@ -23,7 +23,8 @@
 /**
  * 基础API地址 (根据环境动态设置--未完成)
  */
-const BASE_URL = "http://100.79.29.218:5000/api" 
+import config from "../config"
+const BASE_URL = `${config.BASE_URL}`
 
 
 // 拦截器 ====================================================
@@ -82,7 +83,7 @@ const responseInterceptor = {
     */
   fail(err) {
     // 统一错误处理
-	return handleNetworkError(error.errMsg || '网络请求失败');
+	return handleNetworkError(err.errMsg || '网络请求失败');
   }
 }
 
@@ -107,10 +108,10 @@ export const request = (options) => {
   
   // 从本地获取Token
   const token = uni.getStorageSync('access_token');
-  console.log(token)
-  options.header = options.header || {};
+  console.log("token", token)
+  realOptions.header = options.header || {};
   if(token) {
-	  options.header['Authorization'] = `Bearer ${token}`;
+	  realOptions.header['Authorization'] = `Bearer ${token}`;
   }
   
   if (showLoading) {
@@ -122,7 +123,7 @@ export const request = (options) => {
 	
   return new Promise((resolve, reject) => {
     uni.request({
-      ...options,
+      ...realOptions,
       success: (res) => {
 		if (showLoading) uni.hideLoading()
 		
@@ -192,11 +193,10 @@ export const upload = (url, filePath, name = 'file', formData = {}, options = {}
  * @param {Object} [data] - 请求参数
  * @param {Object} [options] - 额外配置
  */
-export const get = (url, data = {}, options = {}) => {
-	request({ url, data, method: 'GET', ...options });
-}
+export const get = (url, data = {}, options = {}) => 
+  request({ url, data, method: 'GET', ...options })
   
-
+  
 /**
  * POST请求
  * @param {String} url - 请求地址
@@ -206,6 +206,7 @@ export const get = (url, data = {}, options = {}) => {
 export const post = (url, data = {}, options = {}) =>
   request({ url, data, method: 'POST', ...options })
 
+
 /**
  * PUT请求
  * @param {String} url - 请求地址
@@ -214,6 +215,7 @@ export const post = (url, data = {}, options = {}) =>
  */
 export const put = (url, data = {}, options = {}) =>
   request({ url, data, method: 'PUT', ...options })
+
 
 /**
  * DELETE请求
@@ -225,6 +227,7 @@ export const del = (url, data = {}, options = {}) =>
   request({ url, data, method: 'DELETE', ...options })
 
 // 工具函数 ==================================================
+
 /**
  * 展示信息
  * @param {message} 展示信息 
@@ -244,7 +247,6 @@ function showToast(message) {
 export const setAuthToken = (token) => {
   uni.setStorageSync('token', token)
 }
-
 /**
  * 清除认证信息
  */
@@ -287,7 +289,7 @@ function handleNetworkError(statusCode) {
   };
   
   const errMsg = errorMap[statusCode] || `网络错误[${statusCode}]`;
-  showToast(title=errMsg);
+  showToast(errMsg);
   return Promise.reject(new Error(errMsg));
 }
 
@@ -298,7 +300,8 @@ function handleNetworkError(statusCode) {
 function handleBusinessCode(data) {
   switch (data?.code) {
     case 200: // 业务成功
-      return Promise.resolve(data);
+	console.log("业务码200", data)
+      return Promise.resolve(data); // 提前将数据解出来了
       
     case 401: // Token无效
       handleTokenExpired(data.message);

@@ -121,8 +121,8 @@ export default {
         confirmPassword: ''
       },
       genderList: [
-        { name: '男', value: '男' },
-        { name: '女', value: '女' }
+        { name: '男', value: 'male' },
+        { name: '女', value: 'female' }
       ],
       selectedGender: null
     };

@@ -7,6 +7,8 @@ export default {
 	  * @returns Promise
 	  */
 	register(data) {
+		console.log('📮 注册请求开始 -----');
+		console.log('请求数据:', data);
 		return post("/auth/register", data, {
 		  showLoading: true,
 		  loadingText: "正在注册..."

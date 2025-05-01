@@ -186,23 +186,22 @@ export default {
     async fetchUserData() {
 	  this.loading = true;
 	  
+	  // 优先读取本地缓存
+	  const cacheUser = uni.getStorageSync('user_info'); 
+	  // 无论是否有缓存都请求最新数据
+	  if(cacheUser) {
+	  	this.user.name = cacheUser.username;
+	  	this.user.avatar = cacheUser.avatar;
+	  	this.user.age = cacheUser.age;
+	  	this.user.gender = cacheUser.gender;
+	  }
+	  console.log(this.user.avatar);
+	  
 	  try {
-		// 优先读取本地缓存
-		const cacheUser = uni.getStorageSync('user_info');  
-		// 无论是否有缓存都请求最新数据
-		if(cacheUser) {
-			this.user.name = cacheUser.username;
-			this.user.avatar = cacheUser.avatar;
-			this.user.age = cacheUser.age;
-			this.user.gender = cacheUser.gender;
-			
-		}
-		console.log(this.user.avatar);
 		
 		// 无论是否有缓存都请求最新数据
 		const cacheUserID = uni.getStorageSync('user_id'); 
 		const res = await fetchUserBaseInfo(cacheUserID);
-		console.log(res);
 		const newUserData = {
 		  name: res.username,
 		  avatar: res.avatar,

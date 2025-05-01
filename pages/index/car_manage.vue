@@ -198,13 +198,22 @@ export default {
 		const res = await fetchCars(userId);
 		console.log(res);
 		// 转换后端数据为前端需要的格式
-		this.userCars = res.map(car => ({
-		  car_id: car.car_id,
-		  number: car.plate_number,
-		  model: car.brand_model,
-		  color: car.color || 'blue', // 默认颜色
-		  seats: car.seats || 4 // 默认座位数
+		// [] // 单独处理
+		this.userCars = (res || []).map(car => ({
+		  car_id: car?.car_id ?? 0,          // 使用空值合并运算符
+		  number: car?.plate_number ?? '',   // 默认空字符串
+		  model: car?.brand_model ?? '未知车型',
+		  color: car?.color || 'blue',       // 兼容旧写法
+		  seats: Math.max(1, car?.seats || 4) // 保证最小1座
 		}));
+		
+		// this.userCars = res.map(car => ({
+		//   car_id: car.car_id,
+		//   number: car.plate_number,
+		//   model: car.brand_model,
+		//   color: car.color || 'blue', // 默认颜色
+		//   seats: car.seats || 4 // 默认座位数
+		// }));
 		console.log(this.userCars);
 	  } catch (error) {
 		console.error('获取车辆列表失败:', error);

@@ -276,6 +276,7 @@ export default {
     },
     
     goToChat(chat) {
+	  console.log(`/pages/chat/chat?username=${chat.username}&avatar=${chat.avatar}`)
       uni.navigateTo({
         url: `/pages/chat/chat?username=${chat.username}&avatar=${chat.avatar}`
       });

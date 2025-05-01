@@ -9,6 +9,7 @@ export const saveFileToLocal = async (tempFilePath) => {
         // 生成唯一文件名
         const fileName = `${Date.now()}.${tempFilePath.split('.').pop()}`;
         const savePath = `${uploadDir}${fileName}`;
+		console.log(fileName)
 
         // 保存文件
         const { savedFilePath } = await uni.saveFile({
@@ -30,7 +31,10 @@ const createDirIfNotExists = async (dirPath) => {
             filePath: dirPath
         });
     } catch (error) {
-        if (error.errMsg.includes('file not found')) {
+		console.log(error)
+        if (error.errMsg.includes('文件不存在')) {
+			console.log("创建文件", dirPath)
+			// 这个函数调用有问题
             await uni.mkdir({
                 dirPath,
                 recursive: true
