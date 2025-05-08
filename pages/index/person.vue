@@ -215,7 +215,7 @@ export default {
             startPoint: trip.startPoint,
             endPoint: trip.endPoint,
             price: trip.price,
-            carType: trip.carType,
+            carType: trip.carType || '未接单',
             userAvatar: trip.userAvatar,
             orderCount: trip.orderCount,
             status: trip.status
