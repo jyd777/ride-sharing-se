@@ -175,6 +175,42 @@
         mode="widthFix"
       />
     </view>
+    <view v-if="showVehiclePopup" class="custom-popup-mask" @click="showVehiclePopup = false">
+      <view class="custom-popup-content" @click.stop>
+        <view class="popup-header">
+          <text style="font-size: 16px; font-weight: bold;">选择车辆</text>
+          <image 
+            src="../../static/close.png" 
+            @click="showVehiclePopup = false" 
+            style="width: 40rpx; height: 40rpx;"
+          />
+        </view>
+
+        <scroll-view scroll-y="true" style="height: 60vh; margin-top: 20rpx;">
+          <view 
+            v-for="(vehicle, index) in vehicles" 
+            :key="vehicle.id" 
+            class="order-item" 
+            :class="{'selected-order': selectedVehicle && selectedVehicle.id === vehicle.id}"
+            @click="selectedVehicle = vehicle"
+          >
+            <text class="order-text">{{ vehicle.plate_number }}</text>
+          </view>
+
+          <view v-if="vehicles.length === 0" class="empty-tip">
+            <text>暂无可用车辆</text>
+          </view>
+        </scroll-view>
+
+        <button 
+          v-if="selectedVehicle" 
+          class="send-btn"
+          @click="confirmVehicleSelection"
+        >
+          确认选择
+        </button>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -207,7 +243,10 @@ export default {
       orderType: 'driver',
       showOrderPopupFlag: false,
       isPreviewing: false,
-      previewImageSrc: ''
+      previewImageSrc: '',
+      showVehiclePopup: false, // 控制车辆选择弹窗的显示
+      selectedVehicle: null, // 用户选择的车辆
+      vehicles: [] // 用户的车辆列表
     };
   },
   computed: {
@@ -244,7 +283,14 @@ export default {
         this.scrollToBottom();
       }, 500 + Math.random() * 1000);
     },
-    
+
+    fetchUserVehicles() {
+      // 模拟从后端获取车辆列表
+      this.vehicles = [
+        { id: 1, plate_number: '沪A12345' },
+        { id: 2, plate_number: '沪B67890' }
+      ];
+    },
     getRandomReply() {
       const replies = [
         '收到你的消息了',
@@ -341,29 +387,64 @@ export default {
     
     sendInvite() {
       if (!this.selectedOrderId) return;
-      
+    
       const allOrders = [...this.driverOrders, ...this.passengerOrders];
       const order = allOrders.find(o => o.id === this.selectedOrderId);
-      
+    
       if (order) {
+        if (order.role === 'passenger') {
+          // 如果是对方的乘客订单，弹出车辆选择弹窗
+          this.fetchUserVehicles(); // 获取车辆列表
+          this.showVehiclePopup = true;
+          return;
+        }
+    
+        // 如果是司机订单，直接发送邀请
         this.invites.push({
           ...order,
           type: 'invite',
-          // 添加发起者信息
           inviter: order.role === 'driver' ? this.username : this.other_username,
           inviter_avatar: order.role === 'driver' ? this.userAvatar : this.otherAvatar
         });
-        
+    
         this.closeOrderPopup();
         this.scrollToBottom();
-        
+    
         uni.showToast({
           title: '邀请已发送',
           icon: 'success'
         });
       }
     },
+    confirmVehicleSelection() {
+      if (!this.selectedVehicle) {
+        uni.showToast({ title: '请选择车辆', icon: 'none' });
+        return;
+      }
     
+      const allOrders = [...this.driverOrders, ...this.passengerOrders];
+      const order = allOrders.find(o => o.id === this.selectedOrderId);
+    
+      if (order) {
+        this.invites.push({
+          ...order,
+          type: 'invite',
+          vehicle: this.selectedVehicle.plate_number, // 添加车辆信息
+          inviter: this.username,
+          inviter_avatar: this.userAvatar
+        });
+    
+        this.showVehiclePopup = false; // 关闭车辆选择弹窗
+        this.closeOrderPopup();
+        this.scrollToBottom();
+    
+        uni.showToast({
+          title: '邀请已发送',
+          icon: 'success'
+        });
+      }
+    },
+
     showInvitePopup(invite) {
       this.currentInvite = {
         ...invite,
@@ -648,5 +729,35 @@ export default {
 .preview-image {
   max-width: 100%;
   max-height: 100%;
+}
+.order-item.selected-order {
+  background-color: #f0f8ff;
+  border-left: 6rpx solid #2a82e4;
+}
+
+.order-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: #333;
+}
+
+.empty-tip {
+  text-align: center;
+  padding: 50rpx;
+  color: #999;
+}
+
+.send-btn {
+  position: fixed;
+  bottom: 60px;
+  right: 30rpx;
+  background-color: #2a82e4;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 15px;
+  font-weight: bold;
+  box-shadow: 0 2px 5px rgba(42, 130, 228, 0.3);
+  z-index: 99;
 }
 </style>
