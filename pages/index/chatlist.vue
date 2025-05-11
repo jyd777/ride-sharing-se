@@ -21,7 +21,7 @@
             class="chat-item" 
             @click="goToChat(chat)"
           >
-            <image class="avatar" :src="chat.avatar || '../../static/default_group_avater.png'" />
+            <image class="avatar" :src="chat.avatar || '../../static/user.jpeg'" />
             <view class="chat-content">
               <view class="chat-header">
                 <text class="username">{{ chat.username }}</text>

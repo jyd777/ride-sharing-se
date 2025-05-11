@@ -175,8 +175,10 @@ export default {
 	  	})
     },
     viewDetails(tripId) {
-      this.$router.push({ name: 'Detail', params: { id: tripId } });
-    },
+      uni.navigateTo({
+        url: `/pages/index/trip_info?id=${tripId}`
+      });
+    }, 
     toggleEdit() {
       this.isEditing = !this.isEditing;
     },
@@ -207,7 +209,7 @@ export default {
             startPoint: trip.startPoint,
             endPoint: trip.endPoint,
             price: trip.price,
-            carType: trip.carType,
+            carType: trip.carType || '未接单',
             userAvatar: trip.userAvatar,
             orderCount: trip.orderCount,
             status: trip.status

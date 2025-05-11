@@ -3,7 +3,13 @@
 		<!-- 使用 NavigationBar 组件 -->
 		<NavigationBar />
 		<!-- 支付弹窗 -->
-		<PaymentModal :visible="showPaymentModal" :amount="tripData.price" @close="closePaymentModal" />
+		<PaymentModal 
+			:visible="showPaymentModal" 
+			:amount="tripData.price" 
+			:orderId="orderId" 
+			@close="closePaymentModal" 
+			@refresh="fetchTripDetails" 
+		/>
 		<!-- 评价弹窗 -->
 		<view class="rate-modal" v-if="showRateModal">
 			<view class="rate-content">
@@ -14,10 +20,7 @@
 							class="star-icon" />
 					</view>
 				</view>
-        <!-- 可选：添加评论输入框 -->
-        <!--
-        <textarea class="comment-input" v-model="ratingComment" placeholder="写点评价吧..."></textarea>
-        -->
+
 				<view class="rate-buttons">
 					<button class="cancel-button" @click="cancelRating">取消</button>
 					<button class="submit-button" @click="submitRating" :disabled="isSubmittingRating">提交评价</button>
@@ -27,20 +30,24 @@
 
 		<!-- 地图容器 -->
 		<map id="uni-map" class="map-container" :longitude="centerLng" :latitude="centerLat" :markers="markers"
-			:polyline="polyline" :scale="14" style="width: 100%; height: 400px;" v-if="!isLoading"></map>
+			:polyline="polyline" :scale="14" v-if="!isLoading"></map>
     <view v-else class="loading-placeholder">地图加载中...</view>
 
 		<!-- 行程详情 -->
-    <view v-if="!isLoading && tripData.id" class="order-scroll" scroll-y="true" style="height:calc(100vh - 400px - 50px); /* 调整高度以适应导航栏和地图 */">
+    <view v-if="!isLoading && tripData.id" class="order-scroll" scroll-y="true" >
 			<view class="order-info"> <!-- 移除 v-for，因为只显示一个行程 -->
 				<view class="order-card">
 					<view class="order-header">
 						<text>{{ tripData.date }}</text>
 						<view class="button-container">
-							<!-- “评价”按钮：只有在 state 为 '待评价' 时显示 -->
-							<button v-if="tripData.state === '待评价'" class="rate-button" @click="handleRateClick">评价</button>
-							<!-- 状态/操作按钮 -->
-							<button class="join-button" @click="handleStateButtonClick(tripData)">{{ tripData.state }}</button>
+						  <!-- “评价”按钮：只有在 state 为 '待评价' 时显示 -->
+						  <button v-if="tripData.state === 'to-review'" class="rate-button" @click="handleRateClick">评价</button>
+						  <!-- “付款”按钮：只有在 state 为 '待付款' 时显示 -->
+						  <button v-if="tripData.state === 'to-pay'" class="rate-button" @click="handlePayClick">付款</button>
+						  <!-- 状态/操作按钮，动态映射状态 -->
+						  <button class="state-button" :class="'status-' + tripData.state">
+							{{ getStatusText(tripData.state) }}
+						  </button>
 						</view>
 					</view>
 					<view class="order-details">
@@ -85,9 +92,7 @@
 <script>
 	import NavigationBar from '../../components/NavigationBar.vue';
 	import PaymentModal from '../../components/PaymentModal.vue';
-
-  // --- 配置你的后端 API 地址 ---
-  const API_BASE_URL = 'http://localhost:5000'; // 例如: http://192.168.1.100:5000 或 http://localhost:5000
+	import { fetchTripDetail, submitTripRating} from '@/api/order.js';
 
 	export default {
 		components: {
@@ -109,7 +114,7 @@
           price: 0,
           carType: '',
           orderCount: 0,
-          userAvatar: '../../static/default_avatar.png', // 默认头像
+          userAvatar: '', // 默认头像
           state: '',
           driverUserId: null // 添加司机ID，用于评价
         },
@@ -123,60 +128,54 @@
 			};
 		},
 		onLoad(options) {
-      // --- 获取页面启动时传入的参数 ---
-      // --- 修改这里：检查 options.id 而不是 options.orderId ---
-      if (options && options.id) {
-        // 将从 'id' 参数获取的值赋给内部使用的 orderId 变量
-        // 我们仍然使用 this.orderId 作为内部变量名，因为后端 API 需要 order_id
-        this.orderId = parseInt(options.id); // 确保是数字类型
-        console.log('接收到的参数 id (赋值给 orderId):', this.orderId); // 更新日志信息
-        this.fetchTripDetails(); // 获取到 ID 后再去请求数据
-      } else {
-        // --- 更新错误信息 ---
-        console.error('未接收到有效的 id 参数！');
-        uni.showToast({ title: '无法加载行程信息', icon: 'error' });
-        this.isLoading = false;
-      }
-    },
+			if (options && options.id) {
+				this.orderId = parseInt(options.id);
+				console.log('接收到的参数 id (赋值给 orderId):', this.orderId);
+				this.fetchTripDetails();
+			} else {
+				console.error('未接收到有效的 id 参数！');
+				uni.showToast({ title: '无法加载行程信息', icon: 'error' });
+				this.isLoading = false;
+			}
+		},
 		mounted() {
 			this.initMap();
-      // 注意：drawRoute 现在依赖于从API获取的数据，所以在 fetchTripDetails 成功后再调用
-      // this.drawRoute(); // 不在这里调用
 		},
 		methods: {
-      // --- 1. 获取行程详情 ---
-      fetchTripDetails() {
-        if (!this.orderId) return;
-        this.isLoading = true;
+			  // 状态映射方法
+			getStatusText(state) {
+				const statusMap = {
+				pending: '待审核',
+				completed: '已完成',
+				rejected: '已拒绝',
+				'not-started': '未开始',
+				'in-progress': '进行中',
+				'to-pay': '待付款',
+				'to-review': '待评价',
+				};
+				return statusMap[state] || '未知状态';
+			},
+			// 1. 获取行程详情
+			fetchTripDetails() {
+				if (!this.orderId) return;
+				this.isLoading = true;
 
-        uni.request({
-          url: `${API_BASE_URL}/api/trip/${this.orderId}`,
-          method: 'GET',
-          // header: { // 如果需要认证，在这里添加 Token
-          //   'Authorization': 'Bearer ' + uni.getStorageSync('token')
-          // },
-          success: (res) => {
-            if (res.statusCode === 200 && res.data) {
-              console.log('行程详情获取成功:', res.data);
-              this.tripData = res.data;
-              // 数据加载成功后，绘制地图路线
-              this.drawRoute();
-            } else {
-              console.error('获取行程详情失败:', res);
-              uni.showToast({ title: `加载失败 (${res.statusCode})`, icon: 'none' });
-               this.tripData = {}; // 清空数据
-            }
-          },
-          fail: (err) => {
-            console.error('请求行程详情接口失败:', err);
-            uni.showToast({ title: '网络错误，请重试', icon: 'none' });
-             this.tripData = {}; // 清空数据
-          },
-          complete: () => {
-             this.isLoading = false;
-          }
-        });
-      },
+				fetchTripDetail(this.orderId)
+					.then((res) => {
+					console.log('行程详情获取成功:', res);
+					this.tripData = res.data;
+					console.log(this.tripData);
+					this.drawRoute();
+					})
+					.catch((err) => {
+					console.error('获取行程详情失败:', err);
+					uni.showToast({ title: '加载失败，请重试', icon: 'none' });
+					this.tripData = {};
+					})
+					.finally(() => {
+					this.isLoading = false;
+					});
+				},
 
 			initMap() {
         // 确保在 DOM 准备好之后创建 map context
@@ -190,11 +189,12 @@
 
       // --- 2. 绘制地图路线 (依赖 API 数据) ---
 			async drawRoute() {
-        // 确保有起点和终点信息
-        if (!this.tripData || !this.tripData.startPoint || !this.tripData.endPoint) {
-          console.warn("缺少起点或终点信息，无法绘制路线");
-          return;
-        }
+			// 确保有起点和终点信息
+			console.log(this.tripData.startPoint,this.tripData.endPoint);
+			if (!this.tripData || !this.tripData.startPoint || !this.tripData.endPoint) {
+			  console.warn("缺少起点或终点信息，无法绘制路线");
+			  return;
+			}
 
 				const { startPoint, endPoint } = this.tripData;
 				console.log('绘制路线起点:', startPoint);
@@ -278,17 +278,10 @@
           console.error("高德路线规划失败或无有效路径:", route);
            this.polyline = [];
         }
-
-        // 强制地图刷新（有时需要）
-        // if (this.mapContext) {
-        //    this.mapContext.moveToLocation(); // 移动到当前中心点触发刷新
-        // }
 			},
 
-      // --- 高德 API 相关函数 (保持不变) ---
-			getDrivingRoute(startPos, endPos) {
-				// (这里的代码与你原来的一致，使用你的高德 Key)
-        // ... (省略，参考你原来的代码) ...
+
+	getDrivingRoute(startPos, endPos) {
         return new Promise((resolve, reject) => {
 					uni.request({
 						url: 'https://restapi.amap.com/v3/direction/driving',
@@ -314,8 +307,6 @@
 				});
 			},
 			transFormAddress(address) {
-				// (这里的代码与你原来的一致，使用你的高德 Key)
-        // ... (省略，参考你原来的代码) ...
         return new Promise((resolve, reject) => {
 					uni.request({
 						url: 'https://restapi.amap.com/v3/geocode/geo',
@@ -345,13 +336,14 @@
       // --- (旧的 geocodeAddress 方法不再需要，因为我们从 transFormAddress 获取坐标) ---
 
       // --- 3. 处理按钮点击 ---
-			handleStateButtonClick(trip) {
-        console.log("状态按钮点击:", trip.state);
-				if (trip.state === '待支付') { // 假设有 '待支付' 状态
-					this.showPaymentModal = true;
-				}
-        // 可以根据其他状态添加相应操作，例如 '进行中' -> '查看实时位置' 等
-			},
+	  handlePayClick() {
+		if (!this.orderId) {
+			console.error('订单ID丢失，无法打开支付弹窗');
+			uni.showToast({ title: '订单ID丢失', icon: 'error' });
+			return;
+		}
+		this.showPaymentModal = true; // 显示支付弹窗
+		},
       handleRateClick() {
         console.log("评价按钮点击");
         this.showRatingModal();
@@ -374,55 +366,39 @@
 				this.showRateModal = false;
 			},
 			submitRating() {
-        console.log("尝试提交评价:", this.currentRating);
-				if (this.currentRating === 0) {
-					uni.showToast({ title: '请选择星级', icon: 'none' });
-					return;
-				}
-        if (!this.orderId) {
-          uni.showToast({ title: '无法提交评价，订单ID丢失', icon: 'error' });
-          return;
-        }
-        if (this.isSubmittingRating) return; // 防止重复提交
-
-        this.isSubmittingRating = true;
-
-        const payload = {
-          rating_value: this.currentRating,
-          // comment: this.ratingComment // 如果添加了评论输入框，则包含评论
-        };
-
-        uni.request({
-          url: `${API_BASE_URL}/api/trip/${this.orderId}/rate`,
-          method: 'POST',
-          data: payload,
-          // header: { // 如果需要认证
-          //   'Authorization': 'Bearer ' + uni.getStorageSync('token'),
-          //   'Content-Type': 'application/json'
-          // },
-          success: (res) => {
-            if (res.statusCode === 201 || res.statusCode === 200) { // 201 Created or 200 OK
-              console.log('评价提交成功:', res.data);
-              uni.showToast({
-                title: `评价成功！`,
-                icon: 'success'
-              });
-              this.showRateModal = false;
-              // --- 评价成功后，刷新行程数据以更新状态 ---
-              this.fetchTripDetails();
-            } else {
-              console.error('评价提交失败:', res);
-              uni.showToast({ title: `评价失败: ${res.data.description || '请重试'}`, icon: 'none', duration: 3000 });
-            }
-          },
-          fail: (err) => {
-            console.error('请求评价接口失败:', err);
-            uni.showToast({ title: '网络错误，评价失败', icon: 'none' });
-          },
-          complete: () => {
-             this.isSubmittingRating = false;
-          }
-        });
+			  if (this.currentRating === 0) {
+				uni.showToast({ title: '请选择星级', icon: 'none' });
+				return;
+			  }
+			  if (!this.orderId) {
+				uni.showToast({ title: '无法提交评价，订单ID丢失', icon: 'error' });
+				return;
+			  }
+			  if (this.isSubmittingRating) return; // 防止重复提交
+			
+			  this.isSubmittingRating = true;
+			
+			  const payload = {
+				rating_value: this.currentRating,
+			  };
+			
+			  submitTripRating(this.orderId, payload)
+				.then((res) => {
+				console.log('评价提交成功:', res);
+				uni.showToast({
+					title: '评价成功！',
+					icon: 'success',
+				});
+				this.showRateModal = false;
+				this.fetchTripDetails(); // 评价成功后刷新行程数据
+				})
+				.catch((err) => {
+				console.error('评价提交失败:', err);
+				uni.showToast({ title: '评价失败，请重试', icon: 'none' });
+				})
+				.finally(() => {
+				this.isSubmittingRating = false;
+				});
 			},
 
 			// --- 5. 其他辅助方法 ---
@@ -431,16 +407,21 @@
 			},
       handleAvatarError(event) {
         console.warn("头像加载失败，使用默认头像");
-        event.target.src = '../../static/default_avatar.png'; // 确保默认头像路径正确
+        event.target.src = '../../static/user.jpeg'; // 确保默认头像路径正确
       }
 		}
 	};
 </script>
 
 <style scoped>
-	/* --- 保持你原来的样式 --- */
-  /* ... (省略，参考你原来的样式) ... */
-
+	.container {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+		border-radius: 20px;
+		overflow: hidden;
+	}
   /* 添加 loading 样式 */
   .loading-placeholder {
     text-align: center;
@@ -464,9 +445,7 @@
 
 	.map-container {
 		width: 100%;
-		height: 400px;
-		/* border-top-left-radius: 20px; */ /* 可以移除圆角，如果导航栏覆盖的话 */
-		/* border-top-right-radius: 20px; */
+		height: 300px;
 		z-index: 1; /* 确保地图在某些元素下面（如有必要）*/
 	}
 
@@ -625,7 +604,7 @@
 
 	.rate-modal {
 		position: fixed;
-		top: 0;
+		top: 50%;
 		left: 0;
 		right: 0;
 		bottom: 0;
@@ -633,7 +612,7 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		z-index: 1000;
+		z-index: 9999;
 	}
 
 	.rate-content {
@@ -677,12 +656,12 @@
 	}
 
 	.cancel-button, .submit-button {
-    flex: 1; /* 平分宽度 */
-		padding: 10px; /* 增加按钮内边距 */
-    font-size: 14px;
-    border-radius: 8px;
-    border: none;
-    margin: 0 5px; /* 按钮间距 */
+		flex: 1; /* 平分宽度 */
+		padding: 0px; /* 增加按钮内边距 */
+		font-size: 14px;
+		border-radius: 8px;
+		border: none;
+		margin: 0 5px; /* 按钮间距 */
 	}
 
 	.cancel-button {
@@ -705,5 +684,44 @@
     background-color: #cce5ff;
     cursor: not-allowed;
   }
+  .state-button {
+		padding: 5px 12px;
+		font-size: 12px;
+		font-weight:bold;
+		color: white;
+		border: none;
+		border-radius: 15px;
+		line-height: 1.5;
+		margin-left: 8px;
+		transition: background-color 0.2s ease;
+	}
 
+/* 状态对应的颜色 */
+.status-pending {
+  background-color: #FF9500; /* 橙色 - 待审核 */
+}
+
+.status-completed {
+  background-color: #4CD964; /* 绿色 - 已完成 */
+}
+
+.status-rejected {
+  background-color: #FF3B30; /* 红色 - 已拒绝 */
+}
+
+.status-not-started {
+  background-color: #8E8E93; /* 灰色 - 未开始 */
+}
+
+.status-in-progress {
+  background-color: #5856D6; /* 紫色 - 进行中 */
+}
+
+.status-to-pay {
+  background-color: #FFCC00; /* 亮黄色 - 待付款 */
+}
+
+.status-to-review {
+  background-color: #5AC8FA; /* 蓝色 - 待评价 */
+}
 </style>

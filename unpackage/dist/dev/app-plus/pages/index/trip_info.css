@@ -25,7 +25,7 @@
 
 .modal[data-v-d0c78149] {
   position: fixed;
-  top: 0;
+  top: 30%;
   left: 0;
   width: 100%;
   height: 100%;
@@ -53,26 +53,40 @@
   margin-bottom: 10px;
 }
 .qr-code[data-v-d0c78149] {
-  width: 100%;
-  height: 100%;
+  width: 80%;
+  height: 80%;
 }
 .modal-footer[data-v-d0c78149] {
   display: flex;
   justify-content: center;
 }
+.confirm-button[data-v-d0c78149],
 .close-button[data-v-d0c78149] {
-  padding: 10px 20px;
-  font-size: 14px;
-  background-color: #007aff;
-  color: white;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight:bold;
   border: none;
   border-radius: 5px;
 }
+.close-button[data-v-d0c78149] {
+  background-color: #ccc;
+  color: #333;
+}
+
+.confirm-button[data-v-d0c78149] {
+  background-color: #007aff;
+  color: white;
+}
 
 
-	/* --- 保持你原来的样式 --- */
-  /* ... (省略，参考你原来的样式) ... */
-
+.container[data-v-c77841f1] {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+		border-radius: 20px;
+		overflow: hidden;
+}
   /* 添加 loading 样式 */
 .loading-placeholder[data-v-c77841f1] {
     text-align: center;
@@ -95,9 +109,7 @@
 }
 .map-container[data-v-c77841f1] {
 		width: 100%;
-		height: 400px;
-		/* border-top-left-radius: 20px; */ /* 可以移除圆角，如果导航栏覆盖的话 */
-		/* border-top-right-radius: 20px; */
+		height: 300px;
 		z-index: 1; /* 确保地图在某些元素下面（如有必要）*/
 }
 .order-scroll[data-v-c77841f1] {
@@ -234,7 +246,7 @@
 }
 .rate-modal[data-v-c77841f1] {
 		position: fixed;
-		top: 0;
+		top: 50%;
 		left: 0;
 		right: 0;
 		bottom: 0;
@@ -242,7 +254,7 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		z-index: 1000;
+		z-index: 9999;
 }
 .rate-content[data-v-c77841f1] {
 		background-color: white;
@@ -279,12 +291,12 @@
     margin-top: 10px; /* 与上方内容间距 */
 }
 .cancel-button[data-v-c77841f1], .submit-button[data-v-c77841f1] {
-    flex: 1; /* 平分宽度 */
-		padding: 10px; /* 增加按钮内边距 */
-    font-size: 14px;
-    border-radius: 8px;
-    border: none;
-    margin: 0 5px; /* 按钮间距 */
+		flex: 1; /* 平分宽度 */
+		padding: 0px; /* 增加按钮内边距 */
+		font-size: 14px;
+		border-radius: 8px;
+		border: none;
+		margin: 0 5px; /* 按钮间距 */
 }
 .cancel-button[data-v-c77841f1] {
 		background-color: #f0f0f0;
@@ -305,4 +317,37 @@
     background-color: #cce5ff;
     cursor: not-allowed;
 }
+.state-button[data-v-c77841f1] {
+		padding: 5px 12px;
+		font-size: 12px;
+		font-weight:bold;
+		color: white;
+		border: none;
+		border-radius: 15px;
+		line-height: 1.5;
+		margin-left: 8px;
+		transition: background-color 0.2s ease;
+}
 
+/* 状态对应的颜色 */
+.status-pending[data-v-c77841f1] {
+  background-color: #FF9500; /* 橙色 - 待审核 */
+}
+.status-completed[data-v-c77841f1] {
+  background-color: #4CD964; /* 绿色 - 已完成 */
+}
+.status-rejected[data-v-c77841f1] {
+  background-color: #FF3B30; /* 红色 - 已拒绝 */
+}
+.status-not-started[data-v-c77841f1] {
+  background-color: #8E8E93; /* 灰色 - 未开始 */
+}
+.status-in-progress[data-v-c77841f1] {
+  background-color: #5856D6; /* 紫色 - 进行中 */
+}
+.status-to-pay[data-v-c77841f1] {
+  background-color: #FFCC00; /* 亮黄色 - 待付款 */
+}
+.status-to-review[data-v-c77841f1] {
+  background-color: #5AC8FA; /* 蓝色 - 待评价 */
+}

@@ -28,8 +28,51 @@
         <text class="font text_4">参与人：</text>
         <text class="text_5">{{ username_2 }}</text>
       </view>
-      <button class="flex-col justify-center items-center self-stretch button mt-43">
+      <!-- 接受邀约按钮 -->
+      <button 
+        v-if="!isUserInOrder" 
+        class="flex-col justify-center items-center self-stretch button mt-43"
+        @click="handleAcceptInvite"
+      >
         <text class="font text_6">接 受 邀 约</text>
+      </button>
+    </view>
+  </view>
+
+  <!-- 车辆选择弹窗 -->
+  <view v-if="showVehiclePopup" class="custom-popup-mask" @click="showVehiclePopup = false">
+    <view class="custom-popup-content" @click.stop>
+      <view class="popup-header">
+        <text style="font-size: 16px; font-weight: bold;">选择车辆</text>
+        <image 
+          src="../static/close.png" 
+          @click="showVehiclePopup = false" 
+          style="width: 40rpx; height: 40rpx;"
+        />
+      </view>
+
+      <scroll-view scroll-y="true" style="height: 60vh; margin-top: 20rpx;">
+        <view 
+          v-for="(vehicle, index) in vehicles" 
+          :key="vehicle.id" 
+          class="order-item" 
+          :class="{'selected-order': selectedVehicle && selectedVehicle.id === vehicle.id}"
+          @click="selectedVehicle = vehicle"
+        >
+          <text class="order-text">{{ vehicle.plate_number }}</text>
+        </view>
+
+        <view v-if="vehicles.length === 0" class="empty-tip">
+          <text>暂无可用车辆</text>
+        </view>
+      </scroll-view>
+
+      <button 
+        v-if="selectedVehicle" 
+        class="send-btn"
+        @click="confirmVehicleSelection"
+      >
+        确认选择
       </button>
     </view>
   </view>
@@ -63,16 +106,60 @@ export default {
       type: String,
       default: 'JYD'
     },
-		
-	avatar_url: {
-		type:String,
-		default:'../static/user_2.jpg'
-		
-	}
+    avatar_url: {
+      type: String,
+      default: '../static/user_2.jpg'
+    },
+    isUserInOrder: {
+      type: Boolean,
+      default: false // 判断用户是否已经在订单中
+    }
+  },
+  data() {
+    return {
+      showVehiclePopup: false, // 控制车辆选择弹窗的显示
+      selectedVehicle: null, // 用户选择的车辆
+      vehicles: [] // 用户的车辆列表
+    };
   },
   methods: {
     closePopup() {
       this.$emit('close');
+    },
+    handleAcceptInvite() {
+      // 如果对方是乘客，弹出车辆选择弹窗
+      if (this.username_2 === '乘客') {
+        this.fetchUserVehicles(); // 获取车辆列表
+        this.showVehiclePopup = true;
+      } else {
+        // 如果对方是司机，直接接受邀约
+        this.acceptInvite();
+      }
+    },
+    fetchUserVehicles() {
+      // 模拟从后端获取车辆列表
+      this.vehicles = [
+        { id: 1, plate_number: '沪A12345' },
+        { id: 2, plate_number: '沪B67890' }
+      ];
+    },
+    confirmVehicleSelection() {
+      if (!this.selectedVehicle) {
+        uni.showToast({ title: '请选择车辆', icon: 'none' });
+        return;
+      }
+
+      // 选择车辆后接受邀约
+      this.acceptInvite();
+      this.showVehiclePopup = false; // 关闭车辆选择弹窗
+    },
+    acceptInvite() {
+      // 模拟接受邀约逻辑
+      uni.showToast({
+        title: '添加成功',
+        icon: 'success'
+      });
+      this.closePopup(); // 关闭弹窗
     }
   }
 };
@@ -90,6 +177,60 @@ export default {
 }
 .mt-43 {
   margin-top: 48.13rpx;
+}
+
+.custom-popup-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.custom-popup-content {
+  width: 90%;
+  max-height: 80vh;
+  padding: 30rpx;
+  box-sizing: border-box;
+  background-color: white;
+  border-radius: 10rpx;
+  overflow-y: auto;
+}
+
+.order-item.selected-order {
+  background-color: #f0f8ff;
+  border-left: 6rpx solid #2a82e4;
+}
+
+.order-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: #333;
+}
+
+.empty-tip {
+  text-align: center;
+  padding: 50rpx;
+  color: #999;
+}
+
+.send-btn {
+  position: fixed;
+  bottom: 60px;
+  right: 30rpx;
+  background-color: #2a82e4;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 15px;
+  font-weight: bold;
+  box-shadow: 0 2px 5px rgba(42, 130, 228, 0.3);
+  z-index: 99;
 }
 
 .page-overlay {

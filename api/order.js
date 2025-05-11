@@ -1,15 +1,23 @@
 import { get, post } from '@/utils/request.js';
 
-/**
- * 发布订单
- * @param {Object} orderData - 订单数据
- * @returns {Promise} - 返回后端响应
- */
+// 发布订单
 export const publishOrder = (orderData) => {
-  return post('/orders', orderData, {
-    showLoading: true,
-    loadingText: '正在发布...'
-  });
+  return post('/orders', orderData);
+};
+
+// 支付订单
+export const payOrder = (orderId) => {
+  return post(`/orders/${orderId}/paid`);
+};
+
+// 获取行程详情
+export const fetchTripDetail = (orderId) => {
+  return get(`/orders/${orderId}`);
+};
+
+// 提交评价
+export const submitTripRating = (orderId, payload) => {
+  return post(`/orders/${orderId}/rate`, payload);
 };
 
 export const fetchCalendarTrips = (year, month, userId) => {
@@ -27,7 +35,7 @@ export const fetchCalendarTrips = (year, month, userId) => {
       endPoint: trip.dest_loc,
       price: trip.price,
       car_type: trip.car_type,
-      carType: trip.car_type || '未指定车型',
+      carType: trip.car_type || '未接单',
       status: trip.status,
       userAvatar: trip.initiator.avatar || '../../static/user.jpeg',
       orderCount: trip.participants_count || 0,
@@ -58,7 +66,7 @@ export const fetchManagedOrders = (params) => {
       startPoint: order.startPoint,
       endPoint: order.endPoint,
       price: order.price,
-      carType: order.carType || '未指定车型',
+      carType: order.carType || '未接单',
       status: order.status,
       publisher: order.publisher,
       userAvatar: order.userAvatar || '../../static/user.jpeg',
@@ -77,19 +85,5 @@ export const rejectOrder = (orderId, reason) => {
   return post(`/orders/manage/${orderId}/reject`, { reason });
 };
 
-// 获取单个行程（订单）的详细信息
-export const fetchTripDetail = (orderId) => {
-    // Endpoint changed from /trip/{id} to /orders/{id} based on convention
-    return get(`/orders/${orderId}`);
-};
 
-// --- Order Actions ---
 
-// 提交行程（订单）评价
-export const submitTripRating = (orderId, ratingData) => {
-    // Endpoint changed from /trip/{id}/rate to /orders/{id}/rate
-    return post(`/orders/${orderId}/rate`, ratingData, {
-        showLoading: true,
-        loadingText: '正在提交评价...'
-    });
-};

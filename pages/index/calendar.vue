@@ -79,15 +79,15 @@ export default {
     };
   },
   computed: {
-    selectedTrips() {
-      if (!this.selectedDate) return [];
-      
-      const selectedDateStr = this.selectedDate.split(' ')[0];
-      return this.trips.filter(trip => {
-        const tripDateStr = new Date(trip.start_time).toISOString().split('T')[0];
-        return tripDateStr === selectedDateStr;
-      });
-    }
+  selectedTrips() {
+    if (!this.selectedDate) return [];
+    const selectedDateStr = this.selectedDate.split(' ')[0]; // 获取用户选择的日期
+    return this.trips.filter(trip => {
+      const tripDate = new Date(trip.start_time); // 转换为本地时间
+      const tripDateStr = `${tripDate.getFullYear()}-${(tripDate.getMonth() + 1).toString().padStart(2, '0')}-${tripDate.getDate().toString().padStart(2, '0')}`;
+      return tripDateStr === selectedDateStr; // 比较日期是否相同
+    });
+  }
   },
   methods: {
     async fetchTripsForMonth(year, month) {
