@@ -86,12 +86,11 @@
 
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
-import { fetchUserBaseInfo,
-  fetchUserModifiableData, 
-  updateUserInfo, 
-  uploadUserAvatar,
-  getDefaultAvatar,
-  fetchUserAvatar
+import { 
+  fetchUserModifiableData,  // 获取用户可修改信息
+  updateUserInfo,           // 更新用户信息
+  fetchUserAvatar,          // 获取用户头像
+  uploadUserAvatar          // 更新用户头像
 } from '@/api/user.js';
 
 export default {
@@ -101,14 +100,14 @@ export default {
   data() {
     return {
       user: {
-        avatar: '',        // 头像
-        username: '',       // 用户名
-        gender: '',       // 新增性别字段
-        contact: '',
-        password: '',     // 新增密码字段
-        confirmPassword: '' // 新增确认密码字段
+        avatar: '',          // 头像
+        username: '',        // 用户名
+        gender: '',          // 新增性别字段
+        contact: '',         // 联系方式
+        password: '',        // 新增密码字段
+        confirmPassword: ''  // 新增确认密码字段
       },
-      originalUser: {},     // 保存原始数据用于比较
+      originalUser: {},      // 保存原始数据用于比较
       defaultAvatar: '../../static/user.jpeg', // 直接使用路径
       avatarError: '',
       genderList: [        // 性别选项
@@ -118,30 +117,37 @@ export default {
     };
   },
   created() {
+	  // 页面创建时获取用户可修改信息
     this.fetchUserModifiableData();
   },
   methods: {
-  async fetchUserModifiableData() {
-    this.loading = true;
-    try {
-      const res = await fetchUserModifiableData();
-	  const avatar = await fetchUserAvatar();
-      
-	  console.log(res);
-      const userData = {
-        avatar: avatar || this.defaultAvatar,
-        gender: res.gender,
-		contact: res.telephone,
-		username: res.username
-      };
-
-      this.user = { ...userData };
-      this.originalUser = { ...userData };
-    } catch (error) {
-      console.error('获取用户数据失败:', error);
-      uni.showToast({ title: '获取信息失败', icon: 'none' });
-    }
-  },
+	/**
+	  * 获取用户可修改数据（调用后端接口）
+	  * 接口调用点1：fetchUserModifiableData()
+	  * 接口调用点2：fetchUserAvatar()
+	  */
+	async fetchUserModifiableData() {
+		this.loading = true;
+		
+		try {
+			const res = await fetchUserModifiableData();
+			const avatar = await fetchUserAvatar();
+		
+			console.log(res);
+			const userData = {
+				avatar: avatar || this.defaultAvatar,
+				gender: res.gender,
+				contact: res.telephone,
+				username: res.username
+			};
+	
+			this.user = { ...userData };
+			this.originalUser = { ...userData };
+		} catch (error) {
+			console.error('获取用户数据失败:', error);
+			uni.showToast({ title: '获取信息失败', icon: 'none' });
+		}
+	},
 
     // 处理性别选择变化
     handleGenderChange(event) {
@@ -291,7 +297,6 @@ export default {
 
       try {
         uni.showLoading({ title: '保存中...' });
-        const cacheUserID = uni.getStorageSync('user_id');
 
         // 准备请求数据
         const requestData = {
@@ -305,7 +310,7 @@ export default {
           requestData.password = this.user.password;
         }
 
-        const response = await updateUserInfo(cacheUserID, requestData);
+        const response = await updateUserInfo(requestData);
         
         if (response.code === 200) {
           uni.showToast({ title: '保存成功', icon: 'success' });

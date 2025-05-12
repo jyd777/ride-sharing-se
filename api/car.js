@@ -2,9 +2,9 @@
 import { get, post, put, del } from '@/utils/request.js';
 
 // 添加车辆
-export const addCar = async (userId, carData) => {
+export const addCar = async (carData) => {
   try {
-    const res = await post(`/user/cars/${userId}`, carData, {
+    const res = await post('/user/cars/add', carData, {
       showLoading: true,
       loadingText: "正在添加车辆..."
     });

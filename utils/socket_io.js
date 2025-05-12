@@ -131,6 +131,7 @@ class SocketIOService {
 	  if (this.socket) {
 	    this.socket.disconnect();
 	    this._cleanup();
+		this.connected=false;
 	  }
 	}
 	
@@ -210,11 +211,11 @@ class SocketIOService {
 	}
 	
 	/* 私有方法 */
-
 	_emitEvent(event, ...args) {
 	  if (this.eventListeners.has(event)) {
 	    this.eventListeners.get(event).forEach(cb => {
 	      try {
+			console.log("调用事件监听函数")
 	        cb(...args);
 	      } catch (err) {
 	        console.error(`[SocketIO] 事件处理错误 (${event}):`, err);

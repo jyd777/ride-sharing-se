@@ -145,13 +145,13 @@
 			  // 状态映射方法
 			getStatusText(state) {
 				const statusMap = {
-				pending: '待审核',
-				completed: '已完成',
-				rejected: '已拒绝',
-				'not-started': '未开始',
-				'in-progress': '进行中',
-				'to-pay': '待付款',
-				'to-review': '待评价',
+					'pending': '待审核',
+					'completed': '已完成',
+					'rejected': '已拒绝',
+					'not-started': '未开始',
+					'in-progress': '进行中',
+					'to-pay': '待付款',
+					'to-review': '待评价',
 				};
 				return statusMap[state] || '未知状态';
 			},

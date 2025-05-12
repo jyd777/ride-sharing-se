@@ -117,3 +117,26 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.empty-chat-tip[data-v-c2d98f75] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 20px;
+  text-align: center;
+}
+.empty-chat-icon[data-v-c2d98f75] {
+  width: 120px;
+  height: 120px;
+  margin-bottom: 20px;
+  opacity: 0.6;
+}
+.empty-chat-text[data-v-c2d98f75] {
+  font-size: 18px;
+  color: #666;
+  margin-bottom: 8px;
+}
+.empty-chat-hint[data-v-c2d98f75] {
+  font-size: 14px;
+  color: #999;
+}

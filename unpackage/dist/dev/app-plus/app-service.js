@@ -31,6 +31,3734 @@ if (uni.restoreGlobal) {
 }
 (function(vue) {
   "use strict";
+  function formatAppLog(type, filename, ...args) {
+    if (uni.__log__) {
+      uni.__log__(type, filename, ...args);
+    } else {
+      console[type].apply(console, [...args, filename]);
+    }
+  }
+  function resolveEasycom(component, easycom) {
+    return typeof component === "string" ? easycom : component;
+  }
+  const config = {
+    development: {
+      BASE_URL: "http://localhost:5000/api",
+      SOCKET_URL: "http://localhost:5000"
+    },
+    production: {
+      BASE_URL: "http://100.80.119.36:5000/api",
+      SOCKET_URL: "http://100.80.119.36:5000"
+    }
+  };
+  const env = "production";
+  const config$1 = config[env];
+  const BASE_URL = `${config$1.BASE_URL}`;
+  const requestInterceptor = {
+    /**
+      * 请求预处理
+      * @param {Object} options - 请求配置
+      * @returns {Object} 处理后的请求配置
+      */
+    invoke(options) {
+      options.header = {
+        "Content-Type": "application/json",
+        ...options.header || {},
+        "Authorization": `Bearer ${uni.getStorageSync("access_token") || ""}`
+      };
+      if (!options.url.startsWith("http") && !options.url.startsWith("//")) {
+        options.url = `${BASE_URL}${options.url.startsWith("/") ? "" : "/"}${options.url}`;
+      }
+      return options;
+    }
+  };
+  const responseInterceptor = {
+    /**
+      * 请求成功处理 (状态码200)
+      * @param {Object} res - 响应对象
+      * @returns {Promise}
+      */
+    success(res2) {
+      const { statusCode, data } = res2;
+      if (statusCode !== 200) {
+        return handleNetworkError(statusCode);
+      }
+      return handleBusinessCode(data);
+    },
+    /**
+      * 请求失败处理
+      * @param {Error} err - 错误对象
+      */
+    fail(err) {
+      return handleNetworkError(err.errMsg || "网络请求失败");
+    }
+  };
+  uni.addInterceptor("request", requestInterceptor);
+  uni.addInterceptor("uploadFile", requestInterceptor);
+  uni.addInterceptor("downloadFile", requestInterceptor);
+  const request = (options) => {
+    const {
+      showLoading = false,
+      loadingText = "加载中...",
+      ...realOptions
+    } = options;
+    const token = uni.getStorageSync("access_token");
+    formatAppLog("log", "at utils/request.js:111", "token", token);
+    realOptions.header = options.header || {};
+    if (token) {
+      realOptions.header["Authorization"] = `Bearer ${token}`;
+    }
+    if (showLoading) {
+      uni.showLoading({
+        title: loadingText,
+        mask: true
+      });
+    }
+    return new Promise((resolve, reject) => {
+      uni.request({
+        ...realOptions,
+        success: (res2) => {
+          if (showLoading)
+            uni.hideLoading();
+          responseInterceptor.success(res2).then(resolve).catch(reject);
+        },
+        fail: (err) => {
+          if (showLoading)
+            uni.hideLoading();
+          responseInterceptor.fail(err).then(resolve).catch(reject);
+        }
+      });
+    });
+  };
+  const get = (url2, data = {}, options = {}) => request({ url: url2, data, method: "GET", ...options });
+  const post = (url2, data = {}, options = {}) => request({ url: url2, data, method: "POST", ...options });
+  const put = (url2, data = {}, options = {}) => request({ url: url2, data, method: "PUT", ...options });
+  const del = (url2, data = {}, options = {}) => request({ url: url2, data, method: "DELETE", ...options });
+  function showToast(message) {
+    uni.showToast({
+      title: message,
+      icon: "none",
+      duration: 2e3
+    });
+  }
+  function handleTokenExpired(message) {
+    var _a;
+    uni.removeStorageSync("access_token");
+    uni.removeStorageSync("user_info");
+    const pages = getCurrentPages();
+    const currentPage = (_a = pages[pages.length - 1]) == null ? void 0 : _a.route;
+    if (currentPage !== "pages/login/login") {
+      uni.navigateTo({
+        url: "/pages/login/login?redirect=/" + currentPage
+      });
+    }
+    showToast(message || "登录已过期");
+  }
+  function handleNetworkError(statusCode) {
+    const errorMap = {
+      400: "请求参数错误",
+      401: "未授权",
+      403: "禁止访问",
+      404: "资源不存在",
+      409: "信息不匹配",
+      500: "服务器内部错误",
+      502: "网关错误"
+    };
+    const errMsg = errorMap[statusCode] || `网络错误[${statusCode}]`;
+    showToast(errMsg);
+    return Promise.reject(new Error(errMsg));
+  }
+  function handleBusinessCode(data) {
+    switch (data == null ? void 0 : data.code) {
+      case 200:
+        formatAppLog("log", "at utils/request.js:305", "业务码200", data);
+        return Promise.resolve(data);
+      case 401:
+        handleTokenExpired(data.message);
+        return Promise.reject(new Error(data.message || "请重新登录"));
+      case 403:
+        showToast("无访问权限");
+        return Promise.reject(new Error("无权限"));
+      case 409:
+        showToast("信息不匹配");
+        return Promise.reject(new Error("信息不匹配"));
+      default:
+        const errMsg = (data == null ? void 0 : data.message) || `业务错误[${data == null ? void 0 : data.code}]`;
+        showToast(errMsg);
+        return Promise.reject(new Error(errMsg));
+    }
+  }
+  const authApi = {
+    /**
+      * 注册用户
+      * @param {Object} data 注册参数
+      * @returns Promise
+      */
+    register(data) {
+      formatAppLog("log", "at api/auth.js:10", "📮 注册请求开始 -----");
+      formatAppLog("log", "at api/auth.js:11", "请求数据:", data);
+      return post("/auth/register", data, {
+        showLoading: true,
+        loadingText: "正在注册..."
+      });
+    },
+    /**
+         * 用户登录
+         * @param {Object} data 登录参数
+         * @returns Promise
+         */
+    login(data) {
+      return post("/auth/login", data, {
+        showLoading: true,
+        loadingText: "正在登录..."
+      });
+    }
+  };
+  const PACKET_TYPES = /* @__PURE__ */ Object.create(null);
+  PACKET_TYPES["open"] = "0";
+  PACKET_TYPES["close"] = "1";
+  PACKET_TYPES["ping"] = "2";
+  PACKET_TYPES["pong"] = "3";
+  PACKET_TYPES["message"] = "4";
+  PACKET_TYPES["upgrade"] = "5";
+  PACKET_TYPES["noop"] = "6";
+  const PACKET_TYPES_REVERSE = /* @__PURE__ */ Object.create(null);
+  Object.keys(PACKET_TYPES).forEach((key) => {
+    PACKET_TYPES_REVERSE[PACKET_TYPES[key]] = key;
+  });
+  const ERROR_PACKET = { type: "error", data: "parser error" };
+  const withNativeBlob$1 = typeof Blob === "function" || typeof Blob !== "undefined" && Object.prototype.toString.call(Blob) === "[object BlobConstructor]";
+  const withNativeArrayBuffer$2 = typeof ArrayBuffer === "function";
+  const isView$1 = (obj) => {
+    return typeof ArrayBuffer.isView === "function" ? ArrayBuffer.isView(obj) : obj && obj.buffer instanceof ArrayBuffer;
+  };
+  const encodePacket = ({ type, data }, supportsBinary, callback) => {
+    if (withNativeBlob$1 && data instanceof Blob) {
+      if (supportsBinary) {
+        return callback(data);
+      } else {
+        return encodeBlobAsBase64(data, callback);
+      }
+    } else if (withNativeArrayBuffer$2 && (data instanceof ArrayBuffer || isView$1(data))) {
+      if (supportsBinary) {
+        return callback(data);
+      } else {
+        return encodeBlobAsBase64(new Blob([data]), callback);
+      }
+    }
+    return callback(PACKET_TYPES[type] + (data || ""));
+  };
+  const encodeBlobAsBase64 = (data, callback) => {
+    const fileReader = new FileReader();
+    fileReader.onload = function() {
+      const content = fileReader.result.split(",")[1];
+      callback("b" + (content || ""));
+    };
+    return fileReader.readAsDataURL(data);
+  };
+  function toArray(data) {
+    if (data instanceof Uint8Array) {
+      return data;
+    } else if (data instanceof ArrayBuffer) {
+      return new Uint8Array(data);
+    } else {
+      return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    }
+  }
+  let TEXT_ENCODER;
+  function encodePacketToBinary(packet, callback) {
+    if (withNativeBlob$1 && packet.data instanceof Blob) {
+      return packet.data.arrayBuffer().then(toArray).then(callback);
+    } else if (withNativeArrayBuffer$2 && (packet.data instanceof ArrayBuffer || isView$1(packet.data))) {
+      return callback(toArray(packet.data));
+    }
+    encodePacket(packet, false, (encoded) => {
+      if (!TEXT_ENCODER) {
+        TEXT_ENCODER = new TextEncoder();
+      }
+      callback(TEXT_ENCODER.encode(encoded));
+    });
+  }
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const lookup$1 = typeof Uint8Array === "undefined" ? [] : new Uint8Array(256);
+  for (let i = 0; i < chars.length; i++) {
+    lookup$1[chars.charCodeAt(i)] = i;
+  }
+  const decode$1 = (base64) => {
+    let bufferLength = base64.length * 0.75, len = base64.length, i, p = 0, encoded1, encoded2, encoded3, encoded4;
+    if (base64[base64.length - 1] === "=") {
+      bufferLength--;
+      if (base64[base64.length - 2] === "=") {
+        bufferLength--;
+      }
+    }
+    const arraybuffer = new ArrayBuffer(bufferLength), bytes = new Uint8Array(arraybuffer);
+    for (i = 0; i < len; i += 4) {
+      encoded1 = lookup$1[base64.charCodeAt(i)];
+      encoded2 = lookup$1[base64.charCodeAt(i + 1)];
+      encoded3 = lookup$1[base64.charCodeAt(i + 2)];
+      encoded4 = lookup$1[base64.charCodeAt(i + 3)];
+      bytes[p++] = encoded1 << 2 | encoded2 >> 4;
+      bytes[p++] = (encoded2 & 15) << 4 | encoded3 >> 2;
+      bytes[p++] = (encoded3 & 3) << 6 | encoded4 & 63;
+    }
+    return arraybuffer;
+  };
+  const withNativeArrayBuffer$1 = typeof ArrayBuffer === "function";
+  const decodePacket = (encodedPacket, binaryType) => {
+    if (typeof encodedPacket !== "string") {
+      return {
+        type: "message",
+        data: mapBinary(encodedPacket, binaryType)
+      };
+    }
+    const type = encodedPacket.charAt(0);
+    if (type === "b") {
+      return {
+        type: "message",
+        data: decodeBase64Packet(encodedPacket.substring(1), binaryType)
+      };
+    }
+    const packetType = PACKET_TYPES_REVERSE[type];
+    if (!packetType) {
+      return ERROR_PACKET;
+    }
+    return encodedPacket.length > 1 ? {
+      type: PACKET_TYPES_REVERSE[type],
+      data: encodedPacket.substring(1)
+    } : {
+      type: PACKET_TYPES_REVERSE[type]
+    };
+  };
+  const decodeBase64Packet = (data, binaryType) => {
+    if (withNativeArrayBuffer$1) {
+      const decoded = decode$1(data);
+      return mapBinary(decoded, binaryType);
+    } else {
+      return { base64: true, data };
+    }
+  };
+  const mapBinary = (data, binaryType) => {
+    switch (binaryType) {
+      case "blob":
+        if (data instanceof Blob) {
+          return data;
+        } else {
+          return new Blob([data]);
+        }
+      case "arraybuffer":
+      default:
+        if (data instanceof ArrayBuffer) {
+          return data;
+        } else {
+          return data.buffer;
+        }
+    }
+  };
+  const SEPARATOR = String.fromCharCode(30);
+  const encodePayload = (packets, callback) => {
+    const length = packets.length;
+    const encodedPackets = new Array(length);
+    let count = 0;
+    packets.forEach((packet, i) => {
+      encodePacket(packet, false, (encodedPacket) => {
+        encodedPackets[i] = encodedPacket;
+        if (++count === length) {
+          callback(encodedPackets.join(SEPARATOR));
+        }
+      });
+    });
+  };
+  const decodePayload = (encodedPayload, binaryType) => {
+    const encodedPackets = encodedPayload.split(SEPARATOR);
+    const packets = [];
+    for (let i = 0; i < encodedPackets.length; i++) {
+      const decodedPacket = decodePacket(encodedPackets[i], binaryType);
+      packets.push(decodedPacket);
+      if (decodedPacket.type === "error") {
+        break;
+      }
+    }
+    return packets;
+  };
+  function createPacketEncoderStream() {
+    return new TransformStream({
+      transform(packet, controller) {
+        encodePacketToBinary(packet, (encodedPacket) => {
+          const payloadLength = encodedPacket.length;
+          let header;
+          if (payloadLength < 126) {
+            header = new Uint8Array(1);
+            new DataView(header.buffer).setUint8(0, payloadLength);
+          } else if (payloadLength < 65536) {
+            header = new Uint8Array(3);
+            const view = new DataView(header.buffer);
+            view.setUint8(0, 126);
+            view.setUint16(1, payloadLength);
+          } else {
+            header = new Uint8Array(9);
+            const view = new DataView(header.buffer);
+            view.setUint8(0, 127);
+            view.setBigUint64(1, BigInt(payloadLength));
+          }
+          if (packet.data && typeof packet.data !== "string") {
+            header[0] |= 128;
+          }
+          controller.enqueue(header);
+          controller.enqueue(encodedPacket);
+        });
+      }
+    });
+  }
+  let TEXT_DECODER;
+  function totalLength(chunks) {
+    return chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+  }
+  function concatChunks(chunks, size) {
+    if (chunks[0].length === size) {
+      return chunks.shift();
+    }
+    const buffer = new Uint8Array(size);
+    let j = 0;
+    for (let i = 0; i < size; i++) {
+      buffer[i] = chunks[0][j++];
+      if (j === chunks[0].length) {
+        chunks.shift();
+        j = 0;
+      }
+    }
+    if (chunks.length && j < chunks[0].length) {
+      chunks[0] = chunks[0].slice(j);
+    }
+    return buffer;
+  }
+  function createPacketDecoderStream(maxPayload, binaryType) {
+    if (!TEXT_DECODER) {
+      TEXT_DECODER = new TextDecoder();
+    }
+    const chunks = [];
+    let state = 0;
+    let expectedLength = -1;
+    let isBinary2 = false;
+    return new TransformStream({
+      transform(chunk, controller) {
+        chunks.push(chunk);
+        while (true) {
+          if (state === 0) {
+            if (totalLength(chunks) < 1) {
+              break;
+            }
+            const header = concatChunks(chunks, 1);
+            isBinary2 = (header[0] & 128) === 128;
+            expectedLength = header[0] & 127;
+            if (expectedLength < 126) {
+              state = 3;
+            } else if (expectedLength === 126) {
+              state = 1;
+            } else {
+              state = 2;
+            }
+          } else if (state === 1) {
+            if (totalLength(chunks) < 2) {
+              break;
+            }
+            const headerArray = concatChunks(chunks, 2);
+            expectedLength = new DataView(headerArray.buffer, headerArray.byteOffset, headerArray.length).getUint16(0);
+            state = 3;
+          } else if (state === 2) {
+            if (totalLength(chunks) < 8) {
+              break;
+            }
+            const headerArray = concatChunks(chunks, 8);
+            const view = new DataView(headerArray.buffer, headerArray.byteOffset, headerArray.length);
+            const n = view.getUint32(0);
+            if (n > Math.pow(2, 53 - 32) - 1) {
+              controller.enqueue(ERROR_PACKET);
+              break;
+            }
+            expectedLength = n * Math.pow(2, 32) + view.getUint32(4);
+            state = 3;
+          } else {
+            if (totalLength(chunks) < expectedLength) {
+              break;
+            }
+            const data = concatChunks(chunks, expectedLength);
+            controller.enqueue(decodePacket(isBinary2 ? data : TEXT_DECODER.decode(data), binaryType));
+            state = 0;
+          }
+          if (expectedLength === 0 || expectedLength > maxPayload) {
+            controller.enqueue(ERROR_PACKET);
+            break;
+          }
+        }
+      }
+    });
+  }
+  const protocol$1 = 4;
+  function Emitter(obj) {
+    if (obj)
+      return mixin(obj);
+  }
+  function mixin(obj) {
+    for (var key in Emitter.prototype) {
+      obj[key] = Emitter.prototype[key];
+    }
+    return obj;
+  }
+  Emitter.prototype.on = Emitter.prototype.addEventListener = function(event, fn) {
+    this._callbacks = this._callbacks || {};
+    (this._callbacks["$" + event] = this._callbacks["$" + event] || []).push(fn);
+    return this;
+  };
+  Emitter.prototype.once = function(event, fn) {
+    function on2() {
+      this.off(event, on2);
+      fn.apply(this, arguments);
+    }
+    on2.fn = fn;
+    this.on(event, on2);
+    return this;
+  };
+  Emitter.prototype.off = Emitter.prototype.removeListener = Emitter.prototype.removeAllListeners = Emitter.prototype.removeEventListener = function(event, fn) {
+    this._callbacks = this._callbacks || {};
+    if (0 == arguments.length) {
+      this._callbacks = {};
+      return this;
+    }
+    var callbacks = this._callbacks["$" + event];
+    if (!callbacks)
+      return this;
+    if (1 == arguments.length) {
+      delete this._callbacks["$" + event];
+      return this;
+    }
+    var cb;
+    for (var i = 0; i < callbacks.length; i++) {
+      cb = callbacks[i];
+      if (cb === fn || cb.fn === fn) {
+        callbacks.splice(i, 1);
+        break;
+      }
+    }
+    if (callbacks.length === 0) {
+      delete this._callbacks["$" + event];
+    }
+    return this;
+  };
+  Emitter.prototype.emit = function(event) {
+    this._callbacks = this._callbacks || {};
+    var args = new Array(arguments.length - 1), callbacks = this._callbacks["$" + event];
+    for (var i = 1; i < arguments.length; i++) {
+      args[i - 1] = arguments[i];
+    }
+    if (callbacks) {
+      callbacks = callbacks.slice(0);
+      for (var i = 0, len = callbacks.length; i < len; ++i) {
+        callbacks[i].apply(this, args);
+      }
+    }
+    return this;
+  };
+  Emitter.prototype.emitReserved = Emitter.prototype.emit;
+  Emitter.prototype.listeners = function(event) {
+    this._callbacks = this._callbacks || {};
+    return this._callbacks["$" + event] || [];
+  };
+  Emitter.prototype.hasListeners = function(event) {
+    return !!this.listeners(event).length;
+  };
+  const nextTick = (() => {
+    const isPromiseAvailable = typeof Promise === "function" && typeof Promise.resolve === "function";
+    if (isPromiseAvailable) {
+      return (cb) => Promise.resolve().then(cb);
+    } else {
+      return (cb, setTimeoutFn) => setTimeoutFn(cb, 0);
+    }
+  })();
+  const globalThisShim = (() => {
+    if (typeof self !== "undefined") {
+      return self;
+    } else if (typeof window !== "undefined") {
+      return window;
+    } else {
+      return Function("return this")();
+    }
+  })();
+  const defaultBinaryType = "arraybuffer";
+  function createCookieJar() {
+  }
+  function pick(obj, ...attr) {
+    return attr.reduce((acc, k) => {
+      if (obj.hasOwnProperty(k)) {
+        acc[k] = obj[k];
+      }
+      return acc;
+    }, {});
+  }
+  const NATIVE_SET_TIMEOUT = globalThisShim.setTimeout;
+  const NATIVE_CLEAR_TIMEOUT = globalThisShim.clearTimeout;
+  function installTimerFunctions(obj, opts) {
+    if (opts.useNativeTimers) {
+      obj.setTimeoutFn = NATIVE_SET_TIMEOUT.bind(globalThisShim);
+      obj.clearTimeoutFn = NATIVE_CLEAR_TIMEOUT.bind(globalThisShim);
+    } else {
+      obj.setTimeoutFn = globalThisShim.setTimeout.bind(globalThisShim);
+      obj.clearTimeoutFn = globalThisShim.clearTimeout.bind(globalThisShim);
+    }
+  }
+  const BASE64_OVERHEAD = 1.33;
+  function byteLength(obj) {
+    if (typeof obj === "string") {
+      return utf8Length(obj);
+    }
+    return Math.ceil((obj.byteLength || obj.size) * BASE64_OVERHEAD);
+  }
+  function utf8Length(str) {
+    let c = 0, length = 0;
+    for (let i = 0, l = str.length; i < l; i++) {
+      c = str.charCodeAt(i);
+      if (c < 128) {
+        length += 1;
+      } else if (c < 2048) {
+        length += 2;
+      } else if (c < 55296 || c >= 57344) {
+        length += 3;
+      } else {
+        i++;
+        length += 4;
+      }
+    }
+    return length;
+  }
+  function randomString() {
+    return Date.now().toString(36).substring(3) + Math.random().toString(36).substring(2, 5);
+  }
+  function encode(obj) {
+    let str = "";
+    for (let i in obj) {
+      if (obj.hasOwnProperty(i)) {
+        if (str.length)
+          str += "&";
+        str += encodeURIComponent(i) + "=" + encodeURIComponent(obj[i]);
+      }
+    }
+    return str;
+  }
+  function decode(qs) {
+    let qry = {};
+    let pairs = qs.split("&");
+    for (let i = 0, l = pairs.length; i < l; i++) {
+      let pair = pairs[i].split("=");
+      qry[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+    }
+    return qry;
+  }
+  class TransportError extends Error {
+    constructor(reason, description, context) {
+      super(reason);
+      this.description = description;
+      this.context = context;
+      this.type = "TransportError";
+    }
+  }
+  class Transport extends Emitter {
+    /**
+     * Transport abstract constructor.
+     *
+     * @param {Object} opts - options
+     * @protected
+     */
+    constructor(opts) {
+      super();
+      this.writable = false;
+      installTimerFunctions(this, opts);
+      this.opts = opts;
+      this.query = opts.query;
+      this.socket = opts.socket;
+      this.supportsBinary = !opts.forceBase64;
+    }
+    /**
+     * Emits an error.
+     *
+     * @param {String} reason
+     * @param description
+     * @param context - the error context
+     * @return {Transport} for chaining
+     * @protected
+     */
+    onError(reason, description, context) {
+      super.emitReserved("error", new TransportError(reason, description, context));
+      return this;
+    }
+    /**
+     * Opens the transport.
+     */
+    open() {
+      this.readyState = "opening";
+      this.doOpen();
+      return this;
+    }
+    /**
+     * Closes the transport.
+     */
+    close() {
+      if (this.readyState === "opening" || this.readyState === "open") {
+        this.doClose();
+        this.onClose();
+      }
+      return this;
+    }
+    /**
+     * Sends multiple packets.
+     *
+     * @param {Array} packets
+     */
+    send(packets) {
+      if (this.readyState === "open") {
+        this.write(packets);
+      }
+    }
+    /**
+     * Called upon open
+     *
+     * @protected
+     */
+    onOpen() {
+      this.readyState = "open";
+      this.writable = true;
+      super.emitReserved("open");
+    }
+    /**
+     * Called with data.
+     *
+     * @param {String} data
+     * @protected
+     */
+    onData(data) {
+      const packet = decodePacket(data, this.socket.binaryType);
+      this.onPacket(packet);
+    }
+    /**
+     * Called with a decoded packet.
+     *
+     * @protected
+     */
+    onPacket(packet) {
+      super.emitReserved("packet", packet);
+    }
+    /**
+     * Called upon close.
+     *
+     * @protected
+     */
+    onClose(details) {
+      this.readyState = "closed";
+      super.emitReserved("close", details);
+    }
+    /**
+     * Pauses the transport, in order not to lose packets during an upgrade.
+     *
+     * @param onPause
+     */
+    pause(onPause) {
+    }
+    createUri(schema, query = {}) {
+      return schema + "://" + this._hostname() + this._port() + this.opts.path + this._query(query);
+    }
+    _hostname() {
+      const hostname = this.opts.hostname;
+      return hostname.indexOf(":") === -1 ? hostname : "[" + hostname + "]";
+    }
+    _port() {
+      if (this.opts.port && (this.opts.secure && Number(this.opts.port !== 443) || !this.opts.secure && Number(this.opts.port) !== 80)) {
+        return ":" + this.opts.port;
+      } else {
+        return "";
+      }
+    }
+    _query(query) {
+      const encodedQuery = encode(query);
+      return encodedQuery.length ? "?" + encodedQuery : "";
+    }
+  }
+  class Polling extends Transport {
+    constructor() {
+      super(...arguments);
+      this._polling = false;
+    }
+    get name() {
+      return "polling";
+    }
+    /**
+     * Opens the socket (triggers polling). We write a PING message to determine
+     * when the transport is open.
+     *
+     * @protected
+     */
+    doOpen() {
+      this._poll();
+    }
+    /**
+     * Pauses polling.
+     *
+     * @param {Function} onPause - callback upon buffers are flushed and transport is paused
+     * @package
+     */
+    pause(onPause) {
+      this.readyState = "pausing";
+      const pause = () => {
+        this.readyState = "paused";
+        onPause();
+      };
+      if (this._polling || !this.writable) {
+        let total = 0;
+        if (this._polling) {
+          total++;
+          this.once("pollComplete", function() {
+            --total || pause();
+          });
+        }
+        if (!this.writable) {
+          total++;
+          this.once("drain", function() {
+            --total || pause();
+          });
+        }
+      } else {
+        pause();
+      }
+    }
+    /**
+     * Starts polling cycle.
+     *
+     * @private
+     */
+    _poll() {
+      this._polling = true;
+      this.doPoll();
+      this.emitReserved("poll");
+    }
+    /**
+     * Overloads onData to detect payloads.
+     *
+     * @protected
+     */
+    onData(data) {
+      const callback = (packet) => {
+        if ("opening" === this.readyState && packet.type === "open") {
+          this.onOpen();
+        }
+        if ("close" === packet.type) {
+          this.onClose({ description: "transport closed by the server" });
+          return false;
+        }
+        this.onPacket(packet);
+      };
+      decodePayload(data, this.socket.binaryType).forEach(callback);
+      if ("closed" !== this.readyState) {
+        this._polling = false;
+        this.emitReserved("pollComplete");
+        if ("open" === this.readyState) {
+          this._poll();
+        }
+      }
+    }
+    /**
+     * For polling, send a close packet.
+     *
+     * @protected
+     */
+    doClose() {
+      const close = () => {
+        this.write([{ type: "close" }]);
+      };
+      if ("open" === this.readyState) {
+        close();
+      } else {
+        this.once("open", close);
+      }
+    }
+    /**
+     * Writes a packets payload.
+     *
+     * @param {Array} packets - data packets
+     * @protected
+     */
+    write(packets) {
+      this.writable = false;
+      encodePayload(packets, (data) => {
+        this.doWrite(data, () => {
+          this.writable = true;
+          this.emitReserved("drain");
+        });
+      });
+    }
+    /**
+     * Generates uri for connection.
+     *
+     * @private
+     */
+    uri() {
+      const schema = this.opts.secure ? "https" : "http";
+      const query = this.query || {};
+      if (false !== this.opts.timestampRequests) {
+        query[this.opts.timestampParam] = randomString();
+      }
+      if (!this.supportsBinary && !query.sid) {
+        query.b64 = 1;
+      }
+      return this.createUri(schema, query);
+    }
+  }
+  let value = false;
+  try {
+    value = typeof XMLHttpRequest !== "undefined" && "withCredentials" in new XMLHttpRequest();
+  } catch (err) {
+  }
+  const hasCORS = value;
+  function empty() {
+  }
+  class BaseXHR extends Polling {
+    /**
+     * XHR Polling constructor.
+     *
+     * @param {Object} opts
+     * @package
+     */
+    constructor(opts) {
+      super(opts);
+      if (typeof location !== "undefined") {
+        const isSSL = "https:" === location.protocol;
+        let port = location.port;
+        if (!port) {
+          port = isSSL ? "443" : "80";
+        }
+        this.xd = typeof location !== "undefined" && opts.hostname !== location.hostname || port !== opts.port;
+      }
+    }
+    /**
+     * Sends data.
+     *
+     * @param {String} data to send.
+     * @param {Function} called upon flush.
+     * @private
+     */
+    doWrite(data, fn) {
+      const req = this.request({
+        method: "POST",
+        data
+      });
+      req.on("success", fn);
+      req.on("error", (xhrStatus, context) => {
+        this.onError("xhr post error", xhrStatus, context);
+      });
+    }
+    /**
+     * Starts a poll cycle.
+     *
+     * @private
+     */
+    doPoll() {
+      const req = this.request();
+      req.on("data", this.onData.bind(this));
+      req.on("error", (xhrStatus, context) => {
+        this.onError("xhr poll error", xhrStatus, context);
+      });
+      this.pollXhr = req;
+    }
+  }
+  class Request extends Emitter {
+    /**
+     * Request constructor
+     *
+     * @param {Object} options
+     * @package
+     */
+    constructor(createRequest, uri, opts) {
+      super();
+      this.createRequest = createRequest;
+      installTimerFunctions(this, opts);
+      this._opts = opts;
+      this._method = opts.method || "GET";
+      this._uri = uri;
+      this._data = void 0 !== opts.data ? opts.data : null;
+      this._create();
+    }
+    /**
+     * Creates the XHR object and sends the request.
+     *
+     * @private
+     */
+    _create() {
+      var _a;
+      const opts = pick(this._opts, "agent", "pfx", "key", "passphrase", "cert", "ca", "ciphers", "rejectUnauthorized", "autoUnref");
+      opts.xdomain = !!this._opts.xd;
+      const xhr = this._xhr = this.createRequest(opts);
+      try {
+        xhr.open(this._method, this._uri, true);
+        try {
+          if (this._opts.extraHeaders) {
+            xhr.setDisableHeaderCheck && xhr.setDisableHeaderCheck(true);
+            for (let i in this._opts.extraHeaders) {
+              if (this._opts.extraHeaders.hasOwnProperty(i)) {
+                xhr.setRequestHeader(i, this._opts.extraHeaders[i]);
+              }
+            }
+          }
+        } catch (e) {
+        }
+        if ("POST" === this._method) {
+          try {
+            xhr.setRequestHeader("Content-type", "text/plain;charset=UTF-8");
+          } catch (e) {
+          }
+        }
+        try {
+          xhr.setRequestHeader("Accept", "*/*");
+        } catch (e) {
+        }
+        (_a = this._opts.cookieJar) === null || _a === void 0 ? void 0 : _a.addCookies(xhr);
+        if ("withCredentials" in xhr) {
+          xhr.withCredentials = this._opts.withCredentials;
+        }
+        if (this._opts.requestTimeout) {
+          xhr.timeout = this._opts.requestTimeout;
+        }
+        xhr.onreadystatechange = () => {
+          var _a2;
+          if (xhr.readyState === 3) {
+            (_a2 = this._opts.cookieJar) === null || _a2 === void 0 ? void 0 : _a2.parseCookies(
+              // @ts-ignore
+              xhr.getResponseHeader("set-cookie")
+            );
+          }
+          if (4 !== xhr.readyState)
+            return;
+          if (200 === xhr.status || 1223 === xhr.status) {
+            this._onLoad();
+          } else {
+            this.setTimeoutFn(() => {
+              this._onError(typeof xhr.status === "number" ? xhr.status : 0);
+            }, 0);
+          }
+        };
+        xhr.send(this._data);
+      } catch (e) {
+        this.setTimeoutFn(() => {
+          this._onError(e);
+        }, 0);
+        return;
+      }
+      if (typeof document !== "undefined") {
+        this._index = Request.requestsCount++;
+        Request.requests[this._index] = this;
+      }
+    }
+    /**
+     * Called upon error.
+     *
+     * @private
+     */
+    _onError(err) {
+      this.emitReserved("error", err, this._xhr);
+      this._cleanup(true);
+    }
+    /**
+     * Cleans up house.
+     *
+     * @private
+     */
+    _cleanup(fromError) {
+      if ("undefined" === typeof this._xhr || null === this._xhr) {
+        return;
+      }
+      this._xhr.onreadystatechange = empty;
+      if (fromError) {
+        try {
+          this._xhr.abort();
+        } catch (e) {
+        }
+      }
+      if (typeof document !== "undefined") {
+        delete Request.requests[this._index];
+      }
+      this._xhr = null;
+    }
+    /**
+     * Called upon load.
+     *
+     * @private
+     */
+    _onLoad() {
+      const data = this._xhr.responseText;
+      if (data !== null) {
+        this.emitReserved("data", data);
+        this.emitReserved("success");
+        this._cleanup();
+      }
+    }
+    /**
+     * Aborts the request.
+     *
+     * @package
+     */
+    abort() {
+      this._cleanup();
+    }
+  }
+  Request.requestsCount = 0;
+  Request.requests = {};
+  if (typeof document !== "undefined") {
+    if (typeof attachEvent === "function") {
+      attachEvent("onunload", unloadHandler);
+    } else if (typeof addEventListener === "function") {
+      const terminationEvent = "onpagehide" in globalThisShim ? "pagehide" : "unload";
+      addEventListener(terminationEvent, unloadHandler, false);
+    }
+  }
+  function unloadHandler() {
+    for (let i in Request.requests) {
+      if (Request.requests.hasOwnProperty(i)) {
+        Request.requests[i].abort();
+      }
+    }
+  }
+  const hasXHR2 = function() {
+    const xhr = newRequest({
+      xdomain: false
+    });
+    return xhr && xhr.responseType !== null;
+  }();
+  class XHR extends BaseXHR {
+    constructor(opts) {
+      super(opts);
+      const forceBase64 = opts && opts.forceBase64;
+      this.supportsBinary = hasXHR2 && !forceBase64;
+    }
+    request(opts = {}) {
+      Object.assign(opts, { xd: this.xd }, this.opts);
+      return new Request(newRequest, this.uri(), opts);
+    }
+  }
+  function newRequest(opts) {
+    const xdomain = opts.xdomain;
+    try {
+      if ("undefined" !== typeof XMLHttpRequest && (!xdomain || hasCORS)) {
+        return new XMLHttpRequest();
+      }
+    } catch (e) {
+    }
+    if (!xdomain) {
+      try {
+        return new globalThisShim[["Active"].concat("Object").join("X")]("Microsoft.XMLHTTP");
+      } catch (e) {
+      }
+    }
+  }
+  const isReactNative = typeof navigator !== "undefined" && typeof navigator.product === "string" && navigator.product.toLowerCase() === "reactnative";
+  class BaseWS extends Transport {
+    get name() {
+      return "websocket";
+    }
+    doOpen() {
+      const uri = this.uri();
+      const protocols = this.opts.protocols;
+      const opts = isReactNative ? {} : pick(this.opts, "agent", "perMessageDeflate", "pfx", "key", "passphrase", "cert", "ca", "ciphers", "rejectUnauthorized", "localAddress", "protocolVersion", "origin", "maxPayload", "family", "checkServerIdentity");
+      if (this.opts.extraHeaders) {
+        opts.headers = this.opts.extraHeaders;
+      }
+      try {
+        this.ws = this.createSocket(uri, protocols, opts);
+      } catch (err) {
+        return this.emitReserved("error", err);
+      }
+      this.ws.binaryType = this.socket.binaryType;
+      this.addEventListeners();
+    }
+    /**
+     * Adds event listeners to the socket
+     *
+     * @private
+     */
+    addEventListeners() {
+      this.ws.onopen = () => {
+        if (this.opts.autoUnref) {
+          this.ws._socket.unref();
+        }
+        this.onOpen();
+      };
+      this.ws.onclose = (closeEvent) => this.onClose({
+        description: "websocket connection closed",
+        context: closeEvent
+      });
+      this.ws.onmessage = (ev) => this.onData(ev.data);
+      this.ws.onerror = (e) => this.onError("websocket error", e);
+    }
+    write(packets) {
+      this.writable = false;
+      for (let i = 0; i < packets.length; i++) {
+        const packet = packets[i];
+        const lastPacket = i === packets.length - 1;
+        encodePacket(packet, this.supportsBinary, (data) => {
+          try {
+            this.doWrite(packet, data);
+          } catch (e) {
+          }
+          if (lastPacket) {
+            nextTick(() => {
+              this.writable = true;
+              this.emitReserved("drain");
+            }, this.setTimeoutFn);
+          }
+        });
+      }
+    }
+    doClose() {
+      if (typeof this.ws !== "undefined") {
+        this.ws.onerror = () => {
+        };
+        this.ws.close();
+        this.ws = null;
+      }
+    }
+    /**
+     * Generates uri for connection.
+     *
+     * @private
+     */
+    uri() {
+      const schema = this.opts.secure ? "wss" : "ws";
+      const query = this.query || {};
+      if (this.opts.timestampRequests) {
+        query[this.opts.timestampParam] = randomString();
+      }
+      if (!this.supportsBinary) {
+        query.b64 = 1;
+      }
+      return this.createUri(schema, query);
+    }
+  }
+  const WebSocketCtor = globalThisShim.WebSocket || globalThisShim.MozWebSocket;
+  class WS extends BaseWS {
+    createSocket(uri, protocols, opts) {
+      return !isReactNative ? protocols ? new WebSocketCtor(uri, protocols) : new WebSocketCtor(uri) : new WebSocketCtor(uri, protocols, opts);
+    }
+    doWrite(_packet, data) {
+      this.ws.send(data);
+    }
+  }
+  class WT extends Transport {
+    get name() {
+      return "webtransport";
+    }
+    doOpen() {
+      try {
+        this._transport = new WebTransport(this.createUri("https"), this.opts.transportOptions[this.name]);
+      } catch (err) {
+        return this.emitReserved("error", err);
+      }
+      this._transport.closed.then(() => {
+        this.onClose();
+      }).catch((err) => {
+        this.onError("webtransport error", err);
+      });
+      this._transport.ready.then(() => {
+        this._transport.createBidirectionalStream().then((stream) => {
+          const decoderStream = createPacketDecoderStream(Number.MAX_SAFE_INTEGER, this.socket.binaryType);
+          const reader = stream.readable.pipeThrough(decoderStream).getReader();
+          const encoderStream = createPacketEncoderStream();
+          encoderStream.readable.pipeTo(stream.writable);
+          this._writer = encoderStream.writable.getWriter();
+          const read = () => {
+            reader.read().then(({ done, value: value2 }) => {
+              if (done) {
+                return;
+              }
+              this.onPacket(value2);
+              read();
+            }).catch((err) => {
+            });
+          };
+          read();
+          const packet = { type: "open" };
+          if (this.query.sid) {
+            packet.data = `{"sid":"${this.query.sid}"}`;
+          }
+          this._writer.write(packet).then(() => this.onOpen());
+        });
+      });
+    }
+    write(packets) {
+      this.writable = false;
+      for (let i = 0; i < packets.length; i++) {
+        const packet = packets[i];
+        const lastPacket = i === packets.length - 1;
+        this._writer.write(packet).then(() => {
+          if (lastPacket) {
+            nextTick(() => {
+              this.writable = true;
+              this.emitReserved("drain");
+            }, this.setTimeoutFn);
+          }
+        });
+      }
+    }
+    doClose() {
+      var _a;
+      (_a = this._transport) === null || _a === void 0 ? void 0 : _a.close();
+    }
+  }
+  const transports = {
+    websocket: WS,
+    webtransport: WT,
+    polling: XHR
+  };
+  const re = /^(?:(?![^:@\/?#]+:[^:@\/]*@)(http|https|ws|wss):\/\/)?((?:(([^:@\/?#]*)(?::([^:@\/?#]*))?)?@)?((?:[a-f0-9]{0,4}:){2,7}[a-f0-9]{0,4}|[^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/;
+  const parts = [
+    "source",
+    "protocol",
+    "authority",
+    "userInfo",
+    "user",
+    "password",
+    "host",
+    "port",
+    "relative",
+    "path",
+    "directory",
+    "file",
+    "query",
+    "anchor"
+  ];
+  function parse$1(str) {
+    if (str.length > 8e3) {
+      throw "URI too long";
+    }
+    const src = str, b = str.indexOf("["), e = str.indexOf("]");
+    if (b != -1 && e != -1) {
+      str = str.substring(0, b) + str.substring(b, e).replace(/:/g, ";") + str.substring(e, str.length);
+    }
+    let m = re.exec(str || ""), uri = {}, i = 14;
+    while (i--) {
+      uri[parts[i]] = m[i] || "";
+    }
+    if (b != -1 && e != -1) {
+      uri.source = src;
+      uri.host = uri.host.substring(1, uri.host.length - 1).replace(/;/g, ":");
+      uri.authority = uri.authority.replace("[", "").replace("]", "").replace(/;/g, ":");
+      uri.ipv6uri = true;
+    }
+    uri.pathNames = pathNames(uri, uri["path"]);
+    uri.queryKey = queryKey(uri, uri["query"]);
+    return uri;
+  }
+  function pathNames(obj, path) {
+    const regx = /\/{2,9}/g, names = path.replace(regx, "/").split("/");
+    if (path.slice(0, 1) == "/" || path.length === 0) {
+      names.splice(0, 1);
+    }
+    if (path.slice(-1) == "/") {
+      names.splice(names.length - 1, 1);
+    }
+    return names;
+  }
+  function queryKey(uri, query) {
+    const data = {};
+    query.replace(/(?:^|&)([^&=]*)=?([^&]*)/g, function($0, $1, $2) {
+      if ($1) {
+        data[$1] = $2;
+      }
+    });
+    return data;
+  }
+  const withEventListeners = typeof addEventListener === "function" && typeof removeEventListener === "function";
+  const OFFLINE_EVENT_LISTENERS = [];
+  if (withEventListeners) {
+    addEventListener("offline", () => {
+      OFFLINE_EVENT_LISTENERS.forEach((listener) => listener());
+    }, false);
+  }
+  class SocketWithoutUpgrade extends Emitter {
+    /**
+     * Socket constructor.
+     *
+     * @param {String|Object} uri - uri or options
+     * @param {Object} opts - options
+     */
+    constructor(uri, opts) {
+      super();
+      this.binaryType = defaultBinaryType;
+      this.writeBuffer = [];
+      this._prevBufferLen = 0;
+      this._pingInterval = -1;
+      this._pingTimeout = -1;
+      this._maxPayload = -1;
+      this._pingTimeoutTime = Infinity;
+      if (uri && "object" === typeof uri) {
+        opts = uri;
+        uri = null;
+      }
+      if (uri) {
+        const parsedUri = parse$1(uri);
+        opts.hostname = parsedUri.host;
+        opts.secure = parsedUri.protocol === "https" || parsedUri.protocol === "wss";
+        opts.port = parsedUri.port;
+        if (parsedUri.query)
+          opts.query = parsedUri.query;
+      } else if (opts.host) {
+        opts.hostname = parse$1(opts.host).host;
+      }
+      installTimerFunctions(this, opts);
+      this.secure = null != opts.secure ? opts.secure : typeof location !== "undefined" && "https:" === location.protocol;
+      if (opts.hostname && !opts.port) {
+        opts.port = this.secure ? "443" : "80";
+      }
+      this.hostname = opts.hostname || (typeof location !== "undefined" ? location.hostname : "localhost");
+      this.port = opts.port || (typeof location !== "undefined" && location.port ? location.port : this.secure ? "443" : "80");
+      this.transports = [];
+      this._transportsByName = {};
+      opts.transports.forEach((t2) => {
+        const transportName = t2.prototype.name;
+        this.transports.push(transportName);
+        this._transportsByName[transportName] = t2;
+      });
+      this.opts = Object.assign({
+        path: "/engine.io",
+        agent: false,
+        withCredentials: false,
+        upgrade: true,
+        timestampParam: "t",
+        rememberUpgrade: false,
+        addTrailingSlash: true,
+        rejectUnauthorized: true,
+        perMessageDeflate: {
+          threshold: 1024
+        },
+        transportOptions: {},
+        closeOnBeforeunload: false
+      }, opts);
+      this.opts.path = this.opts.path.replace(/\/$/, "") + (this.opts.addTrailingSlash ? "/" : "");
+      if (typeof this.opts.query === "string") {
+        this.opts.query = decode(this.opts.query);
+      }
+      if (withEventListeners) {
+        if (this.opts.closeOnBeforeunload) {
+          this._beforeunloadEventListener = () => {
+            if (this.transport) {
+              this.transport.removeAllListeners();
+              this.transport.close();
+            }
+          };
+          addEventListener("beforeunload", this._beforeunloadEventListener, false);
+        }
+        if (this.hostname !== "localhost") {
+          this._offlineEventListener = () => {
+            this._onClose("transport close", {
+              description: "network connection lost"
+            });
+          };
+          OFFLINE_EVENT_LISTENERS.push(this._offlineEventListener);
+        }
+      }
+      if (this.opts.withCredentials) {
+        this._cookieJar = createCookieJar();
+      }
+      this._open();
+    }
+    /**
+     * Creates transport of the given type.
+     *
+     * @param {String} name - transport name
+     * @return {Transport}
+     * @private
+     */
+    createTransport(name) {
+      const query = Object.assign({}, this.opts.query);
+      query.EIO = protocol$1;
+      query.transport = name;
+      if (this.id)
+        query.sid = this.id;
+      const opts = Object.assign({}, this.opts, {
+        query,
+        socket: this,
+        hostname: this.hostname,
+        secure: this.secure,
+        port: this.port
+      }, this.opts.transportOptions[name]);
+      return new this._transportsByName[name](opts);
+    }
+    /**
+     * Initializes transport to use and starts probe.
+     *
+     * @private
+     */
+    _open() {
+      if (this.transports.length === 0) {
+        this.setTimeoutFn(() => {
+          this.emitReserved("error", "No transports available");
+        }, 0);
+        return;
+      }
+      const transportName = this.opts.rememberUpgrade && SocketWithoutUpgrade.priorWebsocketSuccess && this.transports.indexOf("websocket") !== -1 ? "websocket" : this.transports[0];
+      this.readyState = "opening";
+      const transport = this.createTransport(transportName);
+      transport.open();
+      this.setTransport(transport);
+    }
+    /**
+     * Sets the current transport. Disables the existing one (if any).
+     *
+     * @private
+     */
+    setTransport(transport) {
+      if (this.transport) {
+        this.transport.removeAllListeners();
+      }
+      this.transport = transport;
+      transport.on("drain", this._onDrain.bind(this)).on("packet", this._onPacket.bind(this)).on("error", this._onError.bind(this)).on("close", (reason) => this._onClose("transport close", reason));
+    }
+    /**
+     * Called when connection is deemed open.
+     *
+     * @private
+     */
+    onOpen() {
+      this.readyState = "open";
+      SocketWithoutUpgrade.priorWebsocketSuccess = "websocket" === this.transport.name;
+      this.emitReserved("open");
+      this.flush();
+    }
+    /**
+     * Handles a packet.
+     *
+     * @private
+     */
+    _onPacket(packet) {
+      if ("opening" === this.readyState || "open" === this.readyState || "closing" === this.readyState) {
+        this.emitReserved("packet", packet);
+        this.emitReserved("heartbeat");
+        switch (packet.type) {
+          case "open":
+            this.onHandshake(JSON.parse(packet.data));
+            break;
+          case "ping":
+            this._sendPacket("pong");
+            this.emitReserved("ping");
+            this.emitReserved("pong");
+            this._resetPingTimeout();
+            break;
+          case "error":
+            const err = new Error("server error");
+            err.code = packet.data;
+            this._onError(err);
+            break;
+          case "message":
+            this.emitReserved("data", packet.data);
+            this.emitReserved("message", packet.data);
+            break;
+        }
+      }
+    }
+    /**
+     * Called upon handshake completion.
+     *
+     * @param {Object} data - handshake obj
+     * @private
+     */
+    onHandshake(data) {
+      this.emitReserved("handshake", data);
+      this.id = data.sid;
+      this.transport.query.sid = data.sid;
+      this._pingInterval = data.pingInterval;
+      this._pingTimeout = data.pingTimeout;
+      this._maxPayload = data.maxPayload;
+      this.onOpen();
+      if ("closed" === this.readyState)
+        return;
+      this._resetPingTimeout();
+    }
+    /**
+     * Sets and resets ping timeout timer based on server pings.
+     *
+     * @private
+     */
+    _resetPingTimeout() {
+      this.clearTimeoutFn(this._pingTimeoutTimer);
+      const delay = this._pingInterval + this._pingTimeout;
+      this._pingTimeoutTime = Date.now() + delay;
+      this._pingTimeoutTimer = this.setTimeoutFn(() => {
+        this._onClose("ping timeout");
+      }, delay);
+      if (this.opts.autoUnref) {
+        this._pingTimeoutTimer.unref();
+      }
+    }
+    /**
+     * Called on `drain` event
+     *
+     * @private
+     */
+    _onDrain() {
+      this.writeBuffer.splice(0, this._prevBufferLen);
+      this._prevBufferLen = 0;
+      if (0 === this.writeBuffer.length) {
+        this.emitReserved("drain");
+      } else {
+        this.flush();
+      }
+    }
+    /**
+     * Flush write buffers.
+     *
+     * @private
+     */
+    flush() {
+      if ("closed" !== this.readyState && this.transport.writable && !this.upgrading && this.writeBuffer.length) {
+        const packets = this._getWritablePackets();
+        this.transport.send(packets);
+        this._prevBufferLen = packets.length;
+        this.emitReserved("flush");
+      }
+    }
+    /**
+     * Ensure the encoded size of the writeBuffer is below the maxPayload value sent by the server (only for HTTP
+     * long-polling)
+     *
+     * @private
+     */
+    _getWritablePackets() {
+      const shouldCheckPayloadSize = this._maxPayload && this.transport.name === "polling" && this.writeBuffer.length > 1;
+      if (!shouldCheckPayloadSize) {
+        return this.writeBuffer;
+      }
+      let payloadSize = 1;
+      for (let i = 0; i < this.writeBuffer.length; i++) {
+        const data = this.writeBuffer[i].data;
+        if (data) {
+          payloadSize += byteLength(data);
+        }
+        if (i > 0 && payloadSize > this._maxPayload) {
+          return this.writeBuffer.slice(0, i);
+        }
+        payloadSize += 2;
+      }
+      return this.writeBuffer;
+    }
+    /**
+     * Checks whether the heartbeat timer has expired but the socket has not yet been notified.
+     *
+     * Note: this method is private for now because it does not really fit the WebSocket API, but if we put it in the
+     * `write()` method then the message would not be buffered by the Socket.IO client.
+     *
+     * @return {boolean}
+     * @private
+     */
+    /* private */
+    _hasPingExpired() {
+      if (!this._pingTimeoutTime)
+        return true;
+      const hasExpired = Date.now() > this._pingTimeoutTime;
+      if (hasExpired) {
+        this._pingTimeoutTime = 0;
+        nextTick(() => {
+          this._onClose("ping timeout");
+        }, this.setTimeoutFn);
+      }
+      return hasExpired;
+    }
+    /**
+     * Sends a message.
+     *
+     * @param {String} msg - message.
+     * @param {Object} options.
+     * @param {Function} fn - callback function.
+     * @return {Socket} for chaining.
+     */
+    write(msg, options, fn) {
+      this._sendPacket("message", msg, options, fn);
+      return this;
+    }
+    /**
+     * Sends a message. Alias of {@link Socket#write}.
+     *
+     * @param {String} msg - message.
+     * @param {Object} options.
+     * @param {Function} fn - callback function.
+     * @return {Socket} for chaining.
+     */
+    send(msg, options, fn) {
+      this._sendPacket("message", msg, options, fn);
+      return this;
+    }
+    /**
+     * Sends a packet.
+     *
+     * @param {String} type: packet type.
+     * @param {String} data.
+     * @param {Object} options.
+     * @param {Function} fn - callback function.
+     * @private
+     */
+    _sendPacket(type, data, options, fn) {
+      if ("function" === typeof data) {
+        fn = data;
+        data = void 0;
+      }
+      if ("function" === typeof options) {
+        fn = options;
+        options = null;
+      }
+      if ("closing" === this.readyState || "closed" === this.readyState) {
+        return;
+      }
+      options = options || {};
+      options.compress = false !== options.compress;
+      const packet = {
+        type,
+        data,
+        options
+      };
+      this.emitReserved("packetCreate", packet);
+      this.writeBuffer.push(packet);
+      if (fn)
+        this.once("flush", fn);
+      this.flush();
+    }
+    /**
+     * Closes the connection.
+     */
+    close() {
+      const close = () => {
+        this._onClose("forced close");
+        this.transport.close();
+      };
+      const cleanupAndClose = () => {
+        this.off("upgrade", cleanupAndClose);
+        this.off("upgradeError", cleanupAndClose);
+        close();
+      };
+      const waitForUpgrade = () => {
+        this.once("upgrade", cleanupAndClose);
+        this.once("upgradeError", cleanupAndClose);
+      };
+      if ("opening" === this.readyState || "open" === this.readyState) {
+        this.readyState = "closing";
+        if (this.writeBuffer.length) {
+          this.once("drain", () => {
+            if (this.upgrading) {
+              waitForUpgrade();
+            } else {
+              close();
+            }
+          });
+        } else if (this.upgrading) {
+          waitForUpgrade();
+        } else {
+          close();
+        }
+      }
+      return this;
+    }
+    /**
+     * Called upon transport error
+     *
+     * @private
+     */
+    _onError(err) {
+      SocketWithoutUpgrade.priorWebsocketSuccess = false;
+      if (this.opts.tryAllTransports && this.transports.length > 1 && this.readyState === "opening") {
+        this.transports.shift();
+        return this._open();
+      }
+      this.emitReserved("error", err);
+      this._onClose("transport error", err);
+    }
+    /**
+     * Called upon transport close.
+     *
+     * @private
+     */
+    _onClose(reason, description) {
+      if ("opening" === this.readyState || "open" === this.readyState || "closing" === this.readyState) {
+        this.clearTimeoutFn(this._pingTimeoutTimer);
+        this.transport.removeAllListeners("close");
+        this.transport.close();
+        this.transport.removeAllListeners();
+        if (withEventListeners) {
+          if (this._beforeunloadEventListener) {
+            removeEventListener("beforeunload", this._beforeunloadEventListener, false);
+          }
+          if (this._offlineEventListener) {
+            const i = OFFLINE_EVENT_LISTENERS.indexOf(this._offlineEventListener);
+            if (i !== -1) {
+              OFFLINE_EVENT_LISTENERS.splice(i, 1);
+            }
+          }
+        }
+        this.readyState = "closed";
+        this.id = null;
+        this.emitReserved("close", reason, description);
+        this.writeBuffer = [];
+        this._prevBufferLen = 0;
+      }
+    }
+  }
+  SocketWithoutUpgrade.protocol = protocol$1;
+  class SocketWithUpgrade extends SocketWithoutUpgrade {
+    constructor() {
+      super(...arguments);
+      this._upgrades = [];
+    }
+    onOpen() {
+      super.onOpen();
+      if ("open" === this.readyState && this.opts.upgrade) {
+        for (let i = 0; i < this._upgrades.length; i++) {
+          this._probe(this._upgrades[i]);
+        }
+      }
+    }
+    /**
+     * Probes a transport.
+     *
+     * @param {String} name - transport name
+     * @private
+     */
+    _probe(name) {
+      let transport = this.createTransport(name);
+      let failed = false;
+      SocketWithoutUpgrade.priorWebsocketSuccess = false;
+      const onTransportOpen = () => {
+        if (failed)
+          return;
+        transport.send([{ type: "ping", data: "probe" }]);
+        transport.once("packet", (msg) => {
+          if (failed)
+            return;
+          if ("pong" === msg.type && "probe" === msg.data) {
+            this.upgrading = true;
+            this.emitReserved("upgrading", transport);
+            if (!transport)
+              return;
+            SocketWithoutUpgrade.priorWebsocketSuccess = "websocket" === transport.name;
+            this.transport.pause(() => {
+              if (failed)
+                return;
+              if ("closed" === this.readyState)
+                return;
+              cleanup();
+              this.setTransport(transport);
+              transport.send([{ type: "upgrade" }]);
+              this.emitReserved("upgrade", transport);
+              transport = null;
+              this.upgrading = false;
+              this.flush();
+            });
+          } else {
+            const err = new Error("probe error");
+            err.transport = transport.name;
+            this.emitReserved("upgradeError", err);
+          }
+        });
+      };
+      function freezeTransport() {
+        if (failed)
+          return;
+        failed = true;
+        cleanup();
+        transport.close();
+        transport = null;
+      }
+      const onerror = (err) => {
+        const error = new Error("probe error: " + err);
+        error.transport = transport.name;
+        freezeTransport();
+        this.emitReserved("upgradeError", error);
+      };
+      function onTransportClose() {
+        onerror("transport closed");
+      }
+      function onclose() {
+        onerror("socket closed");
+      }
+      function onupgrade(to) {
+        if (transport && to.name !== transport.name) {
+          freezeTransport();
+        }
+      }
+      const cleanup = () => {
+        transport.removeListener("open", onTransportOpen);
+        transport.removeListener("error", onerror);
+        transport.removeListener("close", onTransportClose);
+        this.off("close", onclose);
+        this.off("upgrading", onupgrade);
+      };
+      transport.once("open", onTransportOpen);
+      transport.once("error", onerror);
+      transport.once("close", onTransportClose);
+      this.once("close", onclose);
+      this.once("upgrading", onupgrade);
+      if (this._upgrades.indexOf("webtransport") !== -1 && name !== "webtransport") {
+        this.setTimeoutFn(() => {
+          if (!failed) {
+            transport.open();
+          }
+        }, 200);
+      } else {
+        transport.open();
+      }
+    }
+    onHandshake(data) {
+      this._upgrades = this._filterUpgrades(data.upgrades);
+      super.onHandshake(data);
+    }
+    /**
+     * Filters upgrades, returning only those matching client transports.
+     *
+     * @param {Array} upgrades - server upgrades
+     * @private
+     */
+    _filterUpgrades(upgrades) {
+      const filteredUpgrades = [];
+      for (let i = 0; i < upgrades.length; i++) {
+        if (~this.transports.indexOf(upgrades[i]))
+          filteredUpgrades.push(upgrades[i]);
+      }
+      return filteredUpgrades;
+    }
+  }
+  let Socket$1 = class Socket extends SocketWithUpgrade {
+    constructor(uri, opts = {}) {
+      const o = typeof uri === "object" ? uri : opts;
+      if (!o.transports || o.transports && typeof o.transports[0] === "string") {
+        o.transports = (o.transports || ["polling", "websocket", "webtransport"]).map((transportName) => transports[transportName]).filter((t2) => !!t2);
+      }
+      super(uri, o);
+    }
+  };
+  function url(uri, path = "", loc) {
+    let obj = uri;
+    loc = loc || typeof location !== "undefined" && location;
+    if (null == uri)
+      uri = loc.protocol + "//" + loc.host;
+    if (typeof uri === "string") {
+      if ("/" === uri.charAt(0)) {
+        if ("/" === uri.charAt(1)) {
+          uri = loc.protocol + uri;
+        } else {
+          uri = loc.host + uri;
+        }
+      }
+      if (!/^(https?|wss?):\/\//.test(uri)) {
+        if ("undefined" !== typeof loc) {
+          uri = loc.protocol + "//" + uri;
+        } else {
+          uri = "https://" + uri;
+        }
+      }
+      obj = parse$1(uri);
+    }
+    if (!obj.port) {
+      if (/^(http|ws)$/.test(obj.protocol)) {
+        obj.port = "80";
+      } else if (/^(http|ws)s$/.test(obj.protocol)) {
+        obj.port = "443";
+      }
+    }
+    obj.path = obj.path || "/";
+    const ipv6 = obj.host.indexOf(":") !== -1;
+    const host = ipv6 ? "[" + obj.host + "]" : obj.host;
+    obj.id = obj.protocol + "://" + host + ":" + obj.port + path;
+    obj.href = obj.protocol + "://" + host + (loc && loc.port === obj.port ? "" : ":" + obj.port);
+    return obj;
+  }
+  const withNativeArrayBuffer = typeof ArrayBuffer === "function";
+  const isView = (obj) => {
+    return typeof ArrayBuffer.isView === "function" ? ArrayBuffer.isView(obj) : obj.buffer instanceof ArrayBuffer;
+  };
+  const toString = Object.prototype.toString;
+  const withNativeBlob = typeof Blob === "function" || typeof Blob !== "undefined" && toString.call(Blob) === "[object BlobConstructor]";
+  const withNativeFile = typeof File === "function" || typeof File !== "undefined" && toString.call(File) === "[object FileConstructor]";
+  function isBinary(obj) {
+    return withNativeArrayBuffer && (obj instanceof ArrayBuffer || isView(obj)) || withNativeBlob && obj instanceof Blob || withNativeFile && obj instanceof File;
+  }
+  function hasBinary(obj, toJSON) {
+    if (!obj || typeof obj !== "object") {
+      return false;
+    }
+    if (Array.isArray(obj)) {
+      for (let i = 0, l = obj.length; i < l; i++) {
+        if (hasBinary(obj[i])) {
+          return true;
+        }
+      }
+      return false;
+    }
+    if (isBinary(obj)) {
+      return true;
+    }
+    if (obj.toJSON && typeof obj.toJSON === "function" && arguments.length === 1) {
+      return hasBinary(obj.toJSON(), true);
+    }
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key) && hasBinary(obj[key])) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function deconstructPacket(packet) {
+    const buffers = [];
+    const packetData = packet.data;
+    const pack = packet;
+    pack.data = _deconstructPacket(packetData, buffers);
+    pack.attachments = buffers.length;
+    return { packet: pack, buffers };
+  }
+  function _deconstructPacket(data, buffers) {
+    if (!data)
+      return data;
+    if (isBinary(data)) {
+      const placeholder = { _placeholder: true, num: buffers.length };
+      buffers.push(data);
+      return placeholder;
+    } else if (Array.isArray(data)) {
+      const newData = new Array(data.length);
+      for (let i = 0; i < data.length; i++) {
+        newData[i] = _deconstructPacket(data[i], buffers);
+      }
+      return newData;
+    } else if (typeof data === "object" && !(data instanceof Date)) {
+      const newData = {};
+      for (const key in data) {
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
+          newData[key] = _deconstructPacket(data[key], buffers);
+        }
+      }
+      return newData;
+    }
+    return data;
+  }
+  function reconstructPacket(packet, buffers) {
+    packet.data = _reconstructPacket(packet.data, buffers);
+    delete packet.attachments;
+    return packet;
+  }
+  function _reconstructPacket(data, buffers) {
+    if (!data)
+      return data;
+    if (data && data._placeholder === true) {
+      const isIndexValid = typeof data.num === "number" && data.num >= 0 && data.num < buffers.length;
+      if (isIndexValid) {
+        return buffers[data.num];
+      } else {
+        throw new Error("illegal attachments");
+      }
+    } else if (Array.isArray(data)) {
+      for (let i = 0; i < data.length; i++) {
+        data[i] = _reconstructPacket(data[i], buffers);
+      }
+    } else if (typeof data === "object") {
+      for (const key in data) {
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
+          data[key] = _reconstructPacket(data[key], buffers);
+        }
+      }
+    }
+    return data;
+  }
+  const RESERVED_EVENTS$1 = [
+    "connect",
+    "connect_error",
+    "disconnect",
+    "disconnecting",
+    "newListener",
+    "removeListener"
+    // used by the Node.js EventEmitter
+  ];
+  const protocol = 5;
+  var PacketType;
+  (function(PacketType2) {
+    PacketType2[PacketType2["CONNECT"] = 0] = "CONNECT";
+    PacketType2[PacketType2["DISCONNECT"] = 1] = "DISCONNECT";
+    PacketType2[PacketType2["EVENT"] = 2] = "EVENT";
+    PacketType2[PacketType2["ACK"] = 3] = "ACK";
+    PacketType2[PacketType2["CONNECT_ERROR"] = 4] = "CONNECT_ERROR";
+    PacketType2[PacketType2["BINARY_EVENT"] = 5] = "BINARY_EVENT";
+    PacketType2[PacketType2["BINARY_ACK"] = 6] = "BINARY_ACK";
+  })(PacketType || (PacketType = {}));
+  class Encoder {
+    /**
+     * Encoder constructor
+     *
+     * @param {function} replacer - custom replacer to pass down to JSON.parse
+     */
+    constructor(replacer) {
+      this.replacer = replacer;
+    }
+    /**
+     * Encode a packet as a single string if non-binary, or as a
+     * buffer sequence, depending on packet type.
+     *
+     * @param {Object} obj - packet object
+     */
+    encode(obj) {
+      if (obj.type === PacketType.EVENT || obj.type === PacketType.ACK) {
+        if (hasBinary(obj)) {
+          return this.encodeAsBinary({
+            type: obj.type === PacketType.EVENT ? PacketType.BINARY_EVENT : PacketType.BINARY_ACK,
+            nsp: obj.nsp,
+            data: obj.data,
+            id: obj.id
+          });
+        }
+      }
+      return [this.encodeAsString(obj)];
+    }
+    /**
+     * Encode packet as string.
+     */
+    encodeAsString(obj) {
+      let str = "" + obj.type;
+      if (obj.type === PacketType.BINARY_EVENT || obj.type === PacketType.BINARY_ACK) {
+        str += obj.attachments + "-";
+      }
+      if (obj.nsp && "/" !== obj.nsp) {
+        str += obj.nsp + ",";
+      }
+      if (null != obj.id) {
+        str += obj.id;
+      }
+      if (null != obj.data) {
+        str += JSON.stringify(obj.data, this.replacer);
+      }
+      return str;
+    }
+    /**
+     * Encode packet as 'buffer sequence' by removing blobs, and
+     * deconstructing packet into object with placeholders and
+     * a list of buffers.
+     */
+    encodeAsBinary(obj) {
+      const deconstruction = deconstructPacket(obj);
+      const pack = this.encodeAsString(deconstruction.packet);
+      const buffers = deconstruction.buffers;
+      buffers.unshift(pack);
+      return buffers;
+    }
+  }
+  function isObject$1(value2) {
+    return Object.prototype.toString.call(value2) === "[object Object]";
+  }
+  class Decoder extends Emitter {
+    /**
+     * Decoder constructor
+     *
+     * @param {function} reviver - custom reviver to pass down to JSON.stringify
+     */
+    constructor(reviver) {
+      super();
+      this.reviver = reviver;
+    }
+    /**
+     * Decodes an encoded packet string into packet JSON.
+     *
+     * @param {String} obj - encoded packet
+     */
+    add(obj) {
+      let packet;
+      if (typeof obj === "string") {
+        if (this.reconstructor) {
+          throw new Error("got plaintext data when reconstructing a packet");
+        }
+        packet = this.decodeString(obj);
+        const isBinaryEvent = packet.type === PacketType.BINARY_EVENT;
+        if (isBinaryEvent || packet.type === PacketType.BINARY_ACK) {
+          packet.type = isBinaryEvent ? PacketType.EVENT : PacketType.ACK;
+          this.reconstructor = new BinaryReconstructor(packet);
+          if (packet.attachments === 0) {
+            super.emitReserved("decoded", packet);
+          }
+        } else {
+          super.emitReserved("decoded", packet);
+        }
+      } else if (isBinary(obj) || obj.base64) {
+        if (!this.reconstructor) {
+          throw new Error("got binary data when not reconstructing a packet");
+        } else {
+          packet = this.reconstructor.takeBinaryData(obj);
+          if (packet) {
+            this.reconstructor = null;
+            super.emitReserved("decoded", packet);
+          }
+        }
+      } else {
+        throw new Error("Unknown type: " + obj);
+      }
+    }
+    /**
+     * Decode a packet String (JSON data)
+     *
+     * @param {String} str
+     * @return {Object} packet
+     */
+    decodeString(str) {
+      let i = 0;
+      const p = {
+        type: Number(str.charAt(0))
+      };
+      if (PacketType[p.type] === void 0) {
+        throw new Error("unknown packet type " + p.type);
+      }
+      if (p.type === PacketType.BINARY_EVENT || p.type === PacketType.BINARY_ACK) {
+        const start = i + 1;
+        while (str.charAt(++i) !== "-" && i != str.length) {
+        }
+        const buf = str.substring(start, i);
+        if (buf != Number(buf) || str.charAt(i) !== "-") {
+          throw new Error("Illegal attachments");
+        }
+        p.attachments = Number(buf);
+      }
+      if ("/" === str.charAt(i + 1)) {
+        const start = i + 1;
+        while (++i) {
+          const c = str.charAt(i);
+          if ("," === c)
+            break;
+          if (i === str.length)
+            break;
+        }
+        p.nsp = str.substring(start, i);
+      } else {
+        p.nsp = "/";
+      }
+      const next = str.charAt(i + 1);
+      if ("" !== next && Number(next) == next) {
+        const start = i + 1;
+        while (++i) {
+          const c = str.charAt(i);
+          if (null == c || Number(c) != c) {
+            --i;
+            break;
+          }
+          if (i === str.length)
+            break;
+        }
+        p.id = Number(str.substring(start, i + 1));
+      }
+      if (str.charAt(++i)) {
+        const payload = this.tryParse(str.substr(i));
+        if (Decoder.isPayloadValid(p.type, payload)) {
+          p.data = payload;
+        } else {
+          throw new Error("invalid payload");
+        }
+      }
+      return p;
+    }
+    tryParse(str) {
+      try {
+        return JSON.parse(str, this.reviver);
+      } catch (e) {
+        return false;
+      }
+    }
+    static isPayloadValid(type, payload) {
+      switch (type) {
+        case PacketType.CONNECT:
+          return isObject$1(payload);
+        case PacketType.DISCONNECT:
+          return payload === void 0;
+        case PacketType.CONNECT_ERROR:
+          return typeof payload === "string" || isObject$1(payload);
+        case PacketType.EVENT:
+        case PacketType.BINARY_EVENT:
+          return Array.isArray(payload) && (typeof payload[0] === "number" || typeof payload[0] === "string" && RESERVED_EVENTS$1.indexOf(payload[0]) === -1);
+        case PacketType.ACK:
+        case PacketType.BINARY_ACK:
+          return Array.isArray(payload);
+      }
+    }
+    /**
+     * Deallocates a parser's resources
+     */
+    destroy() {
+      if (this.reconstructor) {
+        this.reconstructor.finishedReconstruction();
+        this.reconstructor = null;
+      }
+    }
+  }
+  class BinaryReconstructor {
+    constructor(packet) {
+      this.packet = packet;
+      this.buffers = [];
+      this.reconPack = packet;
+    }
+    /**
+     * Method to be called when binary data received from connection
+     * after a BINARY_EVENT packet.
+     *
+     * @param {Buffer | ArrayBuffer} binData - the raw binary data received
+     * @return {null | Object} returns null if more binary data is expected or
+     *   a reconstructed packet object if all buffers have been received.
+     */
+    takeBinaryData(binData) {
+      this.buffers.push(binData);
+      if (this.buffers.length === this.reconPack.attachments) {
+        const packet = reconstructPacket(this.reconPack, this.buffers);
+        this.finishedReconstruction();
+        return packet;
+      }
+      return null;
+    }
+    /**
+     * Cleans up binary packet reconstruction variables.
+     */
+    finishedReconstruction() {
+      this.reconPack = null;
+      this.buffers = [];
+    }
+  }
+  const parser = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+    __proto__: null,
+    Decoder,
+    Encoder,
+    get PacketType() {
+      return PacketType;
+    },
+    protocol
+  }, Symbol.toStringTag, { value: "Module" }));
+  function on(obj, ev, fn) {
+    obj.on(ev, fn);
+    return function subDestroy() {
+      obj.off(ev, fn);
+    };
+  }
+  const RESERVED_EVENTS = Object.freeze({
+    connect: 1,
+    connect_error: 1,
+    disconnect: 1,
+    disconnecting: 1,
+    // EventEmitter reserved events: https://nodejs.org/api/events.html#events_event_newlistener
+    newListener: 1,
+    removeListener: 1
+  });
+  class Socket extends Emitter {
+    /**
+     * `Socket` constructor.
+     */
+    constructor(io, nsp, opts) {
+      super();
+      this.connected = false;
+      this.recovered = false;
+      this.receiveBuffer = [];
+      this.sendBuffer = [];
+      this._queue = [];
+      this._queueSeq = 0;
+      this.ids = 0;
+      this.acks = {};
+      this.flags = {};
+      this.io = io;
+      this.nsp = nsp;
+      if (opts && opts.auth) {
+        this.auth = opts.auth;
+      }
+      this._opts = Object.assign({}, opts);
+      if (this.io._autoConnect)
+        this.open();
+    }
+    /**
+     * Whether the socket is currently disconnected
+     *
+     * @example
+     * const socket = io();
+     *
+     * socket.on("connect", () => {
+     *   __f__('log','at node_modules/socket.io-client/build/esm/socket.js:129',socket.disconnected); // false
+     * });
+     *
+     * socket.on("disconnect", () => {
+     *   __f__('log','at node_modules/socket.io-client/build/esm/socket.js:133',socket.disconnected); // true
+     * });
+     */
+    get disconnected() {
+      return !this.connected;
+    }
+    /**
+     * Subscribe to open, close and packet events
+     *
+     * @private
+     */
+    subEvents() {
+      if (this.subs)
+        return;
+      const io = this.io;
+      this.subs = [
+        on(io, "open", this.onopen.bind(this)),
+        on(io, "packet", this.onpacket.bind(this)),
+        on(io, "error", this.onerror.bind(this)),
+        on(io, "close", this.onclose.bind(this))
+      ];
+    }
+    /**
+     * Whether the Socket will try to reconnect when its Manager connects or reconnects.
+     *
+     * @example
+     * const socket = io();
+     *
+     * __f__('log','at node_modules/socket.io-client/build/esm/socket.js:161',socket.active); // true
+     *
+     * socket.on("disconnect", (reason) => {
+     *   if (reason === "io server disconnect") {
+     *     // the disconnection was initiated by the server, you need to manually reconnect
+     *     __f__('log','at node_modules/socket.io-client/build/esm/socket.js:166',socket.active); // false
+     *   }
+     *   // else the socket will automatically try to reconnect
+     *   __f__('log','at node_modules/socket.io-client/build/esm/socket.js:169',socket.active); // true
+     * });
+     */
+    get active() {
+      return !!this.subs;
+    }
+    /**
+     * "Opens" the socket.
+     *
+     * @example
+     * const socket = io({
+     *   autoConnect: false
+     * });
+     *
+     * socket.connect();
+     */
+    connect() {
+      if (this.connected)
+        return this;
+      this.subEvents();
+      if (!this.io["_reconnecting"])
+        this.io.open();
+      if ("open" === this.io._readyState)
+        this.onopen();
+      return this;
+    }
+    /**
+     * Alias for {@link connect()}.
+     */
+    open() {
+      return this.connect();
+    }
+    /**
+     * Sends a `message` event.
+     *
+     * This method mimics the WebSocket.send() method.
+     *
+     * @see https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/send
+     *
+     * @example
+     * socket.send("hello");
+     *
+     * // this is equivalent to
+     * socket.emit("message", "hello");
+     *
+     * @return self
+     */
+    send(...args) {
+      args.unshift("message");
+      this.emit.apply(this, args);
+      return this;
+    }
+    /**
+     * Override `emit`.
+     * If the event is in `events`, it's emitted normally.
+     *
+     * @example
+     * socket.emit("hello", "world");
+     *
+     * // all serializable datastructures are supported (no need to call JSON.stringify)
+     * socket.emit("hello", 1, "2", { 3: ["4"], 5: Uint8Array.from([6]) });
+     *
+     * // with an acknowledgement from the server
+     * socket.emit("hello", "world", (val) => {
+     *   // ...
+     * });
+     *
+     * @return self
+     */
+    emit(ev, ...args) {
+      var _a, _b, _c;
+      if (RESERVED_EVENTS.hasOwnProperty(ev)) {
+        throw new Error('"' + ev.toString() + '" is a reserved event name');
+      }
+      args.unshift(ev);
+      if (this._opts.retries && !this.flags.fromQueue && !this.flags.volatile) {
+        this._addToQueue(args);
+        return this;
+      }
+      const packet = {
+        type: PacketType.EVENT,
+        data: args
+      };
+      packet.options = {};
+      packet.options.compress = this.flags.compress !== false;
+      if ("function" === typeof args[args.length - 1]) {
+        const id = this.ids++;
+        const ack = args.pop();
+        this._registerAckCallback(id, ack);
+        packet.id = id;
+      }
+      const isTransportWritable = (_b = (_a = this.io.engine) === null || _a === void 0 ? void 0 : _a.transport) === null || _b === void 0 ? void 0 : _b.writable;
+      const isConnected = this.connected && !((_c = this.io.engine) === null || _c === void 0 ? void 0 : _c._hasPingExpired());
+      const discardPacket = this.flags.volatile && !isTransportWritable;
+      if (discardPacket)
+        ;
+      else if (isConnected) {
+        this.notifyOutgoingListeners(packet);
+        this.packet(packet);
+      } else {
+        this.sendBuffer.push(packet);
+      }
+      this.flags = {};
+      return this;
+    }
+    /**
+     * @private
+     */
+    _registerAckCallback(id, ack) {
+      var _a;
+      const timeout = (_a = this.flags.timeout) !== null && _a !== void 0 ? _a : this._opts.ackTimeout;
+      if (timeout === void 0) {
+        this.acks[id] = ack;
+        return;
+      }
+      const timer = this.io.setTimeoutFn(() => {
+        delete this.acks[id];
+        for (let i = 0; i < this.sendBuffer.length; i++) {
+          if (this.sendBuffer[i].id === id) {
+            this.sendBuffer.splice(i, 1);
+          }
+        }
+        ack.call(this, new Error("operation has timed out"));
+      }, timeout);
+      const fn = (...args) => {
+        this.io.clearTimeoutFn(timer);
+        ack.apply(this, args);
+      };
+      fn.withError = true;
+      this.acks[id] = fn;
+    }
+    /**
+     * Emits an event and waits for an acknowledgement
+     *
+     * @example
+     * // without timeout
+     * const response = await socket.emitWithAck("hello", "world");
+     *
+     * // with a specific timeout
+     * try {
+     *   const response = await socket.timeout(1000).emitWithAck("hello", "world");
+     * } catch (err) {
+     *   // the server did not acknowledge the event in the given delay
+     * }
+     *
+     * @return a Promise that will be fulfilled when the server acknowledges the event
+     */
+    emitWithAck(ev, ...args) {
+      return new Promise((resolve, reject) => {
+        const fn = (arg1, arg2) => {
+          return arg1 ? reject(arg1) : resolve(arg2);
+        };
+        fn.withError = true;
+        args.push(fn);
+        this.emit(ev, ...args);
+      });
+    }
+    /**
+     * Add the packet to the queue.
+     * @param args
+     * @private
+     */
+    _addToQueue(args) {
+      let ack;
+      if (typeof args[args.length - 1] === "function") {
+        ack = args.pop();
+      }
+      const packet = {
+        id: this._queueSeq++,
+        tryCount: 0,
+        pending: false,
+        args,
+        flags: Object.assign({ fromQueue: true }, this.flags)
+      };
+      args.push((err, ...responseArgs) => {
+        if (packet !== this._queue[0]) {
+          return;
+        }
+        const hasError = err !== null;
+        if (hasError) {
+          if (packet.tryCount > this._opts.retries) {
+            this._queue.shift();
+            if (ack) {
+              ack(err);
+            }
+          }
+        } else {
+          this._queue.shift();
+          if (ack) {
+            ack(null, ...responseArgs);
+          }
+        }
+        packet.pending = false;
+        return this._drainQueue();
+      });
+      this._queue.push(packet);
+      this._drainQueue();
+    }
+    /**
+     * Send the first packet of the queue, and wait for an acknowledgement from the server.
+     * @param force - whether to resend a packet that has not been acknowledged yet
+     *
+     * @private
+     */
+    _drainQueue(force = false) {
+      if (!this.connected || this._queue.length === 0) {
+        return;
+      }
+      const packet = this._queue[0];
+      if (packet.pending && !force) {
+        return;
+      }
+      packet.pending = true;
+      packet.tryCount++;
+      this.flags = packet.flags;
+      this.emit.apply(this, packet.args);
+    }
+    /**
+     * Sends a packet.
+     *
+     * @param packet
+     * @private
+     */
+    packet(packet) {
+      packet.nsp = this.nsp;
+      this.io._packet(packet);
+    }
+    /**
+     * Called upon engine `open`.
+     *
+     * @private
+     */
+    onopen() {
+      if (typeof this.auth == "function") {
+        this.auth((data) => {
+          this._sendConnectPacket(data);
+        });
+      } else {
+        this._sendConnectPacket(this.auth);
+      }
+    }
+    /**
+     * Sends a CONNECT packet to initiate the Socket.IO session.
+     *
+     * @param data
+     * @private
+     */
+    _sendConnectPacket(data) {
+      this.packet({
+        type: PacketType.CONNECT,
+        data: this._pid ? Object.assign({ pid: this._pid, offset: this._lastOffset }, data) : data
+      });
+    }
+    /**
+     * Called upon engine or manager `error`.
+     *
+     * @param err
+     * @private
+     */
+    onerror(err) {
+      if (!this.connected) {
+        this.emitReserved("connect_error", err);
+      }
+    }
+    /**
+     * Called upon engine `close`.
+     *
+     * @param reason
+     * @param description
+     * @private
+     */
+    onclose(reason, description) {
+      this.connected = false;
+      delete this.id;
+      this.emitReserved("disconnect", reason, description);
+      this._clearAcks();
+    }
+    /**
+     * Clears the acknowledgement handlers upon disconnection, since the client will never receive an acknowledgement from
+     * the server.
+     *
+     * @private
+     */
+    _clearAcks() {
+      Object.keys(this.acks).forEach((id) => {
+        const isBuffered = this.sendBuffer.some((packet) => String(packet.id) === id);
+        if (!isBuffered) {
+          const ack = this.acks[id];
+          delete this.acks[id];
+          if (ack.withError) {
+            ack.call(this, new Error("socket has been disconnected"));
+          }
+        }
+      });
+    }
+    /**
+     * Called with socket packet.
+     *
+     * @param packet
+     * @private
+     */
+    onpacket(packet) {
+      const sameNamespace = packet.nsp === this.nsp;
+      if (!sameNamespace)
+        return;
+      switch (packet.type) {
+        case PacketType.CONNECT:
+          if (packet.data && packet.data.sid) {
+            this.onconnect(packet.data.sid, packet.data.pid);
+          } else {
+            this.emitReserved("connect_error", new Error("It seems you are trying to reach a Socket.IO server in v2.x with a v3.x client, but they are not compatible (more information here: https://socket.io/docs/v3/migrating-from-2-x-to-3-0/)"));
+          }
+          break;
+        case PacketType.EVENT:
+        case PacketType.BINARY_EVENT:
+          this.onevent(packet);
+          break;
+        case PacketType.ACK:
+        case PacketType.BINARY_ACK:
+          this.onack(packet);
+          break;
+        case PacketType.DISCONNECT:
+          this.ondisconnect();
+          break;
+        case PacketType.CONNECT_ERROR:
+          this.destroy();
+          const err = new Error(packet.data.message);
+          err.data = packet.data.data;
+          this.emitReserved("connect_error", err);
+          break;
+      }
+    }
+    /**
+     * Called upon a server event.
+     *
+     * @param packet
+     * @private
+     */
+    onevent(packet) {
+      const args = packet.data || [];
+      if (null != packet.id) {
+        args.push(this.ack(packet.id));
+      }
+      if (this.connected) {
+        this.emitEvent(args);
+      } else {
+        this.receiveBuffer.push(Object.freeze(args));
+      }
+    }
+    emitEvent(args) {
+      if (this._anyListeners && this._anyListeners.length) {
+        const listeners = this._anyListeners.slice();
+        for (const listener of listeners) {
+          listener.apply(this, args);
+        }
+      }
+      super.emit.apply(this, args);
+      if (this._pid && args.length && typeof args[args.length - 1] === "string") {
+        this._lastOffset = args[args.length - 1];
+      }
+    }
+    /**
+     * Produces an ack callback to emit with an event.
+     *
+     * @private
+     */
+    ack(id) {
+      const self2 = this;
+      let sent = false;
+      return function(...args) {
+        if (sent)
+          return;
+        sent = true;
+        self2.packet({
+          type: PacketType.ACK,
+          id,
+          data: args
+        });
+      };
+    }
+    /**
+     * Called upon a server acknowledgement.
+     *
+     * @param packet
+     * @private
+     */
+    onack(packet) {
+      const ack = this.acks[packet.id];
+      if (typeof ack !== "function") {
+        return;
+      }
+      delete this.acks[packet.id];
+      if (ack.withError) {
+        packet.data.unshift(null);
+      }
+      ack.apply(this, packet.data);
+    }
+    /**
+     * Called upon server connect.
+     *
+     * @private
+     */
+    onconnect(id, pid) {
+      this.id = id;
+      this.recovered = pid && this._pid === pid;
+      this._pid = pid;
+      this.connected = true;
+      this.emitBuffered();
+      this.emitReserved("connect");
+      this._drainQueue(true);
+    }
+    /**
+     * Emit buffered events (received and emitted).
+     *
+     * @private
+     */
+    emitBuffered() {
+      this.receiveBuffer.forEach((args) => this.emitEvent(args));
+      this.receiveBuffer = [];
+      this.sendBuffer.forEach((packet) => {
+        this.notifyOutgoingListeners(packet);
+        this.packet(packet);
+      });
+      this.sendBuffer = [];
+    }
+    /**
+     * Called upon server disconnect.
+     *
+     * @private
+     */
+    ondisconnect() {
+      this.destroy();
+      this.onclose("io server disconnect");
+    }
+    /**
+     * Called upon forced client/server side disconnections,
+     * this method ensures the manager stops tracking us and
+     * that reconnections don't get triggered for this.
+     *
+     * @private
+     */
+    destroy() {
+      if (this.subs) {
+        this.subs.forEach((subDestroy) => subDestroy());
+        this.subs = void 0;
+      }
+      this.io["_destroy"](this);
+    }
+    /**
+     * Disconnects the socket manually. In that case, the socket will not try to reconnect.
+     *
+     * If this is the last active Socket instance of the {@link Manager}, the low-level connection will be closed.
+     *
+     * @example
+     * const socket = io();
+     *
+     * socket.on("disconnect", (reason) => {
+     *   // __f__('log','at node_modules/socket.io-client/build/esm/socket.js:643',reason); prints "io client disconnect"
+     * });
+     *
+     * socket.disconnect();
+     *
+     * @return self
+     */
+    disconnect() {
+      if (this.connected) {
+        this.packet({ type: PacketType.DISCONNECT });
+      }
+      this.destroy();
+      if (this.connected) {
+        this.onclose("io client disconnect");
+      }
+      return this;
+    }
+    /**
+     * Alias for {@link disconnect()}.
+     *
+     * @return self
+     */
+    close() {
+      return this.disconnect();
+    }
+    /**
+     * Sets the compress flag.
+     *
+     * @example
+     * socket.compress(false).emit("hello");
+     *
+     * @param compress - if `true`, compresses the sending data
+     * @return self
+     */
+    compress(compress) {
+      this.flags.compress = compress;
+      return this;
+    }
+    /**
+     * Sets a modifier for a subsequent event emission that the event message will be dropped when this socket is not
+     * ready to send messages.
+     *
+     * @example
+     * socket.volatile.emit("hello"); // the server may or may not receive it
+     *
+     * @returns self
+     */
+    get volatile() {
+      this.flags.volatile = true;
+      return this;
+    }
+    /**
+     * Sets a modifier for a subsequent event emission that the callback will be called with an error when the
+     * given number of milliseconds have elapsed without an acknowledgement from the server:
+     *
+     * @example
+     * socket.timeout(5000).emit("my-event", (err) => {
+     *   if (err) {
+     *     // the server did not acknowledge the event in the given delay
+     *   }
+     * });
+     *
+     * @returns self
+     */
+    timeout(timeout) {
+      this.flags.timeout = timeout;
+      return this;
+    }
+    /**
+     * Adds a listener that will be fired when any event is emitted. The event name is passed as the first argument to the
+     * callback.
+     *
+     * @example
+     * socket.onAny((event, ...args) => {
+     *   __f__('log','at node_modules/socket.io-client/build/esm/socket.js:719',`got ${event}`);
+     * });
+     *
+     * @param listener
+     */
+    onAny(listener) {
+      this._anyListeners = this._anyListeners || [];
+      this._anyListeners.push(listener);
+      return this;
+    }
+    /**
+     * Adds a listener that will be fired when any event is emitted. The event name is passed as the first argument to the
+     * callback. The listener is added to the beginning of the listeners array.
+     *
+     * @example
+     * socket.prependAny((event, ...args) => {
+     *   __f__('log','at node_modules/socket.io-client/build/esm/socket.js:735',`got event ${event}`);
+     * });
+     *
+     * @param listener
+     */
+    prependAny(listener) {
+      this._anyListeners = this._anyListeners || [];
+      this._anyListeners.unshift(listener);
+      return this;
+    }
+    /**
+     * Removes the listener that will be fired when any event is emitted.
+     *
+     * @example
+     * const catchAllListener = (event, ...args) => {
+     *   __f__('log','at node_modules/socket.io-client/build/esm/socket.js:750',`got event ${event}`);
+     * }
+     *
+     * socket.onAny(catchAllListener);
+     *
+     * // remove a specific listener
+     * socket.offAny(catchAllListener);
+     *
+     * // or remove all listeners
+     * socket.offAny();
+     *
+     * @param listener
+     */
+    offAny(listener) {
+      if (!this._anyListeners) {
+        return this;
+      }
+      if (listener) {
+        const listeners = this._anyListeners;
+        for (let i = 0; i < listeners.length; i++) {
+          if (listener === listeners[i]) {
+            listeners.splice(i, 1);
+            return this;
+          }
+        }
+      } else {
+        this._anyListeners = [];
+      }
+      return this;
+    }
+    /**
+     * Returns an array of listeners that are listening for any event that is specified. This array can be manipulated,
+     * e.g. to remove listeners.
+     */
+    listenersAny() {
+      return this._anyListeners || [];
+    }
+    /**
+     * Adds a listener that will be fired when any event is emitted. The event name is passed as the first argument to the
+     * callback.
+     *
+     * Note: acknowledgements sent to the server are not included.
+     *
+     * @example
+     * socket.onAnyOutgoing((event, ...args) => {
+     *   __f__('log','at node_modules/socket.io-client/build/esm/socket.js:796',`sent event ${event}`);
+     * });
+     *
+     * @param listener
+     */
+    onAnyOutgoing(listener) {
+      this._anyOutgoingListeners = this._anyOutgoingListeners || [];
+      this._anyOutgoingListeners.push(listener);
+      return this;
+    }
+    /**
+     * Adds a listener that will be fired when any event is emitted. The event name is passed as the first argument to the
+     * callback. The listener is added to the beginning of the listeners array.
+     *
+     * Note: acknowledgements sent to the server are not included.
+     *
+     * @example
+     * socket.prependAnyOutgoing((event, ...args) => {
+     *   __f__('log','at node_modules/socket.io-client/build/esm/socket.js:814',`sent event ${event}`);
+     * });
+     *
+     * @param listener
+     */
+    prependAnyOutgoing(listener) {
+      this._anyOutgoingListeners = this._anyOutgoingListeners || [];
+      this._anyOutgoingListeners.unshift(listener);
+      return this;
+    }
+    /**
+     * Removes the listener that will be fired when any event is emitted.
+     *
+     * @example
+     * const catchAllListener = (event, ...args) => {
+     *   __f__('log','at node_modules/socket.io-client/build/esm/socket.js:829',`sent event ${event}`);
+     * }
+     *
+     * socket.onAnyOutgoing(catchAllListener);
+     *
+     * // remove a specific listener
+     * socket.offAnyOutgoing(catchAllListener);
+     *
+     * // or remove all listeners
+     * socket.offAnyOutgoing();
+     *
+     * @param [listener] - the catch-all listener (optional)
+     */
+    offAnyOutgoing(listener) {
+      if (!this._anyOutgoingListeners) {
+        return this;
+      }
+      if (listener) {
+        const listeners = this._anyOutgoingListeners;
+        for (let i = 0; i < listeners.length; i++) {
+          if (listener === listeners[i]) {
+            listeners.splice(i, 1);
+            return this;
+          }
+        }
+      } else {
+        this._anyOutgoingListeners = [];
+      }
+      return this;
+    }
+    /**
+     * Returns an array of listeners that are listening for any event that is specified. This array can be manipulated,
+     * e.g. to remove listeners.
+     */
+    listenersAnyOutgoing() {
+      return this._anyOutgoingListeners || [];
+    }
+    /**
+     * Notify the listeners for each packet sent
+     *
+     * @param packet
+     *
+     * @private
+     */
+    notifyOutgoingListeners(packet) {
+      if (this._anyOutgoingListeners && this._anyOutgoingListeners.length) {
+        const listeners = this._anyOutgoingListeners.slice();
+        for (const listener of listeners) {
+          listener.apply(this, packet.data);
+        }
+      }
+    }
+  }
+  function Backoff(opts) {
+    opts = opts || {};
+    this.ms = opts.min || 100;
+    this.max = opts.max || 1e4;
+    this.factor = opts.factor || 2;
+    this.jitter = opts.jitter > 0 && opts.jitter <= 1 ? opts.jitter : 0;
+    this.attempts = 0;
+  }
+  Backoff.prototype.duration = function() {
+    var ms = this.ms * Math.pow(this.factor, this.attempts++);
+    if (this.jitter) {
+      var rand = Math.random();
+      var deviation = Math.floor(rand * this.jitter * ms);
+      ms = (Math.floor(rand * 10) & 1) == 0 ? ms - deviation : ms + deviation;
+    }
+    return Math.min(ms, this.max) | 0;
+  };
+  Backoff.prototype.reset = function() {
+    this.attempts = 0;
+  };
+  Backoff.prototype.setMin = function(min) {
+    this.ms = min;
+  };
+  Backoff.prototype.setMax = function(max) {
+    this.max = max;
+  };
+  Backoff.prototype.setJitter = function(jitter) {
+    this.jitter = jitter;
+  };
+  class Manager extends Emitter {
+    constructor(uri, opts) {
+      var _a;
+      super();
+      this.nsps = {};
+      this.subs = [];
+      if (uri && "object" === typeof uri) {
+        opts = uri;
+        uri = void 0;
+      }
+      opts = opts || {};
+      opts.path = opts.path || "/socket.io";
+      this.opts = opts;
+      installTimerFunctions(this, opts);
+      this.reconnection(opts.reconnection !== false);
+      this.reconnectionAttempts(opts.reconnectionAttempts || Infinity);
+      this.reconnectionDelay(opts.reconnectionDelay || 1e3);
+      this.reconnectionDelayMax(opts.reconnectionDelayMax || 5e3);
+      this.randomizationFactor((_a = opts.randomizationFactor) !== null && _a !== void 0 ? _a : 0.5);
+      this.backoff = new Backoff({
+        min: this.reconnectionDelay(),
+        max: this.reconnectionDelayMax(),
+        jitter: this.randomizationFactor()
+      });
+      this.timeout(null == opts.timeout ? 2e4 : opts.timeout);
+      this._readyState = "closed";
+      this.uri = uri;
+      const _parser = opts.parser || parser;
+      this.encoder = new _parser.Encoder();
+      this.decoder = new _parser.Decoder();
+      this._autoConnect = opts.autoConnect !== false;
+      if (this._autoConnect)
+        this.open();
+    }
+    reconnection(v) {
+      if (!arguments.length)
+        return this._reconnection;
+      this._reconnection = !!v;
+      if (!v) {
+        this.skipReconnect = true;
+      }
+      return this;
+    }
+    reconnectionAttempts(v) {
+      if (v === void 0)
+        return this._reconnectionAttempts;
+      this._reconnectionAttempts = v;
+      return this;
+    }
+    reconnectionDelay(v) {
+      var _a;
+      if (v === void 0)
+        return this._reconnectionDelay;
+      this._reconnectionDelay = v;
+      (_a = this.backoff) === null || _a === void 0 ? void 0 : _a.setMin(v);
+      return this;
+    }
+    randomizationFactor(v) {
+      var _a;
+      if (v === void 0)
+        return this._randomizationFactor;
+      this._randomizationFactor = v;
+      (_a = this.backoff) === null || _a === void 0 ? void 0 : _a.setJitter(v);
+      return this;
+    }
+    reconnectionDelayMax(v) {
+      var _a;
+      if (v === void 0)
+        return this._reconnectionDelayMax;
+      this._reconnectionDelayMax = v;
+      (_a = this.backoff) === null || _a === void 0 ? void 0 : _a.setMax(v);
+      return this;
+    }
+    timeout(v) {
+      if (!arguments.length)
+        return this._timeout;
+      this._timeout = v;
+      return this;
+    }
+    /**
+     * Starts trying to reconnect if reconnection is enabled and we have not
+     * started reconnecting yet
+     *
+     * @private
+     */
+    maybeReconnectOnOpen() {
+      if (!this._reconnecting && this._reconnection && this.backoff.attempts === 0) {
+        this.reconnect();
+      }
+    }
+    /**
+     * Sets the current transport `socket`.
+     *
+     * @param {Function} fn - optional, callback
+     * @return self
+     * @public
+     */
+    open(fn) {
+      if (~this._readyState.indexOf("open"))
+        return this;
+      this.engine = new Socket$1(this.uri, this.opts);
+      const socket = this.engine;
+      const self2 = this;
+      this._readyState = "opening";
+      this.skipReconnect = false;
+      const openSubDestroy = on(socket, "open", function() {
+        self2.onopen();
+        fn && fn();
+      });
+      const onError = (err) => {
+        this.cleanup();
+        this._readyState = "closed";
+        this.emitReserved("error", err);
+        if (fn) {
+          fn(err);
+        } else {
+          this.maybeReconnectOnOpen();
+        }
+      };
+      const errorSub = on(socket, "error", onError);
+      if (false !== this._timeout) {
+        const timeout = this._timeout;
+        const timer = this.setTimeoutFn(() => {
+          openSubDestroy();
+          onError(new Error("timeout"));
+          socket.close();
+        }, timeout);
+        if (this.opts.autoUnref) {
+          timer.unref();
+        }
+        this.subs.push(() => {
+          this.clearTimeoutFn(timer);
+        });
+      }
+      this.subs.push(openSubDestroy);
+      this.subs.push(errorSub);
+      return this;
+    }
+    /**
+     * Alias for open()
+     *
+     * @return self
+     * @public
+     */
+    connect(fn) {
+      return this.open(fn);
+    }
+    /**
+     * Called upon transport open.
+     *
+     * @private
+     */
+    onopen() {
+      this.cleanup();
+      this._readyState = "open";
+      this.emitReserved("open");
+      const socket = this.engine;
+      this.subs.push(
+        on(socket, "ping", this.onping.bind(this)),
+        on(socket, "data", this.ondata.bind(this)),
+        on(socket, "error", this.onerror.bind(this)),
+        on(socket, "close", this.onclose.bind(this)),
+        // @ts-ignore
+        on(this.decoder, "decoded", this.ondecoded.bind(this))
+      );
+    }
+    /**
+     * Called upon a ping.
+     *
+     * @private
+     */
+    onping() {
+      this.emitReserved("ping");
+    }
+    /**
+     * Called with data.
+     *
+     * @private
+     */
+    ondata(data) {
+      try {
+        this.decoder.add(data);
+      } catch (e) {
+        this.onclose("parse error", e);
+      }
+    }
+    /**
+     * Called when parser fully decodes a packet.
+     *
+     * @private
+     */
+    ondecoded(packet) {
+      nextTick(() => {
+        this.emitReserved("packet", packet);
+      }, this.setTimeoutFn);
+    }
+    /**
+     * Called upon socket error.
+     *
+     * @private
+     */
+    onerror(err) {
+      this.emitReserved("error", err);
+    }
+    /**
+     * Creates a new socket for the given `nsp`.
+     *
+     * @return {Socket}
+     * @public
+     */
+    socket(nsp, opts) {
+      let socket = this.nsps[nsp];
+      if (!socket) {
+        socket = new Socket(this, nsp, opts);
+        this.nsps[nsp] = socket;
+      } else if (this._autoConnect && !socket.active) {
+        socket.connect();
+      }
+      return socket;
+    }
+    /**
+     * Called upon a socket close.
+     *
+     * @param socket
+     * @private
+     */
+    _destroy(socket) {
+      const nsps = Object.keys(this.nsps);
+      for (const nsp of nsps) {
+        const socket2 = this.nsps[nsp];
+        if (socket2.active) {
+          return;
+        }
+      }
+      this._close();
+    }
+    /**
+     * Writes a packet.
+     *
+     * @param packet
+     * @private
+     */
+    _packet(packet) {
+      const encodedPackets = this.encoder.encode(packet);
+      for (let i = 0; i < encodedPackets.length; i++) {
+        this.engine.write(encodedPackets[i], packet.options);
+      }
+    }
+    /**
+     * Clean up transport subscriptions and packet buffer.
+     *
+     * @private
+     */
+    cleanup() {
+      this.subs.forEach((subDestroy) => subDestroy());
+      this.subs.length = 0;
+      this.decoder.destroy();
+    }
+    /**
+     * Close the current socket.
+     *
+     * @private
+     */
+    _close() {
+      this.skipReconnect = true;
+      this._reconnecting = false;
+      this.onclose("forced close");
+    }
+    /**
+     * Alias for close()
+     *
+     * @private
+     */
+    disconnect() {
+      return this._close();
+    }
+    /**
+     * Called when:
+     *
+     * - the low-level engine is closed
+     * - the parser encountered a badly formatted packet
+     * - all sockets are disconnected
+     *
+     * @private
+     */
+    onclose(reason, description) {
+      var _a;
+      this.cleanup();
+      (_a = this.engine) === null || _a === void 0 ? void 0 : _a.close();
+      this.backoff.reset();
+      this._readyState = "closed";
+      this.emitReserved("close", reason, description);
+      if (this._reconnection && !this.skipReconnect) {
+        this.reconnect();
+      }
+    }
+    /**
+     * Attempt a reconnection.
+     *
+     * @private
+     */
+    reconnect() {
+      if (this._reconnecting || this.skipReconnect)
+        return this;
+      const self2 = this;
+      if (this.backoff.attempts >= this._reconnectionAttempts) {
+        this.backoff.reset();
+        this.emitReserved("reconnect_failed");
+        this._reconnecting = false;
+      } else {
+        const delay = this.backoff.duration();
+        this._reconnecting = true;
+        const timer = this.setTimeoutFn(() => {
+          if (self2.skipReconnect)
+            return;
+          this.emitReserved("reconnect_attempt", self2.backoff.attempts);
+          if (self2.skipReconnect)
+            return;
+          self2.open((err) => {
+            if (err) {
+              self2._reconnecting = false;
+              self2.reconnect();
+              this.emitReserved("reconnect_error", err);
+            } else {
+              self2.onreconnect();
+            }
+          });
+        }, delay);
+        if (this.opts.autoUnref) {
+          timer.unref();
+        }
+        this.subs.push(() => {
+          this.clearTimeoutFn(timer);
+        });
+      }
+    }
+    /**
+     * Called upon successful reconnect.
+     *
+     * @private
+     */
+    onreconnect() {
+      const attempt = this.backoff.attempts;
+      this._reconnecting = false;
+      this.backoff.reset();
+      this.emitReserved("reconnect", attempt);
+    }
+  }
+  const cache = {};
+  function lookup(uri, opts) {
+    if (typeof uri === "object") {
+      opts = uri;
+      uri = void 0;
+    }
+    opts = opts || {};
+    const parsed = url(uri, opts.path || "/socket.io");
+    const source = parsed.source;
+    const id = parsed.id;
+    const path = parsed.path;
+    const sameNamespace = cache[id] && path in cache[id]["nsps"];
+    const newConnection = opts.forceNew || opts["force new connection"] || false === opts.multiplex || sameNamespace;
+    let io;
+    if (newConnection) {
+      io = new Manager(source, opts);
+    } else {
+      if (!cache[id]) {
+        cache[id] = new Manager(source, opts);
+      }
+      io = cache[id];
+    }
+    if (parsed.query && !opts.query) {
+      opts.query = parsed.queryKey;
+    }
+    return io.socket(parsed.path, opts);
+  }
+  Object.assign(lookup, {
+    Manager,
+    Socket,
+    io: lookup,
+    connect: lookup
+  });
+  class SocketIOService {
+    /**
+      * @param {Object} options - 配置选项
+      * @param {string} options.url - 服务器地址
+      * @param {string} [options.path='/socket.io'] - Socket.IO路径
+      * @param {boolean} [options.autoConnect=true] - 是否自动连接
+      * @param {Object} [options.auth] - 认证信息
+      * @param {number} [options.reconnectionDelay=1000] - 重连延迟(ms)
+      * @param {number} [options.pingTimeout=20000] - 心跳超时(ms)
+      */
+    constructor(options) {
+      this.defaultOptions = {
+        path: "",
+        autoConnect: true,
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1e3,
+        reconnectionDelayMax: 5e3,
+        randomizationFactor: 0.5,
+        timeout: 2e4,
+        transports: ["websocket"],
+        pingTimeout: 2e4,
+        pingInterval: 25e3,
+        ...options
+      };
+      this.socket = null;
+      this.eventListeners = /* @__PURE__ */ new Map();
+      this.connected = false;
+      this.reconnectTimer = null;
+      this.pingCheckTimer = null;
+      this._log("初始化配置:", this.defaultOptions);
+    }
+    /**
+     * 更新认证信息
+     * @param {String|Object} [auth] - 动态认证信息
+     */
+    updateAuth(token) {
+      this.defaultOptions.auth.token = token;
+      if (this.socket) {
+        this.socket.auth = { token };
+        this.socket.io.opts.query = { token };
+      }
+    }
+    /**
+     * 初始化Socket连接
+     * @param {String|Object} [auth] - 动态认证信息
+     * @returns {Promise<void>}
+     */
+    connect(auth) {
+      return new Promise((resolve, reject) => {
+        if (this.socket && this.connected) {
+          this._log("已连接，跳过重复连接");
+          return resolve();
+        }
+        const normalizedAuth = this.normalizeAuth(auth);
+        const token = normalizedAuth.token;
+        const finalOptions = {
+          ...this.defaultOptions,
+          auth: normalizedAuth,
+          query: { token },
+          transportOptions: {
+            polling: {
+              extraHeaders: {
+                Authorization: `Bearer ${normalizedAuth.token}`
+              }
+            }
+          }
+        };
+        this._log("正在建立连接，完整参数:", finalOptions);
+        this.socket = lookup(finalOptions.url, finalOptions);
+        this.socket.on("connect", () => {
+          this.connected = true;
+          this._log(`✅ 连接成功 (ID: ${this.socket.id})`);
+          this._startPingCheck();
+          resolve();
+          this._emitEvent("connect");
+          this.emit("test_event", { content: "测试连接" });
+        });
+        this.socket.on("connect_error", (error) => {
+          this._log(`❌ 连接失败: ${error.message}`, error);
+          this._emitEvent("connect_error", error);
+          reject(error);
+        });
+        this.socket.on("disconnect", (reason) => {
+          this.connected = false;
+          this._log(`⚠️ 连接断开: ${reason}`);
+          this._stopPingCheck();
+          this._emitEvent("disconnect", reason);
+        });
+        this.socket.on("reconnect_attempt", (attempt) => {
+          formatAppLog("log", "at utils/socket_io.js:116", `[SocketIO] 第 ${attempt} 次重连尝试`);
+          this._emitEvent("reconnecting", attempt);
+        });
+        this.socket.onAny((event, ...args) => {
+          this._emitEvent(event, ...args);
+        });
+      });
+    }
+    /**
+     * 断开连接
+     */
+    disconnect() {
+      if (this.socket) {
+        this.socket.disconnect();
+        this._cleanup();
+        this.connected = false;
+      }
+    }
+    /**
+     * 发送消息
+     * @param {string} event - 事件名称
+     * @param {any} data - 发送数据
+     * @param {Object} [options] - 选项
+     * @param {number} [options.timeout=30000] - 超时时间(ms)
+     * @returns {Promise<any>}
+     */
+    emit(event, data, options = {}) {
+      return new Promise((resolve, reject) => {
+        if (!this.socket || !this.connected) {
+          reject(new Error("Socket is not connected"));
+          return;
+        }
+        const timeout = options.timeout || 3e4;
+        const timeoutId = setTimeout(() => {
+          reject(new Error(`Request timeout after ${timeout}ms`));
+        }, timeout);
+        this.socket.emit(event, data, (response) => {
+          clearTimeout(timeoutId);
+          if (response == null ? void 0 : response.error) {
+            const err = new Error(response.message || "Server error");
+            err.code = response.code;
+            reject(err);
+          } else {
+            resolve(response);
+          }
+        });
+      });
+    }
+    /**
+     * 监听事件
+     * @param {string} event - 事件名称
+     * @param {Function} callback - 回调函数
+     */
+    on(event, callback) {
+      formatAppLog("log", "at utils/socket_io.js:178", "register", event);
+      if (!this.eventListeners.has(event)) {
+        this.eventListeners.set(event, /* @__PURE__ */ new Set());
+      }
+      this.eventListeners.get(event).add(callback);
+      if (this.socket) {
+        this.socket.on(event, callback);
+      }
+    }
+    /**
+    * 取消监听
+    * @param {string} event - 事件名称
+    * @param {Function} [callback] - 回调函数(不传则移除所有监听)
+    */
+    off(event, callback) {
+      if (!this.eventListeners.has(event))
+        return;
+      if (callback) {
+        this.eventListeners.get(event).delete(callback);
+        if (this.socket) {
+          this.socket.off(event, callback);
+        }
+      } else {
+        this.eventListeners.get(event).forEach((cb) => {
+          if (this.socket) {
+            this.socket.off(event, cb);
+          }
+        });
+        this.eventListeners.delete(event);
+      }
+    }
+    /* 私有方法 */
+    _emitEvent(event, ...args) {
+      if (this.eventListeners.has(event)) {
+        this.eventListeners.get(event).forEach((cb) => {
+          try {
+            formatAppLog("log", "at utils/socket_io.js:218", "调用事件监听函数");
+            cb(...args);
+          } catch (err) {
+            formatAppLog("error", "at utils/socket_io.js:221", `[SocketIO] 事件处理错误 (${event}):`, err);
+          }
+        });
+      }
+    }
+    _startPingCheck() {
+      this._stopPingCheck();
+      this.pingCheckTimer = setInterval(() => {
+        var _a, _b, _c;
+        if (!this.connected)
+          return;
+        const now = Date.now();
+        const lastPing = ((_b = (_a = this.socket) == null ? void 0 : _a.io) == null ? void 0 : _b.lastPing) || now;
+        if (now - lastPing > this.defaultOptions.pingTimeout) {
+          formatAppLog("warn", "at utils/socket_io.js:236", "[SocketIO] 心跳检测失败，主动断开连接");
+          (_c = this.socket) == null ? void 0 : _c.disconnect();
+        }
+      }, this.defaultOptions.pingTimeout / 2);
+    }
+    _stopPingCheck() {
+      if (this.pingCheckTimer) {
+        clearInterval(this.pingCheckTimer);
+        this.pingCheckTimer = null;
+      }
+    }
+    _cleanup() {
+      this._stopPingCheck();
+      this.connected = false;
+      this.eventListeners.clear();
+      this.socket = null;
+    }
+    _log(message, ...args) {
+      formatAppLog("log", "at utils/socket_io.js:257", `[SocketIO][${(/* @__PURE__ */ new Date()).toISOString()}] ${message}`, ...args);
+    }
+    /**
+     * 标准化认证信息
+     * @param {string|Object} auth 
+     * @returns {Object} 标准化的auth对象
+     */
+    normalizeAuth(auth) {
+      if (!auth)
+        return { token: "" };
+      if (typeof auth === "string") {
+        return { token: auth };
+      }
+      if (typeof auth === "object" && auth.token) {
+        return auth;
+      }
+      formatAppLog("warn", "at utils/socket_io.js:276", "无效的auth参数，使用默认空token");
+      return { token: "" };
+    }
+  }
+  const SocketService = new SocketIOService({
+    url: `${config$1.SOCKET_URL}`,
+    auth: {
+      token: uni.getStorageSync("token")
+    }
+  });
   const _export_sfc = (sfc, props) => {
     const target = sfc.__vccOpts || sfc;
     for (const [key, val] of props) {
@@ -38,7 +3766,7 @@ if (uni.restoreGlobal) {
     }
     return target;
   };
-  const _sfc_main$g = {
+  const _sfc_main$m = {
     data() {
       return {
         credentials: {
@@ -67,12 +3795,12 @@ if (uni.restoreGlobal) {
         authApi.login({
           username: this.credentials.username,
           password: this.credentials.password
-        }).then((res) => {
-          formatAppLog("log", "at pages/index/login.vue:78", "登陆成功", res);
-          uni.setStorageSync("access_token", res.data.access_token);
-          uni.setStorageSync("user_info", res.data.user);
+        }).then((res2) => {
+          formatAppLog("log", "at pages/index/login.vue:78", "登陆成功", res2);
+          uni.setStorageSync("access_token", res2.data.access_token);
+          uni.setStorageSync("user_info", res2.data.user);
           formatAppLog("log", "at pages/index/login.vue:83", "user_info", uni.getStorageSync("user_info"));
-          SocketService.connect(res.data.access_token).then(() => formatAppLog("log", "at pages/index/login.vue:87", "连接成功")).catch((err) => formatAppLog("error", "at pages/index/login.vue:88", "连接失败:", err));
+          SocketService.connect(res2.data.access_token).then(() => formatAppLog("log", "at pages/index/login.vue:87", "连接成功")).catch((err) => formatAppLog("error", "at pages/index/login.vue:88", "连接失败:", err));
         }).then(() => {
           this.goToHome();
         }).catch((err) => {
@@ -98,7 +3826,7 @@ if (uni.restoreGlobal) {
       }
     }
   };
-  function _sfc_render$f(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$l(_ctx, _cache, $props, $setup, $data, $options) {
     return vue.openBlock(), vue.createElementBlock("div", null, [
       vue.createCommentVNode(" 欢迎界面 "),
       $data.showWelcome ? (vue.openBlock(), vue.createElementBlock("div", {
@@ -162,13 +3890,13 @@ if (uni.restoreGlobal) {
       ])) : vue.createCommentVNode("v-if", true)
     ]);
   }
-  const PagesIndexLogin = /* @__PURE__ */ _export_sfc(_sfc_main$i, [["render", _sfc_render$h], ["__scopeId", "data-v-fa14255b"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/login.vue"]]);
-  const _imports_0$5 = "/static/car-icon.png";
-  const _imports_1$4 = "/static/launch-icon.png";
+  const PagesIndexLogin = /* @__PURE__ */ _export_sfc(_sfc_main$m, [["render", _sfc_render$l], ["__scopeId", "data-v-fa14255b"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/login.vue"]]);
+  const _imports_0$4 = "/static/car-icon.png";
+  const _imports_1$5 = "/static/launch-icon.png";
   const _imports_2$3 = "/static/chatlist.png";
   const _imports_3$2 = "/static/person-icon.png";
   const _imports_4$1 = "/static/manage-icon.png";
-  const _sfc_main$h = {
+  const _sfc_main$l = {
     data() {
       return {
         is_manager: 0
@@ -181,11 +3909,8 @@ if (uni.restoreGlobal) {
       }
     },
     created() {
-      const storedValue = uni.getStorageSync("is_manager");
-      formatAppLog("log", "at components/NavigationBar.vue:29", "Stored is_manager value:", storedValue);
-      if (storedValue !== void 0 && storedValue !== null) {
-        this.is_manager = parseInt(storedValue, 10) || 0;
-      }
+      const user_info = uni.getStorageSync("user_info");
+      this.is_manager = user_info.is_manager ? 1 : 0;
     },
     methods: {
       home() {
@@ -220,16 +3945,16 @@ if (uni.restoreGlobal) {
       }
     }
   };
-  function _sfc_render$g(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$k(_ctx, _cache, $props, $setup, $data, $options) {
     return vue.openBlock(), vue.createElementBlock("div", { class: "nav-bar" }, [
       vue.createElementVNode("div", { class: "icon-container" }, [
         vue.createElementVNode("image", {
-          src: _imports_0$5,
+          src: _imports_0$4,
           class: "icon",
           onClick: _cache[0] || (_cache[0] = (...args) => $options.home && $options.home(...args))
         }),
         vue.createElementVNode("image", {
-          src: _imports_1$4,
+          src: _imports_1$5,
           class: "icon",
           onClick: _cache[1] || (_cache[1] = (...args) => $options.launch && $options.launch(...args))
         }),
@@ -253,42 +3978,32 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const NavigationBar = /* @__PURE__ */ _export_sfc(_sfc_main$h, [["render", _sfc_render$g], ["__scopeId", "data-v-e29e7744"], ["__file", "E:/Projects/SE/ride-sharing-se/components/NavigationBar.vue"]]);
+  const NavigationBar = /* @__PURE__ */ _export_sfc(_sfc_main$l, [["render", _sfc_render$k], ["__scopeId", "data-v-e29e7744"], ["__file", "E:/Projects/SE/ride-sharing-se/components/NavigationBar.vue"]]);
   const fetchUserBaseInfo = () => {
-    return get(`/user/basic`).then((res) => {
+    return get(`/user/basic`).then((res2) => {
       return {
-        ...res.data,
-        age: typeof res.data.age === "number" ? res.data.age : null,
-        avatar: res.data.avatar || getDefaultAvatar()
+        ...res2.data,
+        age: typeof res2.data.age === "number" ? res2.data.age : null,
+        avatar: res2.data.avatar || getDefaultAvatar()
       };
     });
   };
   const fetchUserModifiableData = () => {
-    return get(`/user/modifiable_data`).then((res) => {
-      formatAppLog("log", "at api/user.js:39", res.data);
+    return get(`/user/modifiable_data`).then((res2) => {
+      formatAppLog("log", "at api/user.js:39", res2.data);
       return {
-        ...res.data,
-        avatar: res.data.avatar || getDefaultAvatar()
+        ...res2.data,
+        avatar: res2.data.avatar || getDefaultAvatar()
       };
     });
   };
-  const fetchCars = (userId) => {
-    return get(`/user/cars/${userId}`).then((res) => {
-      formatAppLog("log", "at api/user.js:55", res.data);
-      return {
-        ...res.data
-      };
-    });
+  const fetchCars = () => {
+    return get("/user/cars");
   };
   const updateUserInfo = (data) => {
-    return post(`/user/update`, data, {
+    return post("/user/update", data, {
       showLoading: true,
       loadingText: "正在更新用户信息..."
-    }).then((res) => {
-      if (res.code !== 200) {
-        throw new Error(res.message || "更新失败");
-      }
-      return res;
     });
   };
   const uploadUserAvatar = (userId, base64Data) => {
@@ -300,15 +4015,15 @@ if (uni.restoreGlobal) {
     });
   };
   const fetchUserAvatar = () => {
-    formatAppLog("log", "at api/user.js:101", "获取头像");
-    return get(`/user/avatar`).then((res) => {
-      if (!res || !res.data) {
-        formatAppLog("error", "at api/user.js:104", "Invalid data received for user avatar:", res);
+    formatAppLog("log", "at api/user.js:90", "获取头像");
+    return get(`/user/avatar`).then((res2) => {
+      if (!res2 || !res2.data) {
+        formatAppLog("error", "at api/user.js:93", "Invalid data received for user avatar:", res2);
         return getUserDefaultAvatar();
       }
-      return res.data.avatar_url || getUserDefaultAvatar();
+      return res2.data.avatar_url || getUserDefaultAvatar();
     }).catch((error) => {
-      formatAppLog("error", "at api/user.js:109", "Error fetching user avatar:", error);
+      formatAppLog("error", "at api/user.js:98", "Error fetching user avatar:", error);
       return getUserDefaultAvatar();
     });
   };
@@ -319,9 +4034,9 @@ if (uni.restoreGlobal) {
     return "../../static/user.jpeg";
   };
   const fetchUserConversations = () => {
-    return get("/chat/conversations").then((res) => {
-      formatAppLog("log", "at api/chat.js:12", "后端原始数据", res);
-      return res.data.map((conversation) => {
+    return get("/chat/conversations").then((res2) => {
+      formatAppLog("log", "at api/chat.js:12", "后端原始数据", res2);
+      return res2.data.map((conversation) => {
         var _a;
         return {
           id: conversation.conversation_id,
@@ -341,9 +4056,9 @@ if (uni.restoreGlobal) {
     });
   };
   const fetchConversationMessages = async (conversationId, params = {}) => {
-    return get(`/chat/conversations/${conversationId}/messages`).then((res) => {
-      formatAppLog("log", "at api/chat.js:41", "后端原始数据", res);
-      return res;
+    return get(`/chat/conversations/${conversationId}/messages`).then((res2) => {
+      formatAppLog("log", "at api/chat.js:41", "后端原始数据", res2);
+      return res2;
     });
   };
   function sendMessage(conversationId, content, type = "text") {
@@ -356,7 +4071,8 @@ if (uni.restoreGlobal) {
   SocketService.on("private_message", (data) => {
     formatAppLog("log", "at api/chat.js:55", `收到来自${data.from}的消息：${data.content}`);
   });
-  const _sfc_main$g = {
+  const _imports_1$4 = "/static/empty.png";
+  const _sfc_main$k = {
     components: {
       NavigationBar
     },
@@ -389,20 +4105,20 @@ if (uni.restoreGlobal) {
     },
     methods: {
       async fetchCurrentUser() {
-        fetchBasicUserInfo().then((res) => {
-          this.currentUser.username = res.data.username;
-          this.currentUser.avatar = res.data.avatar;
+        fetchBasicUserInfo().then((res2) => {
+          this.currentUser.username = res2.data.username;
+          this.currentUser.avatar = res2.data.avatar;
         }).catch((err) => {
-          formatAppLog("log", "at pages/index/chatlist.vue:87", "获取用户基本信息失败：", err);
+          formatAppLog("log", "at pages/index/chatlist.vue:95", "获取用户基本信息失败：", err);
         });
       },
       async fetchConversationListData() {
         try {
-          const res = await fetchUserConversations();
-          formatAppLog("log", "at pages/index/chatlist.vue:94", "会话列表数据:", res);
-          this.ConversationList = res;
+          const res2 = await fetchUserConversations();
+          formatAppLog("log", "at pages/index/chatlist.vue:102", "会话列表数据:", res2);
+          this.ConversationList = res2;
         } catch (err) {
-          formatAppLog("log", "at pages/index/chatlist.vue:97", "获取用户会话列表失败：", err);
+          formatAppLog("log", "at pages/index/chatlist.vue:105", "获取用户会话列表失败：", err);
         }
       },
       async processConversationList() {
@@ -433,9 +4149,9 @@ if (uni.restoreGlobal) {
               processedConversation.members = memberAvatars;
               try {
                 processedConversation.avatar = memberAvatars.length > 0 ? await this.generateGroupAvatar(conversation.id, memberAvatars) : "../../static/default_group_avatar.png";
-                formatAppLog("log", "at pages/index/chatlist.vue:145", processedConversation.avatar);
+                formatAppLog("log", "at pages/index/chatlist.vue:153", processedConversation.avatar);
               } catch (e) {
-                formatAppLog("error", "at pages/index/chatlist.vue:147", "生成群头像失败:", e);
+                formatAppLog("error", "at pages/index/chatlist.vue:155", "生成群头像失败:", e);
                 processedConversation.avatar = "../../static/default_group_avatar.png";
               }
             }
@@ -449,9 +4165,9 @@ if (uni.restoreGlobal) {
             return timeB - timeA;
           });
           this.processedListWithAvatars = processed;
-          formatAppLog("log", "at pages/index/chatlist.vue:163", "处理后的会话列表:", processed);
+          formatAppLog("log", "at pages/index/chatlist.vue:171", "处理后的会话列表:", processed);
         } catch (err) {
-          formatAppLog("error", "at pages/index/chatlist.vue:165", "处理会话列表失败:", err);
+          formatAppLog("error", "at pages/index/chatlist.vue:173", "处理会话列表失败:", err);
         }
       },
       async generateGroupAvatar(groupId, members) {
@@ -473,7 +4189,7 @@ if (uni.restoreGlobal) {
           this.groupAvatarCache[groupId] = tempFilePath;
           return tempFilePath;
         } catch (error) {
-          formatAppLog("error", "at pages/index/chatlist.vue:199", "生成群聊头像失败:", error);
+          formatAppLog("error", "at pages/index/chatlist.vue:207", "生成群聊头像失败:", error);
           return "../../static/default_group_avatar.png";
         }
       },
@@ -504,11 +4220,11 @@ if (uni.restoreGlobal) {
             ctx.draw(false, () => {
               uni.canvasToTempFilePath({
                 canvasId: "groupAvatarCanvas",
-                success: (res) => {
-                  resolve(res.tempFilePath);
+                success: (res2) => {
+                  resolve(res2.tempFilePath);
                 },
                 fail: (err) => {
-                  formatAppLog("error", "at pages/index/chatlist.vue:243", "Canvas导出失败:", err);
+                  formatAppLog("error", "at pages/index/chatlist.vue:251", "Canvas导出失败:", err);
                   reject(err);
                 }
               });
@@ -520,7 +4236,7 @@ if (uni.restoreGlobal) {
         return new Promise((resolve) => {
           uni.getImageInfo({
             src: avatarUrl,
-            success: (res) => {
+            success: (res2) => {
               ctx.save();
               ctx.beginPath();
               const radius = Math.min(width, height) / 2;
@@ -529,7 +4245,7 @@ if (uni.restoreGlobal) {
               ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
               ctx.closePath();
               ctx.clip();
-              ctx.drawImage(res.path, x, y, width, height);
+              ctx.drawImage(res2.path, x, y, width, height);
               ctx.restore();
               resolve();
             },
@@ -551,10 +4267,10 @@ if (uni.restoreGlobal) {
         uni.navigateTo({
           url: `/pages/index/chat?conversationId=${conversation.id}`,
           success: () => {
-            formatAppLog("log", "at pages/index/chatlist.vue:293", "跳转成功");
+            formatAppLog("log", "at pages/index/chatlist.vue:301", "跳转成功");
           },
           fail: (err) => {
-            formatAppLog("error", "at pages/index/chatlist.vue:296", "跳转失败:", err);
+            formatAppLog("error", "at pages/index/chatlist.vue:304", "跳转失败:", err);
           }
         });
       },
@@ -583,7 +4299,7 @@ if (uni.restoreGlobal) {
       }
     }
   };
-  function _sfc_render$f(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$j(_ctx, _cache, $props, $setup, $data, $options) {
     const _component_NavigationBar = vue.resolveComponent("NavigationBar");
     return vue.openBlock(), vue.createElementBlock(
       vue.Fragment,
@@ -619,6 +4335,19 @@ if (uni.restoreGlobal) {
               "scroll-y": "true"
             }, [
               vue.createElementVNode("view", { class: "chat-list-content" }, [
+                vue.createCommentVNode(" 空状态提示 "),
+                $data.processedListWithAvatars.length === 0 ? (vue.openBlock(), vue.createElementBlock("view", {
+                  key: 0,
+                  class: "empty-chat-tip"
+                }, [
+                  vue.createElementVNode("image", {
+                    class: "empty-chat-icon",
+                    src: _imports_1$4
+                  }),
+                  vue.createElementVNode("text", { class: "empty-chat-text" }, "暂无聊天记录"),
+                  vue.createElementVNode("text", { class: "empty-chat-hint" }, "快去和司机/乘客聊聊吧")
+                ])) : vue.createCommentVNode("v-if", true),
+                vue.createCommentVNode(" 聊天列表 "),
                 (vue.openBlock(true), vue.createElementBlock(
                   vue.Fragment,
                   null,
@@ -630,7 +4359,7 @@ if (uni.restoreGlobal) {
                     }, [
                       vue.createElementVNode("image", {
                         class: "avatar",
-                        src: chat.avatar || "../../static/default_group_avater.png"
+                        src: chat.avatar || "../../static/user.jpeg"
                       }, null, 8, ["src"]),
                       vue.createElementVNode("view", { class: "chat-content" }, [
                         vue.createElementVNode("view", { class: "chat-header" }, [
@@ -688,12 +4417,12 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
     );
   }
-  const PagesIndexChatlist = /* @__PURE__ */ _export_sfc(_sfc_main$g, [["render", _sfc_render$f], ["__scopeId", "data-v-c2d98f75"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/chatlist.vue"]]);
-  const _imports_1$3 = "/static/close.png";
-  const _imports_1$2 = "/static/clock.png";
-  const _imports_1$1 = "/static/start.png";
+  const PagesIndexChatlist = /* @__PURE__ */ _export_sfc(_sfc_main$k, [["render", _sfc_render$j], ["__scopeId", "data-v-c2d98f75"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/chatlist.vue"]]);
+  const _imports_4 = "/static/close.png";
+  const _imports_1$3 = "/static/clock.png";
+  const _imports_1$2 = "/static/start.png";
   const _imports_2$2 = "/static/dest.png";
-  const _sfc_main$f = {
+  const _sfc_main$j = {
     props: {
       isVisible: {
         type: Boolean,
@@ -722,15 +4451,59 @@ if (uni.restoreGlobal) {
       avatar_url: {
         type: String,
         default: "../static/user_2.jpg"
+      },
+      isUserInOrder: {
+        type: Boolean,
+        default: false
+        // 判断用户是否已经在订单中
       }
+    },
+    data() {
+      return {
+        showVehiclePopup: false,
+        // 控制车辆选择弹窗的显示
+        selectedVehicle: null,
+        // 用户选择的车辆
+        vehicles: []
+        // 用户的车辆列表
+      };
     },
     methods: {
       closePopup() {
         this.$emit("close");
+      },
+      handleAcceptInvite() {
+        if (this.username_2 === "乘客") {
+          this.fetchUserVehicles();
+          this.showVehiclePopup = true;
+        } else {
+          this.acceptInvite();
+        }
+      },
+      fetchUserVehicles() {
+        this.vehicles = [
+          { id: 1, plate_number: "沪A12345" },
+          { id: 2, plate_number: "沪B67890" }
+        ];
+      },
+      confirmVehicleSelection() {
+        if (!this.selectedVehicle) {
+          uni.showToast({ title: "请选择车辆", icon: "none" });
+          return;
+        }
+        this.acceptInvite();
+        this.showVehiclePopup = false;
+      },
+      acceptInvite() {
+        uni.showToast({
+          title: "添加成功",
+          icon: "success"
+        });
+        this.closePopup();
       }
     }
   };
-  function _sfc_render$e(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$i(_ctx, _cache, $props, $setup, $data, $options) {
     return $props.isVisible ? (vue.openBlock(), vue.createElementBlock("view", {
       key: 0,
       class: "flex-col justify-center items-center page-overlay"
@@ -738,7 +4511,7 @@ if (uni.restoreGlobal) {
       vue.createElementVNode("view", { class: "flex-col section" }, [
         vue.createElementVNode("image", {
           class: "self-start image_2",
-          src: _imports_1$3,
+          src: _imports_4,
           onClick: _cache[0] || (_cache[0] = (...args) => $options.closePopup && $options.closePopup(...args))
         }),
         vue.createElementVNode("view", { class: "flex-col group" }, [
@@ -764,7 +4537,7 @@ if (uni.restoreGlobal) {
             }, [
               vue.createElementVNode("image", {
                 class: "image_3",
-                src: _imports_1$2
+                src: _imports_1$3
               }),
               vue.createElementVNode(
                 "text",
@@ -780,7 +4553,7 @@ if (uni.restoreGlobal) {
             vue.createElementVNode("view", { class: "flex-row items-center self-stretch group_3" }, [
               vue.createElementVNode("image", {
                 class: "image_4",
-                src: _imports_1$1
+                src: _imports_1$2
               }),
               vue.createElementVNode(
                 "text",
@@ -814,19 +4587,82 @@ if (uni.restoreGlobal) {
               /* TEXT */
             )
           ]),
-          vue.createElementVNode("button", { class: "flex-col justify-center items-center self-stretch button mt-43" }, [
+          vue.createCommentVNode(" 接受邀约按钮 "),
+          !$props.isUserInOrder ? (vue.openBlock(), vue.createElementBlock("button", {
+            key: 0,
+            class: "flex-col justify-center items-center self-stretch button mt-43",
+            onClick: _cache[1] || (_cache[1] = (...args) => $options.handleAcceptInvite && $options.handleAcceptInvite(...args))
+          }, [
             vue.createElementVNode("text", { class: "font text_6" }, "接 受 邀 约")
-          ])
+          ])) : vue.createCommentVNode("v-if", true)
         ])
-      ])
+      ]),
+      vue.createCommentVNode(" 车辆选择弹窗 "),
+      $data.showVehiclePopup ? (vue.openBlock(), vue.createElementBlock("view", {
+        key: 0,
+        class: "custom-popup-mask",
+        onClick: _cache[5] || (_cache[5] = ($event) => $data.showVehiclePopup = false)
+      }, [
+        vue.createElementVNode("view", {
+          class: "custom-popup-content",
+          onClick: _cache[4] || (_cache[4] = vue.withModifiers(() => {
+          }, ["stop"]))
+        }, [
+          vue.createElementVNode("view", { class: "popup-header" }, [
+            vue.createElementVNode("text", { style: { "font-size": "16px", "font-weight": "bold" } }, "选择车辆"),
+            vue.createElementVNode("image", {
+              src: _imports_4,
+              onClick: _cache[2] || (_cache[2] = ($event) => $data.showVehiclePopup = false),
+              style: { "width": "40rpx", "height": "40rpx" }
+            })
+          ]),
+          vue.createElementVNode("scroll-view", {
+            "scroll-y": "true",
+            style: { "height": "60vh", "margin-top": "20rpx" }
+          }, [
+            (vue.openBlock(true), vue.createElementBlock(
+              vue.Fragment,
+              null,
+              vue.renderList($data.vehicles, (vehicle, index) => {
+                return vue.openBlock(), vue.createElementBlock("view", {
+                  key: vehicle.id,
+                  class: vue.normalizeClass(["order-item", { "selected-order": $data.selectedVehicle && $data.selectedVehicle.id === vehicle.id }]),
+                  onClick: ($event) => $data.selectedVehicle = vehicle
+                }, [
+                  vue.createElementVNode(
+                    "text",
+                    { class: "order-text" },
+                    vue.toDisplayString(vehicle.plate_number),
+                    1
+                    /* TEXT */
+                  )
+                ], 10, ["onClick"]);
+              }),
+              128
+              /* KEYED_FRAGMENT */
+            )),
+            $data.vehicles.length === 0 ? (vue.openBlock(), vue.createElementBlock("view", {
+              key: 0,
+              class: "empty-tip"
+            }, [
+              vue.createElementVNode("text", null, "暂无可用车辆")
+            ])) : vue.createCommentVNode("v-if", true)
+          ]),
+          $data.selectedVehicle ? (vue.openBlock(), vue.createElementBlock("button", {
+            key: 0,
+            class: "send-btn",
+            onClick: _cache[3] || (_cache[3] = (...args) => $options.confirmVehicleSelection && $options.confirmVehicleSelection(...args))
+          }, " 确认选择 ")) : vue.createCommentVNode("v-if", true)
+        ])
+      ])) : vue.createCommentVNode("v-if", true)
     ])) : vue.createCommentVNode("v-if", true);
   }
-  const OrderInvite = /* @__PURE__ */ _export_sfc(_sfc_main$f, [["render", _sfc_render$e], ["__scopeId", "data-v-91acc05e"], ["__file", "E:/Projects/SE/ride-sharing-se/components/OrderInvite.vue"]]);
-  const _imports_0$4 = "/static/back.png";
-  const _imports_2$1 = "/static/photo.png";
-  const _imports_3$1 = "/static/send.png";
-  const _imports_4 = "/static/icon-order.png";
-  const _sfc_main$e = {
+  const OrderInvite = /* @__PURE__ */ _export_sfc(_sfc_main$j, [["render", _sfc_render$i], ["__scopeId", "data-v-91acc05e"], ["__file", "E:/Projects/SE/ride-sharing-se/components/OrderInvite.vue"]]);
+  const _imports_0$3 = "/static/back.png";
+  const _imports_1$1 = "/static/photo.png";
+  const _imports_2$1 = "/static/send.png";
+  const _imports_3$1 = "/static/icon-order.png";
+  const _sfc_main$i = {
     components: {
       OrderInvite
     },
@@ -841,22 +4677,29 @@ if (uni.restoreGlobal) {
         other_username: "JYD777",
         // 对方用户
         inputMessage: "",
-        messages: [
-          { sender: "user", content: "你好，JYD777！" },
-          { sender: "other", content: "你好！" },
-          { sender: "user", content: "你想拼车吗？" },
-          { sender: "other", content: "当然！" }
-        ],
+        // 消息输入框信息
+        messages: [],
+        // 消息列表
         driverOrders: [],
+        // 车找人的订单
         passengerOrders: [],
+        // 人找车的订单
         invites: [],
+        // 拼车邀请信息
         showInvite: false,
         currentInvite: {},
         selectedOrderId: null,
         orderType: "driver",
         showOrderPopupFlag: false,
         isPreviewing: false,
-        previewImageSrc: ""
+        previewImageSrc: "",
+        showVehiclePopup: false,
+        // 控制车辆选择弹窗的显示
+        selectedVehicle: null,
+        // 用户选择的车辆
+        vehicles: [],
+        // 用户的车辆列表
+        hasJoined: false
       };
     },
     computed: {
@@ -865,60 +4708,44 @@ if (uni.restoreGlobal) {
       }
     },
     onLoad(options) {
-      formatAppLog("log", "at pages/index/chat.vue:229", "接收到的参数:", options);
       this.conversationId = options.conversationId;
       this.initChatPage();
       SocketService.off("new_message", this.handleNewMessage);
       SocketService.off("message_error");
-      SocketService.emit("join_conversation", {
-        conversationId: this.conversationId
-      });
       SocketService.on("new_message", this.handleNewMessage);
       SocketService.on("message_error", (error) => {
         uni.showToast({ title: error.error, icon: "none" });
       });
+      if (!this.hasJoined) {
+        SocketService.emit("join_conversation", { conversationId: this.conversationId });
+        this.hasJoined = true;
+      }
     },
     onUnload() {
+      SocketService.emit("leave_conversation", { conversationId: this.conversationId });
       SocketService.off("new_message");
       SocketService.off("message_error");
+      this.hasJoined = false;
     },
     methods: {
       goBack() {
         uni.navigateBack();
       },
       async initChatPage() {
-        formatAppLog("log", "at pages/index/chat.vue:258", "初始化聊天界面");
+        formatAppLog("log", "at pages/index/chat.vue:305", "初始化聊天界面");
         try {
           await this.fetchMessages();
         } catch (err) {
-          formatAppLog("error", "at pages/index/chat.vue:262", "初始化失败", err);
+          formatAppLog("error", "at pages/index/chat.vue:309", "初始化失败", err);
         }
       },
-      handleNewMessage(msg) {
-        if (this.messages.some((m) => m.id === msg.id)) {
-          return;
-        }
-        formatAppLog("log", "at pages/index/chat.vue:273", "接受到new_message信号");
-        formatAppLog("log", "at pages/index/chat.vue:274", msg);
-        if (msg.conversationId === this.conversationId) {
-          const isCurrentUser = msg.sender.userId === uni.getStorageSync("user_info").user_id;
-          formatAppLog("log", "at pages/index/chat.vue:278", "begin", this.messages.length);
-          this.messages.push({
-            id: msg.id,
-            sender: isCurrentUser ? "user" : "other",
-            content: msg.content,
-            createdAt: new Date(msg.createdAt),
-            senderInfo: msg.sender
-          });
-          formatAppLog("log", "at pages/index/chat.vue:286", "end", this.messages.length);
-        }
-      },
+      // 获取会话消息
       async fetchMessages() {
         try {
           const currentUserId = uni.getStorageSync("user_info").userId;
           const currentUsername = uni.getStorageSync("user_info").username;
-          const res = await fetchConversationMessages(this.conversationId);
-          this.messages = res.data.map((msg) => {
+          const res2 = await fetchConversationMessages(this.conversationId);
+          this.messages = res2.data.map((msg) => {
             const isCurrentUser = msg.sender.user_id === currentUserId;
             return {
               id: msg.message_id,
@@ -941,14 +4768,41 @@ if (uni.restoreGlobal) {
           });
         }
       },
+      // 发送消息
       sendMessage() {
         const msg = this.inputMessage.trim();
         if (!msg)
           return;
         this.inputMessage = "";
-        formatAppLog("log", "at pages/index/chat.vue:330", "发送消息");
+        formatAppLog("log", "at pages/index/chat.vue:352", "发送消息");
         this.scrollToBottom();
         sendMessage(this.conversationId, msg);
+      },
+      // 处理新消息
+      handleNewMessage(msg) {
+        if (this.messages.some((m) => m.id === msg.id)) {
+          return;
+        }
+        formatAppLog("log", "at pages/index/chat.vue:363", "新消息", msg);
+        const sender_id = msg.sender.id;
+        const my_id = uni.getStorageSync("user_info").userId;
+        if (!sender_id || !my_id) {
+          return;
+        }
+        const isCurrentUser = String(sender_id) === String(my_id);
+        if (msg.conversationId === this.conversationId) {
+          const newMsg = {
+            id: msg.id,
+            sender: isCurrentUser ? "user" : "other",
+            content: msg.content,
+            createdAt: new Date(msg.createdAt),
+            senderInfo: msg.sender
+          };
+          this.messages = [...this.messages, newMsg];
+        }
+        this.$nextTick(() => {
+          this.scrollToBottom();
+        });
       },
       getRandomReply() {
         const replies = [
@@ -961,7 +4815,7 @@ if (uni.restoreGlobal) {
         return replies[Math.floor(Math.random() * replies.length)];
       },
       scrollToBottom() {
-        formatAppLog("log", "at pages/index/chat.vue:348", "滚动到底部");
+        formatAppLog("log", "at pages/index/chat.vue:402", "滚动到底部");
         if (this.messages.length > 0) {
           this.lastMsgId = "msg-" + this.messages[this.messages.length - 1].id;
         }
@@ -1038,13 +4892,42 @@ if (uni.restoreGlobal) {
         const allOrders = [...this.driverOrders, ...this.passengerOrders];
         const order = allOrders.find((o) => o.id === this.selectedOrderId);
         if (order) {
+          if (order.role === "passenger") {
+            this.fetchUserVehicles();
+            this.showVehiclePopup = true;
+            return;
+          }
           this.invites.push({
             ...order,
             type: "invite",
-            // 添加发起者信息
             inviter: order.role === "driver" ? this.username : this.other_username,
             inviter_avatar: order.role === "driver" ? this.userAvatar : this.otherAvatar
           });
+          this.closeOrderPopup();
+          this.scrollToBottom();
+          uni.showToast({
+            title: "邀请已发送",
+            icon: "success"
+          });
+        }
+      },
+      confirmVehicleSelection() {
+        if (!this.selectedVehicle) {
+          uni.showToast({ title: "请选择车辆", icon: "none" });
+          return;
+        }
+        const allOrders = [...this.driverOrders, ...this.passengerOrders];
+        const order = allOrders.find((o) => o.id === this.selectedOrderId);
+        if (order) {
+          this.invites.push({
+            ...order,
+            type: "invite",
+            vehicle: this.selectedVehicle.plate_number,
+            // 添加车辆信息
+            inviter: this.username,
+            inviter_avatar: this.userAvatar
+          });
+          this.showVehiclePopup = false;
           this.closeOrderPopup();
           this.scrollToBottom();
           uni.showToast({
@@ -1067,10 +4950,10 @@ if (uni.restoreGlobal) {
       chooseImage() {
         uni.chooseImage({
           count: 1,
-          success: (res) => {
+          success: (res2) => {
             this.messages.push({
               sender: "user",
-              image: res.tempFilePaths[0]
+              image: res2.tempFilePaths[0]
             });
             this.scrollToBottom();
           }
@@ -1085,18 +4968,20 @@ if (uni.restoreGlobal) {
       }
     }
   };
-  function _sfc_render$d(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$h(_ctx, _cache, $props, $setup, $data, $options) {
     const _component_OrderInvite = vue.resolveComponent("OrderInvite");
     return vue.openBlock(), vue.createElementBlock("view", { class: "flex-col page" }, [
+      vue.createCommentVNode(" 聊天顶部 "),
       vue.createElementVNode("view", {
         class: "flex-row align-items-center section",
         style: { "position": "relative", "height": "30px" }
       }, [
         vue.createElementVNode("image", {
           class: "back",
-          src: _imports_0$4,
+          src: _imports_0$3,
           onClick: _cache[0] || (_cache[0] = (...args) => $options.goBack && $options.goBack(...args))
         }),
+        vue.createCommentVNode(" 显示聊天的Title "),
         vue.createElementVNode(
           "text",
           {
@@ -1107,19 +4992,21 @@ if (uni.restoreGlobal) {
           1
           /* TEXT */
         ),
+        vue.createCommentVNode(" 显示聊天的头像 "),
         vue.createElementVNode("image", {
           class: "otherAvatar",
           src: $data.otherAvatar,
           style: { "position": "absolute", "right": "70rpx" }
         }, null, 8, ["src"])
       ]),
+      vue.createCommentVNode(" 滚动视图 "),
       vue.createElementVNode("scroll-view", {
-        class: "flex-col group message-container",
+        class: "message-container",
         "scroll-y": "",
         "scroll-into-view": _ctx.lastMsgId,
-        "scroll-with-animation": true,
-        style: { "margin-bottom": "100rpx" }
+        "scroll-with-animation": true
       }, [
+        vue.createCommentVNode(" 显示消息 "),
         (vue.openBlock(true), vue.createElementBlock(
           vue.Fragment,
           null,
@@ -1248,22 +5135,56 @@ if (uni.restoreGlobal) {
           /* KEYED_FRAGMENT */
         ))
       ], 8, ["scroll-into-view"]),
+      vue.createCommentVNode(" 底部输入框（固定位置） "),
+      vue.createElementVNode("view", { class: "flex-row items-center section_4" }, [
+        vue.createElementVNode("image", {
+          class: "photo",
+          src: _imports_1$1,
+          onClick: _cache[1] || (_cache[1] = (...args) => $options.chooseImage && $options.chooseImage(...args))
+        }),
+        vue.withDirectives(vue.createElementVNode(
+          "input",
+          {
+            class: "ml-20 flex-1 input_mes",
+            "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => $data.inputMessage = $event),
+            placeholder: "输入消息...",
+            focus: "",
+            onFocus: _cache[3] || (_cache[3] = (...args) => $options.focusInput && $options.focusInput(...args)),
+            onBlur: _cache[4] || (_cache[4] = (...args) => $options.blurInput && $options.blurInput(...args))
+          },
+          null,
+          544
+          /* NEED_HYDRATION, NEED_PATCH */
+        ), [
+          [vue.vModelText, $data.inputMessage]
+        ]),
+        vue.createElementVNode("image", {
+          class: "send",
+          src: _imports_2$1,
+          onClick: _cache[5] || (_cache[5] = (...args) => $options.sendMessage && $options.sendMessage(...args))
+        }),
+        vue.createElementVNode("image", {
+          class: "order",
+          src: _imports_3$1,
+          onClick: _cache[6] || (_cache[6] = (...args) => $options.showOrderPopup && $options.showOrderPopup(...args))
+        })
+      ]),
       vue.createCommentVNode(" 订单选择弹窗 "),
       $data.showOrderPopupFlag ? (vue.openBlock(), vue.createElementBlock("view", {
         key: 0,
         class: "custom-popup-mask",
-        onClick: _cache[6] || (_cache[6] = (...args) => $options.closeOrderPopup && $options.closeOrderPopup(...args))
+        onClick: _cache[12] || (_cache[12] = (...args) => $options.closeOrderPopup && $options.closeOrderPopup(...args))
       }, [
         vue.createElementVNode("view", {
           class: "custom-popup-content",
-          onClick: _cache[5] || (_cache[5] = vue.withModifiers(() => {
+          onClick: _cache[11] || (_cache[11] = vue.withModifiers(() => {
           }, ["stop"]))
         }, [
           vue.createElementVNode("view", { class: "popup-header" }, [
             vue.createElementVNode("text", { style: { "font-size": "16px", "font-weight": "bold" } }, "选择拼车订单"),
             vue.createElementVNode("image", {
-              src: _imports_1$3,
-              onClick: _cache[1] || (_cache[1] = (...args) => $options.closeOrderPopup && $options.closeOrderPopup(...args)),
+              src: _imports_4,
+              onClick: _cache[7] || (_cache[7] = (...args) => $options.closeOrderPopup && $options.closeOrderPopup(...args)),
               style: { "width": "40rpx", "height": "40rpx" }
             })
           ]),
@@ -1273,7 +5194,7 @@ if (uni.restoreGlobal) {
               "view",
               {
                 class: vue.normalizeClass(["order-type-tab", { active: $data.orderType === "driver" }]),
-                onClick: _cache[2] || (_cache[2] = ($event) => $options.switchOrderType("driver"))
+                onClick: _cache[8] || (_cache[8] = ($event) => $options.switchOrderType("driver"))
               },
               " 我的订单(司机) ",
               2
@@ -1283,7 +5204,7 @@ if (uni.restoreGlobal) {
               "view",
               {
                 class: vue.normalizeClass(["order-type-tab", { active: $data.orderType === "passenger" }]),
-                onClick: _cache[3] || (_cache[3] = ($event) => $options.switchOrderType("passenger"))
+                onClick: _cache[9] || (_cache[9] = ($event) => $options.switchOrderType("passenger"))
               },
               " 对方订单(乘客) ",
               2
@@ -1346,7 +5267,7 @@ if (uni.restoreGlobal) {
           $data.selectedOrderId ? (vue.openBlock(), vue.createElementBlock("button", {
             key: 0,
             class: "send-btn",
-            onClick: _cache[4] || (_cache[4] = (...args) => $options.sendInvite && $options.sendInvite(...args))
+            onClick: _cache[10] || (_cache[10] = (...args) => $options.sendInvite && $options.sendInvite(...args))
           }, " 发送邀请 ")) : vue.createCommentVNode("v-if", true)
         ])
       ])) : vue.createCommentVNode("v-if", true),
@@ -1362,39 +5283,6 @@ if (uni.restoreGlobal) {
         avatar_url: $data.currentInvite.role === "driver" ? $data.userAvatar : $data.otherAvatar,
         onClose: $options.closeInvitePopup
       }, null, 8, ["isVisible", "username", "time", "start_loc", "dest_loc", "username_2", "avatar_url", "onClose"])) : vue.createCommentVNode("v-if", true),
-      vue.createElementVNode("view", { class: "flex-row items-center section_4" }, [
-        vue.createElementVNode("image", {
-          class: "photo",
-          src: _imports_2$1,
-          onClick: _cache[7] || (_cache[7] = (...args) => $options.chooseImage && $options.chooseImage(...args))
-        }),
-        vue.withDirectives(vue.createElementVNode(
-          "input",
-          {
-            class: "ml-20 flex-1 input_mes",
-            "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => $data.inputMessage = $event),
-            placeholder: "输入消息...",
-            focus: "",
-            onFocus: _cache[9] || (_cache[9] = (...args) => $options.focusInput && $options.focusInput(...args)),
-            onBlur: _cache[10] || (_cache[10] = (...args) => $options.blurInput && $options.blurInput(...args))
-          },
-          null,
-          544
-          /* NEED_HYDRATION, NEED_PATCH */
-        ), [
-          [vue.vModelText, $data.inputMessage]
-        ]),
-        vue.createElementVNode("image", {
-          class: "send",
-          src: _imports_3$1,
-          onClick: _cache[11] || (_cache[11] = (...args) => $options.sendMessage && $options.sendMessage(...args))
-        }),
-        vue.createElementVNode("image", {
-          class: "order",
-          src: _imports_4,
-          onClick: _cache[12] || (_cache[12] = (...args) => $options.showOrderPopup && $options.showOrderPopup(...args))
-        })
-      ]),
       vue.createCommentVNode(" 全屏显示图片 "),
       $data.isPreviewing ? (vue.openBlock(), vue.createElementBlock("view", {
         key: 2,
@@ -1406,12 +5294,148 @@ if (uni.restoreGlobal) {
           src: $data.previewImageSrc,
           mode: "widthFix"
         }, null, 8, ["src"])
+      ])) : vue.createCommentVNode("v-if", true),
+      vue.createCommentVNode(" 展示车辆列表的弹窗 "),
+      $data.showVehiclePopup ? (vue.openBlock(), vue.createElementBlock("view", {
+        key: 3,
+        class: "custom-popup-mask",
+        onClick: _cache[17] || (_cache[17] = ($event) => $data.showVehiclePopup = false)
+      }, [
+        vue.createElementVNode("view", {
+          class: "custom-popup-content",
+          onClick: _cache[16] || (_cache[16] = vue.withModifiers(() => {
+          }, ["stop"]))
+        }, [
+          vue.createElementVNode("view", { class: "popup-header" }, [
+            vue.createElementVNode("text", { style: { "font-size": "16px", "font-weight": "bold" } }, "选择车辆"),
+            vue.createElementVNode("image", {
+              src: _imports_4,
+              onClick: _cache[14] || (_cache[14] = ($event) => $data.showVehiclePopup = false),
+              style: { "width": "40rpx", "height": "40rpx" }
+            })
+          ]),
+          vue.createElementVNode("scroll-view", {
+            "scroll-y": "true",
+            style: { "height": "60vh", "margin-top": "20rpx" }
+          }, [
+            (vue.openBlock(true), vue.createElementBlock(
+              vue.Fragment,
+              null,
+              vue.renderList($data.vehicles, (vehicle, index) => {
+                return vue.openBlock(), vue.createElementBlock("view", {
+                  key: vehicle.id,
+                  class: vue.normalizeClass(["order-item", { "selected-order": $data.selectedVehicle && $data.selectedVehicle.id === vehicle.id }]),
+                  onClick: ($event) => $data.selectedVehicle = vehicle
+                }, [
+                  vue.createElementVNode(
+                    "text",
+                    { class: "order-text" },
+                    vue.toDisplayString(vehicle.plate_number),
+                    1
+                    /* TEXT */
+                  )
+                ], 10, ["onClick"]);
+              }),
+              128
+              /* KEYED_FRAGMENT */
+            )),
+            $data.vehicles.length === 0 ? (vue.openBlock(), vue.createElementBlock("view", {
+              key: 0,
+              class: "empty-tip"
+            }, [
+              vue.createElementVNode("text", null, "暂无可用车辆")
+            ])) : vue.createCommentVNode("v-if", true)
+          ]),
+          $data.selectedVehicle ? (vue.openBlock(), vue.createElementBlock("button", {
+            key: 0,
+            class: "send-btn",
+            onClick: _cache[15] || (_cache[15] = (...args) => $options.confirmVehicleSelection && $options.confirmVehicleSelection(...args))
+          }, " 确认选择 ")) : vue.createCommentVNode("v-if", true)
+        ])
       ])) : vue.createCommentVNode("v-if", true)
     ]);
   }
-  const PagesIndexChat = /* @__PURE__ */ _export_sfc(_sfc_main$e, [["render", _sfc_render$d], ["__scopeId", "data-v-8595e4ae"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/chat.vue"]]);
-  const _imports_0$3 = "/static/QR-code.png";
-  const _sfc_main$d = {
+  const PagesIndexChat = /* @__PURE__ */ _export_sfc(_sfc_main$i, [["render", _sfc_render$h], ["__scopeId", "data-v-8595e4ae"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/chat.vue"]]);
+  const publishOrder = (orderData) => {
+    return post("/orders", orderData);
+  };
+  const fetchOrderList = () => {
+    return get("orders/list");
+  };
+  const payOrder = (orderId) => {
+    return post(`/orders/${orderId}/paid`);
+  };
+  const fetchTripDetail = (orderId) => {
+    return get(`/orders/${orderId}`);
+  };
+  const submitTripRating = (orderId, payload) => {
+    return post(`/orders/${orderId}/rate`, payload);
+  };
+  const fetchCalendarTrips = (year, month, userId) => {
+    return get(`/orders/calendar/${userId}`, {
+      params: { year, month }
+    }).then((response) => {
+      return response.data.map((trip) => ({
+        id: trip.order_id,
+        order_id: trip.order_id,
+        start_time: trip.start_time,
+        start_loc: trip.start_loc,
+        dest_loc: trip.dest_loc,
+        date: trip.start_time,
+        startPoint: trip.start_loc,
+        endPoint: trip.dest_loc,
+        price: trip.price,
+        car_type: trip.car_type,
+        carType: trip.car_type || "未接单",
+        status: trip.status,
+        userAvatar: trip.initiator.avatar || "../../static/user.jpeg",
+        orderCount: trip.participants_count || 0,
+        initiator: trip.initiator
+      }));
+    });
+  };
+  function fetchUserTrips() {
+    return get(`/orders/user/trips`);
+  }
+  const fetchManagedOrders = (params) => {
+    formatAppLog("log", "at api/order.js:60", params.status || "all");
+    return get("/orders/manage/list", {
+      params: {
+        status: params.status || "all",
+        type: params.type || "all",
+        year: params.year || "",
+        month: params.month || ""
+      }
+    }).then((response) => {
+      formatAppLog("log", "at api/order.js:69", response.data);
+      return response.data.map((order) => ({
+        id: order.id,
+        date: order.date,
+        startPoint: order.startPoint,
+        endPoint: order.endPoint,
+        price: order.price,
+        carType: order.carType || "未接单",
+        status: order.status,
+        publisher: order.publisher,
+        userAvatar: order.userAvatar || "../../static/user.jpeg",
+        rejectReason: order.rejectReason
+      }));
+    });
+  };
+  const approveOrder = (orderId) => {
+    return post(`/orders/manage/${orderId}/approve`);
+  };
+  const rejectOrder = (orderId, reason) => {
+    return post(`/orders/manage/${orderId}/reject`, { reason });
+  };
+  const acceptOrder = (data) => {
+    return post("/orders/driver/accept", data);
+  };
+  const applyOrder = (data) => {
+    formatAppLog("log", "at api/order.js:110", "applyOrder接口被调用");
+    return post("/orders/passenger/apply", data);
+  };
+  const _sfc_main$h = {
     props: {
       visible: {
         type: Boolean,
@@ -1420,17 +5444,33 @@ if (uni.restoreGlobal) {
       amount: {
         type: Number,
         required: true
+      },
+      orderId: {
+        type: Number,
+        required: true
       }
     },
     methods: {
       closeModal() {
         this.$emit("close");
+      },
+      confirmPayment() {
+        if (!this.orderId) {
+          uni.showToast({ title: "订单ID丢失，无法支付", icon: "error" });
+          return;
+        }
+        payOrder(this.orderId).then(() => {
+          uni.showToast({ title: "支付成功", icon: "success" });
+          this.$emit("refresh");
+          this.closeModal();
+        }).catch((err) => {
+          formatAppLog("error", "at components/PaymentModal.vue:51", "支付失败:", err);
+          uni.showToast({ title: "支付失败，请重试", icon: "none" });
+        });
       }
-    },
-    mounted() {
     }
   };
-  function _sfc_render$c(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$g(_ctx, _cache, $props, $setup, $data, $options) {
     return $props.visible ? (vue.openBlock(), vue.createElementBlock("view", {
       key: 0,
       class: "modal"
@@ -1445,25 +5485,21 @@ if (uni.restoreGlobal) {
             /* TEXT */
           )
         ]),
-        vue.createElementVNode("view", { class: "modal-body" }, [
-          vue.createElementVNode("img", {
-            src: _imports_0$3,
-            class: "qr-code",
-            alt: "QR Code"
-          })
-        ]),
         vue.createElementVNode("view", { class: "modal-footer" }, [
           vue.createElementVNode("button", {
             class: "close-button",
             onClick: _cache[0] || (_cache[0] = (...args) => $options.closeModal && $options.closeModal(...args))
-          }, "关闭")
+          }, "关闭付款"),
+          vue.createElementVNode("button", {
+            class: "confirm-button",
+            onClick: _cache[1] || (_cache[1] = (...args) => $options.confirmPayment && $options.confirmPayment(...args))
+          }, "确认支付")
         ])
       ])
     ])) : vue.createCommentVNode("v-if", true);
   }
-  const PaymentModal = /* @__PURE__ */ _export_sfc(_sfc_main$d, [["render", _sfc_render$c], ["__scopeId", "data-v-d0c78149"], ["__file", "E:/Projects/SE/ride-sharing-se/components/PaymentModal.vue"]]);
-  const API_BASE_URL = "http://localhost:5000";
-  const _sfc_main$c = {
+  const PaymentModal = /* @__PURE__ */ _export_sfc(_sfc_main$h, [["render", _sfc_render$g], ["__scopeId", "data-v-d0c78149"], ["__file", "E:/Projects/SE/ride-sharing-se/components/PaymentModal.vue"]]);
+  const _sfc_main$g = {
     components: {
       NavigationBar,
       PaymentModal
@@ -1488,7 +5524,7 @@ if (uni.restoreGlobal) {
           price: 0,
           carType: "",
           orderCount: 0,
-          userAvatar: "../../static/default_avatar.png",
+          userAvatar: "",
           // 默认头像
           state: "",
           driverUserId: null
@@ -1509,7 +5545,7 @@ if (uni.restoreGlobal) {
     onLoad(options) {
       if (options && options.id) {
         this.orderId = parseInt(options.id);
-        formatAppLog("log", "at pages/index/trip_info.vue:132", "接收到的参数 id (赋值给 orderId):", this.orderId);
+        formatAppLog("log", "at pages/index/trip_info.vue:133", "接收到的参数 id (赋值给 orderId):", this.orderId);
         this.fetchTripDetails();
       } else {
         formatAppLog("error", "at pages/index/trip_info.vue:136", "未接收到有效的 id 参数！");
@@ -1521,48 +5557,48 @@ if (uni.restoreGlobal) {
       this.initMap();
     },
     methods: {
-      // --- 1. 获取行程详情 ---
+      // 状态映射方法
+      getStatusText(state) {
+        const statusMap = {
+          "pending": "待审核",
+          "completed": "已完成",
+          "rejected": "已拒绝",
+          "not-started": "未开始",
+          "in-progress": "进行中",
+          "to-pay": "待付款",
+          "to-review": "待评价"
+        };
+        return statusMap[state] || "未知状态";
+      },
+      // 1. 获取行程详情
       fetchTripDetails() {
         if (!this.orderId)
           return;
         this.isLoading = true;
-        uni.request({
-          url: `${API_BASE_URL}/api/trip/${this.orderId}`,
-          method: "GET",
-          // header: { // 如果需要认证，在这里添加 Token
-          //   'Authorization': 'Bearer ' + uni.getStorageSync('token')
-          // },
-          success: (res) => {
-            if (res.statusCode === 200 && res.data) {
-              formatAppLog("log", "at pages/index/trip_info.vue:160", "行程详情获取成功:", res.data);
-              this.tripData = res.data;
-              this.drawRoute();
-            } else {
-              formatAppLog("error", "at pages/index/trip_info.vue:165", "获取行程详情失败:", res);
-              uni.showToast({ title: `加载失败 (${res.statusCode})`, icon: "none" });
-              this.tripData = {};
-            }
-          },
-          fail: (err) => {
-            formatAppLog("error", "at pages/index/trip_info.vue:171", "请求行程详情接口失败:", err);
-            uni.showToast({ title: "网络错误，请重试", icon: "none" });
-            this.tripData = {};
-          },
-          complete: () => {
-            this.isLoading = false;
-          }
+        fetchTripDetail(this.orderId).then((res2) => {
+          formatAppLog("log", "at pages/index/trip_info.vue:165", "行程详情获取成功:", res2);
+          this.tripData = res2.data;
+          formatAppLog("log", "at pages/index/trip_info.vue:167", this.tripData);
+          this.drawRoute();
+        }).catch((err) => {
+          formatAppLog("error", "at pages/index/trip_info.vue:171", "获取行程详情失败:", err);
+          uni.showToast({ title: "加载失败，请重试", icon: "none" });
+          this.tripData = {};
+        }).finally(() => {
+          this.isLoading = false;
         });
       },
       initMap() {
         this.$nextTick(() => {
           this.mapContext = uni.createMapContext("uni-map", this);
           if (!this.mapContext) {
-            formatAppLog("error", "at pages/index/trip_info.vue:186", "创建 map context 失败");
+            formatAppLog("error", "at pages/index/trip_info.vue:185", "创建 map context 失败");
           }
         });
       },
       // --- 2. 绘制地图路线 (依赖 API 数据) ---
       async drawRoute() {
+        formatAppLog("log", "at pages/index/trip_info.vue:193", this.tripData.startPoint, this.tripData.endPoint);
         if (!this.tripData || !this.tripData.startPoint || !this.tripData.endPoint) {
           formatAppLog("warn", "at pages/index/trip_info.vue:195", "缺少起点或终点信息，无法绘制路线");
           return;
@@ -1644,7 +5680,6 @@ if (uni.restoreGlobal) {
           this.polyline = [];
         }
       },
-      // --- 高德 API 相关函数 (保持不变) ---
       getDrivingRoute(startPos, endPos) {
         return new Promise((resolve, reject) => {
           uni.request({
@@ -1655,17 +5690,17 @@ if (uni.restoreGlobal) {
               key: "9979fdc383e13ee57c582bc869dbd690"
               // !!! 替换成你自己的 Key !!!
             },
-            success: (res) => {
-              formatAppLog("log", "at pages/index/trip_info.vue:301", "高德驾车路线API响应:", res.data);
-              if (res.data.status === "1" && res.data.route) {
-                resolve(res.data.route);
+            success: (res2) => {
+              formatAppLog("log", "at pages/index/trip_info.vue:294", "高德驾车路线API响应:", res2.data);
+              if (res2.data.status === "1" && res2.data.route) {
+                resolve(res2.data.route);
               } else {
-                formatAppLog("error", "at pages/index/trip_info.vue:305", "驾车路径规划失败:", res.data.info || "未知错误");
+                formatAppLog("error", "at pages/index/trip_info.vue:298", "驾车路径规划失败:", res2.data.info || "未知错误");
                 resolve(null);
               }
             },
             fail: (err) => {
-              formatAppLog("error", "at pages/index/trip_info.vue:310", "驾车路径规划请求失败:", err);
+              formatAppLog("error", "at pages/index/trip_info.vue:303", "驾车路径规划请求失败:", err);
               resolve(null);
             }
           });
@@ -1681,19 +5716,19 @@ if (uni.restoreGlobal) {
               // !!! 替换成你自己的 Key !!!
               output: "JSON"
             },
-            success: (res) => {
-              formatAppLog("log", "at pages/index/trip_info.vue:328", `地址解析 "${address}" 响应:`, res.data);
-              if (res.data && res.data.info === "OK" && res.data.geocodes && res.data.geocodes.length > 0) {
-                let { location: location2 } = res.data.geocodes[0];
+            success: (res2) => {
+              formatAppLog("log", "at pages/index/trip_info.vue:319", `地址解析 "${address}" 响应:`, res2.data);
+              if (res2.data && res2.data.info === "OK" && res2.data.geocodes && res2.data.geocodes.length > 0) {
+                let { location: location2 } = res2.data.geocodes[0];
                 let addrArr = location2.split(",");
                 resolve([parseFloat(addrArr[0]), parseFloat(addrArr[1])]);
               } else {
-                formatAppLog("error", "at pages/index/trip_info.vue:334", `地址解析失败 "${address}":`, res.data.info || "无结果");
+                formatAppLog("error", "at pages/index/trip_info.vue:325", `地址解析失败 "${address}":`, res2.data.info || "无结果");
                 resolve(null);
               }
             },
             fail: (err) => {
-              formatAppLog("error", "at pages/index/trip_info.vue:339", `地址解析请求失败 "${address}":`, err);
+              formatAppLog("error", "at pages/index/trip_info.vue:330", `地址解析请求失败 "${address}":`, err);
               resolve(null);
             }
           });
@@ -1701,33 +5736,34 @@ if (uni.restoreGlobal) {
       },
       // --- (旧的 geocodeAddress 方法不再需要，因为我们从 transFormAddress 获取坐标) ---
       // --- 3. 处理按钮点击 ---
-      handleStateButtonClick(trip) {
-        formatAppLog("log", "at pages/index/trip_info.vue:349", "状态按钮点击:", trip.state);
-        if (trip.state === "待支付") {
-          this.showPaymentModal = true;
+      handlePayClick() {
+        if (!this.orderId) {
+          formatAppLog("error", "at pages/index/trip_info.vue:341", "订单ID丢失，无法打开支付弹窗");
+          uni.showToast({ title: "订单ID丢失", icon: "error" });
+          return;
         }
+        this.showPaymentModal = true;
       },
       handleRateClick() {
-        formatAppLog("log", "at pages/index/trip_info.vue:356", "评价按钮点击");
+        formatAppLog("log", "at pages/index/trip_info.vue:348", "评价按钮点击");
         this.showRatingModal();
       },
       // --- 4. 评价相关方法 ---
       showRatingModal() {
-        formatAppLog("log", "at pages/index/trip_info.vue:362", "显示评价弹窗");
+        formatAppLog("log", "at pages/index/trip_info.vue:354", "显示评价弹窗");
         this.showRateModal = true;
         this.currentRating = 0;
         this.ratingComment = "";
       },
       setRating(rating) {
-        formatAppLog("log", "at pages/index/trip_info.vue:368", "设置评分:", rating);
+        formatAppLog("log", "at pages/index/trip_info.vue:360", "设置评分:", rating);
         this.currentRating = this.currentRating === rating ? 0 : rating;
       },
       cancelRating() {
-        formatAppLog("log", "at pages/index/trip_info.vue:373", "取消评价");
+        formatAppLog("log", "at pages/index/trip_info.vue:365", "取消评价");
         this.showRateModal = false;
       },
       submitRating() {
-        formatAppLog("log", "at pages/index/trip_info.vue:377", "尝试提交评价:", this.currentRating);
         if (this.currentRating === 0) {
           uni.showToast({ title: "请选择星级", icon: "none" });
           return;
@@ -1741,37 +5777,20 @@ if (uni.restoreGlobal) {
         this.isSubmittingRating = true;
         const payload = {
           rating_value: this.currentRating
-          // comment: this.ratingComment // 如果添加了评论输入框，则包含评论
         };
-        uni.request({
-          url: `${API_BASE_URL}/api/trip/${this.orderId}/rate`,
-          method: "POST",
-          data: payload,
-          // header: { // 如果需要认证
-          //   'Authorization': 'Bearer ' + uni.getStorageSync('token'),
-          //   'Content-Type': 'application/json'
-          // },
-          success: (res) => {
-            if (res.statusCode === 201 || res.statusCode === 200) {
-              formatAppLog("log", "at pages/index/trip_info.vue:405", "评价提交成功:", res.data);
-              uni.showToast({
-                title: `评价成功！`,
-                icon: "success"
-              });
-              this.showRateModal = false;
-              this.fetchTripDetails();
-            } else {
-              formatAppLog("error", "at pages/index/trip_info.vue:414", "评价提交失败:", res);
-              uni.showToast({ title: `评价失败: ${res.data.description || "请重试"}`, icon: "none", duration: 3e3 });
-            }
-          },
-          fail: (err) => {
-            formatAppLog("error", "at pages/index/trip_info.vue:419", "请求评价接口失败:", err);
-            uni.showToast({ title: "网络错误，评价失败", icon: "none" });
-          },
-          complete: () => {
-            this.isSubmittingRating = false;
-          }
+        submitTripRating(this.orderId, payload).then((res2) => {
+          formatAppLog("log", "at pages/index/trip_info.vue:387", "评价提交成功:", res2);
+          uni.showToast({
+            title: "评价成功！",
+            icon: "success"
+          });
+          this.showRateModal = false;
+          this.fetchTripDetails();
+        }).catch((err) => {
+          formatAppLog("error", "at pages/index/trip_info.vue:396", "评价提交失败:", err);
+          uni.showToast({ title: "评价失败，请重试", icon: "none" });
+        }).finally(() => {
+          this.isSubmittingRating = false;
         });
       },
       // --- 5. 其他辅助方法 ---
@@ -1779,12 +5798,12 @@ if (uni.restoreGlobal) {
         this.showPaymentModal = false;
       },
       handleAvatarError(event) {
-        formatAppLog("warn", "at pages/index/trip_info.vue:433", "头像加载失败，使用默认头像");
-        event.target.src = "../../static/default_avatar.png";
+        formatAppLog("warn", "at pages/index/trip_info.vue:409", "头像加载失败，使用默认头像");
+        event.target.src = "../../static/user.jpeg";
       }
     }
   };
-  function _sfc_render$b(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$f(_ctx, _cache, $props, $setup, $data, $options) {
     const _component_NavigationBar = vue.resolveComponent("NavigationBar");
     const _component_PaymentModal = vue.resolveComponent("PaymentModal");
     return vue.openBlock(), vue.createElementBlock("div", null, [
@@ -1794,8 +5813,10 @@ if (uni.restoreGlobal) {
       vue.createVNode(_component_PaymentModal, {
         visible: $data.showPaymentModal,
         amount: $data.tripData.price,
-        onClose: $options.closePaymentModal
-      }, null, 8, ["visible", "amount", "onClose"]),
+        orderId: $data.orderId,
+        onClose: $options.closePaymentModal,
+        onRefresh: $options.fetchTripDetails
+      }, null, 8, ["visible", "amount", "orderId", "onClose", "onRefresh"]),
       vue.createCommentVNode(" 评价弹窗 "),
       $data.showRateModal ? (vue.openBlock(), vue.createElementBlock("view", {
         key: 0,
@@ -1823,8 +5844,6 @@ if (uni.restoreGlobal) {
               /* STABLE_FRAGMENT */
             ))
           ]),
-          vue.createCommentVNode(" 可选：添加评论输入框 "),
-          vue.createCommentVNode('\r\n        <textarea class="comment-input" v-model="ratingComment" placeholder="写点评价吧..."></textarea>\r\n        '),
           vue.createElementVNode("view", { class: "rate-buttons" }, [
             vue.createElementVNode("button", {
               class: "cancel-button",
@@ -1847,8 +5866,7 @@ if (uni.restoreGlobal) {
         latitude: $data.centerLat,
         markers: $data.markers,
         polyline: $data.polyline,
-        scale: 14,
-        style: { "width": "100%", "height": "400px" }
+        scale: 14
       }, null, 8, ["longitude", "latitude", "markers", "polyline"])) : (vue.openBlock(), vue.createElementBlock("view", {
         key: 2,
         class: "loading-placeholder"
@@ -1857,8 +5875,7 @@ if (uni.restoreGlobal) {
       !$data.isLoading && $data.tripData.id ? (vue.openBlock(), vue.createElementBlock("view", {
         key: 3,
         class: "order-scroll",
-        "scroll-y": "true",
-        style: { "height": "calc(100vh - 400px - 50px)" }
+        "scroll-y": "true"
       }, [
         vue.createElementVNode("view", { class: "order-info" }, [
           vue.createCommentVNode(" 移除 v-for，因为只显示一个行程 "),
@@ -1873,28 +5890,33 @@ if (uni.restoreGlobal) {
               ),
               vue.createElementVNode("view", { class: "button-container" }, [
                 vue.createCommentVNode(" “评价”按钮：只有在 state 为 '待评价' 时显示 "),
-                $data.tripData.state === "待评价" ? (vue.openBlock(), vue.createElementBlock("button", {
+                $data.tripData.state === "to-review" ? (vue.openBlock(), vue.createElementBlock("button", {
                   key: 0,
                   class: "rate-button",
                   onClick: _cache[2] || (_cache[2] = (...args) => $options.handleRateClick && $options.handleRateClick(...args))
                 }, "评价")) : vue.createCommentVNode("v-if", true),
-                vue.createCommentVNode(" 状态/操作按钮 "),
+                vue.createCommentVNode(" “付款”按钮：只有在 state 为 '待付款' 时显示 "),
+                $data.tripData.state === "to-pay" ? (vue.openBlock(), vue.createElementBlock("button", {
+                  key: 1,
+                  class: "rate-button",
+                  onClick: _cache[3] || (_cache[3] = (...args) => $options.handlePayClick && $options.handlePayClick(...args))
+                }, "付款")) : vue.createCommentVNode("v-if", true),
+                vue.createCommentVNode(" 状态/操作按钮，动态映射状态 "),
                 vue.createElementVNode(
                   "button",
                   {
-                    class: "join-button",
-                    onClick: _cache[3] || (_cache[3] = ($event) => $options.handleStateButtonClick($data.tripData))
+                    class: vue.normalizeClass(["state-button", "status-" + $data.tripData.state])
                   },
-                  vue.toDisplayString($data.tripData.state),
-                  1
-                  /* TEXT */
+                  vue.toDisplayString($options.getStatusText($data.tripData.state)),
+                  3
+                  /* TEXT, CLASS */
                 )
               ])
             ]),
             vue.createElementVNode("view", { class: "order-details" }, [
               vue.createElementVNode("view", { class: "start-point" }, [
                 vue.createElementVNode("image", {
-                  src: _imports_1$1,
+                  src: _imports_1$2,
                   class: "icon",
                   style: { "height": "20px", "width": "20px" }
                 }),
@@ -1975,8 +5997,8 @@ if (uni.restoreGlobal) {
       }, " 加载行程信息失败或无信息。 "))
     ]);
   }
-  const PagesIndexTripInfo = /* @__PURE__ */ _export_sfc(_sfc_main$c, [["render", _sfc_render$b], ["__scopeId", "data-v-c77841f1"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/trip_info.vue"]]);
-  const _sfc_main$b = {
+  const PagesIndexTripInfo = /* @__PURE__ */ _export_sfc(_sfc_main$g, [["render", _sfc_render$f], ["__scopeId", "data-v-c77841f1"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/trip_info.vue"]]);
+  const _sfc_main$f = {
     data() {
       return {
         user: {
@@ -2010,11 +6032,11 @@ if (uni.restoreGlobal) {
             gender: this.user.gender,
             telephone: this.user.telephone,
             password: this.user.password
-          }).then((res) => {
-            formatAppLog("log", "at pages/index/register.vue:155", "注册成功", res);
+          }).then((res2) => {
+            formatAppLog("log", "at pages/index/register.vue:155", "注册成功", res2);
             this.goToLogin();
           }).catch((err) => {
-            formatAppLog("log", "at pages/index/register.vue:158", "注册失败：", err);
+            formatAppLog("log", "at pages/index/register.vue:158", "注册失败：", err.message);
           });
         } else {
           uni.showToast({
@@ -2030,7 +6052,7 @@ if (uni.restoreGlobal) {
       }
     }
   };
-  function _sfc_render$a(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$e(_ctx, _cache, $props, $setup, $data, $options) {
     return vue.openBlock(), vue.createElementBlock("view", { class: "container" }, [
       vue.createElementVNode("view", { class: "card" }, [
         vue.createElementVNode("view", { class: "card-title text-h5" }, "用户注册"),
@@ -2193,14 +6215,14 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const PagesIndexRegister = /* @__PURE__ */ _export_sfc(_sfc_main$b, [["render", _sfc_render$a], ["__scopeId", "data-v-224dede7"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/register.vue"]]);
-  const addCar = async (userId, carData) => {
+  const PagesIndexRegister = /* @__PURE__ */ _export_sfc(_sfc_main$f, [["render", _sfc_render$e], ["__scopeId", "data-v-224dede7"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/register.vue"]]);
+  const addCar = async (carData) => {
     try {
-      const res = await post(`/user/cars/${userId}`, carData, {
+      const res2 = await post("/user/cars/add", carData, {
         showLoading: true,
         loadingText: "正在添加车辆..."
       });
-      return res;
+      return res2;
     } catch (error) {
       formatAppLog("error", "at api/car.js:13", "添加车辆失败:", error);
       throw error;
@@ -2208,11 +6230,11 @@ if (uni.restoreGlobal) {
   };
   const updateCar = async (userId, oldPlateNumber, carData) => {
     try {
-      const res = await put(`/user/cars/${userId}/${oldPlateNumber}`, carData, {
+      const res2 = await put(`/user/cars/${userId}/${oldPlateNumber}`, carData, {
         showLoading: true,
         loadingText: "正在更新车辆信息..."
       });
-      return res;
+      return res2;
     } catch (error) {
       formatAppLog("error", "at api/car.js:27", "更新车辆失败:", error);
       throw error;
@@ -2220,11 +6242,11 @@ if (uni.restoreGlobal) {
   };
   const unbindCar = async (userId, plateNumber) => {
     try {
-      const res = await del(`/user/cars/${userId}/${plateNumber}`, {}, {
+      const res2 = await del(`/user/cars/${userId}/${plateNumber}`, {}, {
         showLoading: true,
         loadingText: "正在解绑车辆..."
       });
-      return res;
+      return res2;
     } catch (error) {
       formatAppLog("error", "at api/car.js:41", "解绑车辆失败:", error);
       throw error;
@@ -2234,7 +6256,7 @@ if (uni.restoreGlobal) {
     const pattern = /^[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼使领][A-HJ-NP-Z]([A-HJ-NP-Z0-9]{4}[A-HJ-NP-Z0-9挂学警港澳]|[0-9]{5})$/;
     return pattern.test(plateNumber);
   };
-  const _sfc_main$a = {
+  const _sfc_main$e = {
     components: {
       NavigationBar
     },
@@ -2338,15 +6360,14 @@ if (uni.restoreGlobal) {
       async fetchUserCars() {
         this.isLoading = true;
         try {
-          const userId = uni.getStorageSync("user_id");
-          const res = await fetchCars(userId);
-          formatAppLog("log", "at pages/index/car_manage.vue:235", "fetch car res", res);
-          if (!res || typeof res !== "object") {
+          const res2 = await fetchCars();
+          formatAppLog("log", "at pages/index/car_manage.vue:233", "fetch car res", res2);
+          if (res2.data.count === 0) {
+            formatAppLog("log", "at pages/index/car_manage.vue:237", "车辆列表为空");
             this.userCars = [];
-            formatAppLog("log", "at pages/index/car_manage.vue:240", "没有车辆数据或数据格式不正确");
             return;
           }
-          const carsArray = Object.values(res);
+          const carsArray = Object.values(res2.data.vehicles);
           this.userCars = carsArray.map((car) => ({
             car_id: car.car_id,
             number: car.plate_number,
@@ -2356,7 +6377,7 @@ if (uni.restoreGlobal) {
             seats: car.seats || 4
             // 默认座位数
           }));
-          formatAppLog("log", "at pages/index/car_manage.vue:256", this.userCars);
+          formatAppLog("log", "at pages/index/car_manage.vue:254", this.userCars);
           if (this.userCars.length === 0) {
             uni.showToast({
               title: "您还没有添加车辆，请点击下方按钮添加",
@@ -2365,7 +6386,7 @@ if (uni.restoreGlobal) {
             });
           }
         } catch (error) {
-          formatAppLog("error", "at pages/index/car_manage.vue:267", "获取车辆列表失败:", error);
+          formatAppLog("error", "at pages/index/car_manage.vue:265", "获取车辆列表失败:", error);
           this.userCars = [];
           uni.showToast({
             title: "获取车辆列表失败，请稍后重试",
@@ -2421,16 +6442,16 @@ if (uni.restoreGlobal) {
         }
         this.isLoading = true;
         try {
-          const userId = uni.getStorageSync("user_id");
-          const res = await addCar(userId, {
+          const request_data = {
             number: plateNumber,
             color: this.plateColor,
             model: this.carModel,
             seats: this.seatCount
-          });
+          };
+          const res2 = await addCar(request_data);
           let failMsg = "车辆信息不匹配";
-          formatAppLog("log", "at pages/index/car_manage.vue:345", res.message);
-          if (res.message === "车辆信息不匹配") {
+          formatAppLog("log", "at pages/index/car_manage.vue:344", res2.message);
+          if (res2.message === "车辆信息不匹配") {
             failMsg = "车辆信息不匹配";
             uni.showToast({
               title: failMsg,
@@ -2439,9 +6460,9 @@ if (uni.restoreGlobal) {
             });
           } else {
             let successMsg = "添加成功";
-            if (res.message === "关联成功") {
+            if (res2.message === "关联成功") {
               successMsg = "关联成功";
-            } else if (res.message === "车辆已关联") {
+            } else if (res2.message === "车辆已关联") {
               successMsg = "该车辆已关联";
             }
             uni.showToast({
@@ -2452,7 +6473,7 @@ if (uni.restoreGlobal) {
             await this.fetchUserCars();
           }
         } catch (error) {
-          formatAppLog("error", "at pages/index/car_manage.vue:370", "操作失败:", error);
+          formatAppLog("error", "at pages/index/car_manage.vue:369", "操作失败:", error);
           uni.showToast({
             title: "操作失败，请稍后重试",
             icon: "none",
@@ -2477,15 +6498,15 @@ if (uni.restoreGlobal) {
         this.isLoading = true;
         try {
           const userId = uni.getStorageSync("user_id");
-          const res = await updateCar(userId, this.editingPlateNumber, {
+          const res2 = await updateCar(userId, this.editingPlateNumber, {
             number: plateNumber,
             color: this.plateColor,
             model: this.carModel,
             seats: this.seatCount
           });
           let failMsg = "车辆信息不匹配";
-          formatAppLog("log", "at pages/index/car_manage.vue:406", res.message);
-          if (res.message === "车辆信息不匹配") {
+          formatAppLog("log", "at pages/index/car_manage.vue:405", res2.message);
+          if (res2.message === "车辆信息不匹配") {
             failMsg = "车辆信息不匹配";
             uni.showToast({
               title: failMsg,
@@ -2494,10 +6515,10 @@ if (uni.restoreGlobal) {
             });
           } else {
             let successMsg = "修改成功";
-            if (res.message === "合并成功") {
+            if (res2.message === "合并成功") {
               successMsg = "车辆信息已合并";
             }
-            formatAppLog("log", "at pages/index/car_manage.vue:419", "ok");
+            formatAppLog("log", "at pages/index/car_manage.vue:418", "ok");
             uni.showToast({
               title: successMsg,
               icon: "success",
@@ -2506,7 +6527,7 @@ if (uni.restoreGlobal) {
             await this.fetchUserCars();
           }
         } catch (error) {
-          formatAppLog("error", "at pages/index/car_manage.vue:429", "修改车牌失败:", error);
+          formatAppLog("error", "at pages/index/car_manage.vue:428", "修改车牌失败:", error);
           uni.showToast({
             title: "操作失败，请稍后重试",
             icon: "none",
@@ -2522,8 +6543,8 @@ if (uni.restoreGlobal) {
         uni.showModal({
           title: "提示",
           content: "确定要解绑车牌吗？",
-          success: async (res) => {
-            if (res.confirm) {
+          success: async (res2) => {
+            if (res2.confirm) {
               this.isLoading = true;
               try {
                 const userId = uni.getStorageSync("user_id");
@@ -2543,7 +6564,7 @@ if (uni.restoreGlobal) {
                   });
                 }
               } catch (error) {
-                formatAppLog("error", "at pages/index/car_manage.vue:468", "解绑车牌失败:", error);
+                formatAppLog("error", "at pages/index/car_manage.vue:467", "解绑车牌失败:", error);
                 uni.showToast({
                   title: "操作失败，请稍后重试",
                   icon: "none",
@@ -2558,7 +6579,7 @@ if (uni.restoreGlobal) {
       }
     }
   };
-  function _sfc_render$9(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$d(_ctx, _cache, $props, $setup, $data, $options) {
     const _component_NavigationBar = vue.resolveComponent("NavigationBar");
     return vue.openBlock(), vue.createElementBlock("div", { class: "user-profile-container" }, [
       vue.createVNode(_component_NavigationBar),
@@ -2856,66 +6877,9 @@ if (uni.restoreGlobal) {
       ])) : vue.createCommentVNode("v-if", true)
     ]);
   }
-  const PagesIndexCarManage = /* @__PURE__ */ _export_sfc(_sfc_main$a, [["render", _sfc_render$9], ["__scopeId", "data-v-f62f82f0"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/car_manage.vue"]]);
-  const fetchCalendarTrips = (year, month, userId) => {
-    return get(`/orders/calendar/${userId}`, {
-      params: { year, month }
-    }).then((response) => {
-      return response.data.map((trip) => ({
-        id: trip.order_id,
-        order_id: trip.order_id,
-        start_time: trip.start_time,
-        start_loc: trip.start_loc,
-        dest_loc: trip.dest_loc,
-        date: trip.start_time,
-        startPoint: trip.start_loc,
-        endPoint: trip.dest_loc,
-        price: trip.price,
-        car_type: trip.car_type,
-        carType: trip.car_type || "未指定车型",
-        status: trip.status,
-        userAvatar: trip.initiator.avatar || "../../static/user.jpeg",
-        orderCount: trip.participants_count || 0,
-        initiator: trip.initiator
-      }));
-    });
-  };
-  function fetchUserTrips() {
-    return get(`/orders/user/trips`);
-  }
-  const fetchManagedOrders = (params) => {
-    formatAppLog("log", "at api/order.js:45", params.status || "all");
-    return get("/orders/manage/list", {
-      params: {
-        status: params.status || "all",
-        type: params.type || "all",
-        year: params.year || "",
-        month: params.month || ""
-      }
-    }).then((response) => {
-      formatAppLog("log", "at api/order.js:54", response.data);
-      return response.data.map((order) => ({
-        id: order.id,
-        date: order.date,
-        startPoint: order.startPoint,
-        endPoint: order.endPoint,
-        price: order.price,
-        carType: order.carType || "未指定车型",
-        status: order.status,
-        publisher: order.publisher,
-        userAvatar: order.userAvatar || "../../static/user.jpeg",
-        rejectReason: order.rejectReason
-      }));
-    });
-  };
-  const approveOrder = (orderId) => {
-    return post(`/orders/manage/${orderId}/approve`);
-  };
-  const rejectOrder = (orderId, reason) => {
-    return post(`/orders/manage/${orderId}/reject`, { reason });
-  };
+  const PagesIndexCarManage = /* @__PURE__ */ _export_sfc(_sfc_main$e, [["render", _sfc_render$d], ["__scopeId", "data-v-f62f82f0"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/car_manage.vue"]]);
   const _imports_0$2 = "/static/arrow-down.png";
-  const _sfc_main$9 = {
+  const _sfc_main$d = {
     data() {
       return {
         statusOptions: [
@@ -2963,6 +6927,8 @@ if (uni.restoreGlobal) {
             icon: "none"
           });
           formatAppLog("error", "at pages/index/manage.vue:146", "获取订单失败:", error);
+        } finally {
+          this.loading = false;
         }
       },
       async approveOrder(orderId) {
@@ -2978,7 +6944,7 @@ if (uni.restoreGlobal) {
             title: error.message || "操作失败",
             icon: "none"
           });
-          formatAppLog("error", "at pages/index/manage.vue:163", "审核通过失败:", error);
+          formatAppLog("error", "at pages/index/manage.vue:165", "审核通过失败:", error);
         }
       },
       async rejectOrder(orderId) {
@@ -2986,12 +6952,10 @@ if (uni.restoreGlobal) {
           title: "输入拒绝原因",
           editable: true,
           placeholderText: "请输入拒绝原因",
-          success: async (res) => {
-            if (res.confirm && res.content) {
+          success: async (res2) => {
+            if (res2.confirm && res2.content) {
               try {
-                await rejectOrder(orderId, res.content);
-              try {
-                await rejectOrder(orderId, res.content);
+                await rejectOrder(orderId, res2.content);
                 uni.showToast({
                   title: "已拒绝该订单",
                   icon: "success"
@@ -3002,7 +6966,7 @@ if (uni.restoreGlobal) {
                   title: error.message || "操作失败",
                   icon: "none"
                 });
-                formatAppLog("error", "at pages/index/manage.vue:186", "拒绝订单失败:", error);
+                formatAppLog("error", "at pages/index/manage.vue:188", "拒绝订单失败:", error);
               }
             }
           }
@@ -3047,7 +7011,7 @@ if (uni.restoreGlobal) {
       NavigationBar
     }
   };
-  function _sfc_render$8(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$c(_ctx, _cache, $props, $setup, $data, $options) {
     const _component_NavigationBar = vue.resolveComponent("NavigationBar");
     return vue.openBlock(), vue.createElementBlock(
       vue.Fragment,
@@ -3174,7 +7138,7 @@ if (uni.restoreGlobal) {
                     vue.createElementVNode("view", { class: "order-details" }, [
                       vue.createElementVNode("view", { class: "start-point" }, [
                         vue.createElementVNode("image", {
-                          src: _imports_1$1,
+                          src: _imports_1$2,
                           class: "icon",
                           style: { "height": "20px", "width": "20px" }
                         }),
@@ -3282,8 +7246,8 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT */
     );
   }
-  const PagesIndexManage = /* @__PURE__ */ _export_sfc(_sfc_main$9, [["render", _sfc_render$8], ["__scopeId", "data-v-4652816d"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/manage.vue"]]);
-  const _sfc_main$8 = {
+  const PagesIndexManage = /* @__PURE__ */ _export_sfc(_sfc_main$d, [["render", _sfc_render$c], ["__scopeId", "data-v-4652816d"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/manage.vue"]]);
+  const _sfc_main$c = {
     components: {
       NavigationBar
     },
@@ -3291,18 +7255,15 @@ if (uni.restoreGlobal) {
       return {
         identity: "driver",
         // 默认身份 'driver' 或 'passenger'
-        // 默认身份 'driver' 或 'passenger'
+        order_type: "车找人",
+        // 订单类型 "车找人" "人找车"
         startAddress: "",
-        // 起点名称
         // 起点名称
         endAddress: "",
         // 终点名称
-        // 终点名称
         startSuggestions: [],
         // 起点建议列表
-        // 起点建议列表
         endSuggestions: [],
-        // 终点建议列表
         // 终点建议列表
         startPos: null,
         // 起点坐标 [经度, 纬度]
@@ -3352,15 +7313,15 @@ if (uni.restoreGlobal) {
       const storedUserId = uni.getStorageSync("user_info").userId;
       if (storedUserId) {
         this.userId = parseInt(storedUserId);
-        formatAppLog("log", "at pages/index/order_launch.vue:228", "当前用户 ID:", this.userId);
+        formatAppLog("log", "at pages/index/order_launch.vue:229", "当前用户 ID:", this.userId);
         this.fetchVehicleList();
       } else {
-        formatAppLog("error", "at pages/index/order_launch.vue:231", "未能获取到用户 ID，请确保用户已登录!");
+        formatAppLog("error", "at pages/index/order_launch.vue:232", "未能获取到用户 ID，请确保用户已登录!");
         uni.showModal({
           title: "提示",
           content: "您尚未登录，无法发布订单。是否前往登录？",
-          success: (res) => {
-            if (res.confirm) {
+          success: (res2) => {
+            if (res2.confirm) {
               uni.navigateTo({ url: "/pages/login" });
             } else {
               uni.navigateBack();
@@ -3389,7 +7350,7 @@ if (uni.restoreGlobal) {
         this.$nextTick(() => {
           this.mapContext = uni.createMapContext("uni-map", this);
           if (!this.mapContext) {
-            formatAppLog("error", "at pages/index/order_launch.vue:266", "创建 map context 失败");
+            formatAppLog("error", "at pages/index/order_launch.vue:267", "创建 map context 失败");
           }
         });
       },
@@ -3398,17 +7359,16 @@ if (uni.restoreGlobal) {
           return;
         uni.showLoading({ title: "加载车辆..." });
         try {
-          const res = await get(`/user/cars/${this.userId}`);
-          if (Array.isArray(res.data)) {
-            formatAppLog("log", "at pages/index/order_launch.vue:278", res.data);
-            this.vehicleList = res.data;
-            this.vehiclePlateNumbers = res.data.map((vehicle) => vehicle.plate_number);
+          const res2 = await fetchCars();
+          if (Array.isArray(res2.data.vehicles)) {
+            this.vehicleList = res2.data.vehicles;
+            this.vehiclePlateNumbers = res2.data.vehicles.map((vehicle) => vehicle.plate_number);
             formatAppLog("log", "at pages/index/order_launch.vue:281", "从后端获取车辆列表成功:", this.vehicleList);
             if (this.vehicleList.length === 0 && this.identity === "driver") {
               uni.showToast({ title: "您还未添加车辆信息", icon: "none" });
             }
           } else {
-            formatAppLog("error", "at pages/index/order_launch.vue:286", "获取车辆列表失败:", res);
+            formatAppLog("error", "at pages/index/order_launch.vue:286", "获取车辆列表失败:", res2);
             uni.showToast({ title: "加载车辆失败", icon: "none" });
             this.vehicleList = [];
             this.vehiclePlateNumbers = [];
@@ -3438,7 +7398,7 @@ if (uni.restoreGlobal) {
       },
       async searchAddress(query, type) {
         try {
-          const res = await uni.request({
+          const res2 = await uni.request({
             url: "https://restapi.amap.com/v3/assistant/inputtips",
             data: {
               keywords: query,
@@ -3447,8 +7407,8 @@ if (uni.restoreGlobal) {
               output: "JSON"
             }
           });
-          if (res.statusCode === 200 && res.data.status === "1" && Array.isArray(res.data.tips)) {
-            const suggestions = res.data.tips.filter((tip) => tip.location && typeof tip.location === "string" && tip.location.includes(",")).map((tip) => ({
+          if (res2.statusCode === 200 && res2.data.status === "1" && Array.isArray(res2.data.tips)) {
+            const suggestions = res2.data.tips.filter((tip) => tip.location && typeof tip.location === "string" && tip.location.includes(",")).map((tip) => ({
               name: tip.name,
               address: tip.address || "",
               location: tip.location.split(",")
@@ -3474,15 +7434,6 @@ if (uni.restoreGlobal) {
       },
       selectStartAddress(item) {
         this.startAddress = item.name;
-        const lng = parseFloat(item.location[0]);
-        const lat = parseFloat(item.location[1]);
-        if (!isNaN(lng) && !isNaN(lat)) {
-          this.startPos = [lng, lat];
-        } else {
-          formatAppLog("error", "at pages/index/order_launch.vue:357", "选择的起点坐标无效:", item.location);
-          this.startPos = null;
-          uni.showToast({ title: "起点位置信息无效", icon: "none" });
-        }
         const lng = parseFloat(item.location[0]);
         const lat = parseFloat(item.location[1]);
         if (!isNaN(lng) && !isNaN(lat)) {
@@ -3542,7 +7493,7 @@ if (uni.restoreGlobal) {
           return;
         }
         try {
-          const res = await uni.request({
+          const res2 = await uni.request({
             url: "https://restapi.amap.com/v3/direction/driving",
             data: {
               origin: this.startPos.join(","),
@@ -3550,8 +7501,8 @@ if (uni.restoreGlobal) {
               key: this.amapKey
             }
           });
-          if (res.statusCode === 200 && res.data.status === "1" && res.data.route && res.data.route.paths && res.data.route.paths.length > 0) {
-            const path = res.data.route.paths[0];
+          if (res2.statusCode === 200 && res2.data.status === "1" && res2.data.route && res2.data.route.paths && res2.data.route.paths.length > 0) {
+            const path = res2.data.route.paths[0];
             let pointsArr = [];
             path.steps.forEach((step) => {
               if (step.polyline) {
@@ -3580,7 +7531,7 @@ if (uni.restoreGlobal) {
               this.polyline = [];
             }
           } else {
-            formatAppLog("warn", "at pages/index/order_launch.vue:456", "高德路线规划失败或无路径:", res.data.info);
+            formatAppLog("warn", "at pages/index/order_launch.vue:456", "高德路线规划失败或无路径:", res2.data.info);
             this.polyline = [];
           }
         } catch (error) {
@@ -3680,9 +7631,11 @@ if (uni.restoreGlobal) {
             return;
           }
         }
+        this.order_type = this.identity === "driver" ? "车找人" : "人找车";
         const orderData = {
           initiator_id: this.userId,
           identity: this.identity,
+          order_type: this.order_type,
           startAddress: this.startAddress,
           endAddress: this.endAddress,
           departureTime: `${this.departureDate} ${this.departureTime}:00`,
@@ -3692,19 +7645,16 @@ if (uni.restoreGlobal) {
           carType: this.identity === "driver" && this.selectedVehicle ? this.selectedVehicle.brand_model : null,
           passengerCount: this.identity === "passenger" ? this.passengerCount : null
         };
-        formatAppLog("log", "at pages/index/order_launch.vue:574", "准备发送到后端的订单数据:", orderData);
+        formatAppLog("log", "at pages/index/order_launch.vue:576", "准备发送到后端的订单数据:", orderData);
         this.isPublishing = true;
         uni.showLoading({ title: "正在发布..." });
         try {
-          const res = await post("/orders", orderData, {
-            showLoading: false
-            // 手动控制loading
-          });
+          const res2 = await publishOrder(orderData);
           uni.hideLoading();
-          if (res.code === 200) {
-            formatAppLog("log", "at pages/index/order_launch.vue:587", "订单发布成功，后端返回:", res.data);
+          if (res2.code === 200) {
+            formatAppLog("log", "at pages/index/order_launch.vue:587", "订单发布成功");
             uni.showToast({
-              title: `发布成功！订单ID: ${res.data.orderId}`,
+              title: `发布成功`,
               icon: "success",
               duration: 2e3
             });
@@ -3712,8 +7662,8 @@ if (uni.restoreGlobal) {
               uni.navigateBack();
             }, 1500);
           } else {
-            formatAppLog("error", "at pages/index/order_launch.vue:599", "订单发布失败，后端返回:", res);
-            const errorMsg = res.message || "订单发布失败，请检查信息或稍后重试";
+            formatAppLog("error", "at pages/index/order_launch.vue:599", "订单发布失败，后端返回:", res2);
+            const errorMsg = res2.message || "订单发布失败，请检查信息或稍后重试";
             uni.showToast({
               title: errorMsg,
               icon: "none",
@@ -3729,7 +7679,7 @@ if (uni.restoreGlobal) {
       }
     }
   };
-  function _sfc_render$7(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$b(_ctx, _cache, $props, $setup, $data, $options) {
     const _component_NavigationBar = vue.resolveComponent("NavigationBar");
     return vue.openBlock(), vue.createElementBlock(
       vue.Fragment,
@@ -3745,7 +7695,7 @@ if (uni.restoreGlobal) {
                 class: vue.normalizeClass(["identity-option", { "selected": $data.identity === "driver" }]),
                 onClick: _cache[0] || (_cache[0] = ($event) => $data.identity = "driver")
               },
-              " 车主 ",
+              " 我是车主/找乘客 ",
               2
               /* CLASS */
             ),
@@ -3755,7 +7705,7 @@ if (uni.restoreGlobal) {
                 class: vue.normalizeClass(["identity-option", { "selected": $data.identity === "passenger" }]),
                 onClick: _cache[1] || (_cache[1] = ($event) => $data.identity = "passenger")
               },
-              " 乘客 ",
+              " 我是乘客/找车主 ",
               2
               /* CLASS */
             )
@@ -3778,7 +7728,7 @@ if (uni.restoreGlobal) {
               vue.createElementVNode("view", { class: "input-group" }, [
                 vue.createElementVNode("view", { class: "label-container" }, [
                   vue.createElementVNode("image", {
-                    src: _imports_1$1,
+                    src: _imports_1$2,
                     class: "input-icon"
                   }),
                   vue.createElementVNode("text", { class: "input-label" }, "起点")
@@ -4035,12 +7985,12 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT */
     );
   }
-  const PagesIndexOrderLaunch = /* @__PURE__ */ _export_sfc(_sfc_main$8, [["render", _sfc_render$7], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/order_launch.vue"]]);
+  const PagesIndexOrderLaunch = /* @__PURE__ */ _export_sfc(_sfc_main$c, [["render", _sfc_render$b], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/order_launch.vue"]]);
   const _imports_0$1 = "/static/info-manage.png";
   const _imports_1 = "/static/car-manage.png";
   const _imports_2 = "/static/calendar.png";
   const _imports_3 = "/static/see-all.png";
-  const _sfc_main$7 = {
+  const _sfc_main$b = {
     components: {
       NavigationBar
     },
@@ -4095,21 +8045,21 @@ if (uni.restoreGlobal) {
           this.user.age = cacheUser.age;
           this.user.gender = cacheUser.gender;
         }
-        fetchUserBaseInfo().then((res) => {
+        fetchUserBaseInfo().then((res2) => {
           const newUserData = {
-            user_id: res.user_id,
-            name: res.username,
-            avatar: res.avatar,
-            age: res.age,
-            gender: res.gender,
-            userId: res.user_id
+            user_id: res2.user_id,
+            name: res2.username,
+            avatar: res2.avatar,
+            age: res2.age,
+            gender: res2.gender,
+            userId: res2.user_id
           };
           if (JSON.stringify(this.user) !== JSON.stringify(newUserData)) {
             this.user = newUserData;
             uni.setStorageSync("user_info", newUserData);
           }
         }).catch((error) => {
-          formatAppLog("error", "at pages/index/person.vue:174", "获取用户数据失败:", error);
+          formatAppLog("error", "at pages/index/person.vue:184", "获取用户数据失败:", error);
         });
       },
       viewDetails(tripId) {
@@ -4121,7 +8071,7 @@ if (uni.restoreGlobal) {
         this.isEditing = !this.isEditing;
       },
       saveChanges() {
-        formatAppLog("log", "at pages/index/person.vue:186", "保存修改:", this.user);
+        formatAppLog("log", "at pages/index/person.vue:196", "保存修改:", this.user);
         this.isEditing = false;
       },
       openFileInput() {
@@ -4139,9 +8089,9 @@ if (uni.restoreGlobal) {
       },
       async fetchUserTrips() {
         try {
-          const res = await fetchUserTrips();
-          if (res.code === 200) {
-            this.trips = res.data.map((trip) => ({
+          const res2 = await fetchUserTrips();
+          if (res2.code === 200) {
+            this.trips = res2.data.map((trip) => ({
               id: trip.id,
               date: trip.date,
               startPoint: trip.startPoint,
@@ -4153,10 +8103,10 @@ if (uni.restoreGlobal) {
               status: trip.status
             }));
           } else {
-            formatAppLog("error", "at pages/index/person.vue:216", "获取行程数据失败:", res.error);
+            formatAppLog("error", "at pages/index/person.vue:228", "获取行程数据失败:", res2.error);
           }
         } catch (error) {
-          formatAppLog("error", "at pages/index/person.vue:219", "获取行程数据异常:", error);
+          formatAppLog("error", "at pages/index/person.vue:231", "获取行程数据异常:", error);
         }
       }
     },
@@ -4165,7 +8115,7 @@ if (uni.restoreGlobal) {
       this.fetchUserTrips();
     }
   };
-  function _sfc_render$6(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$a(_ctx, _cache, $props, $setup, $data, $options) {
     const _component_NavigationBar = vue.resolveComponent("NavigationBar");
     return vue.openBlock(), vue.createElementBlock(
       vue.Fragment,
@@ -4238,6 +8188,7 @@ if (uni.restoreGlobal) {
               ])
             ])
           ]),
+          vue.createCommentVNode(" 查看所有其他的订单 "),
           vue.createElementVNode("div", { class: "trip-info-card" }, [
             vue.createElementVNode("div", { class: "trip-scroll" }, [
               vue.createCommentVNode(" 添加悬浮按钮 "),
@@ -4251,6 +8202,18 @@ if (uni.restoreGlobal) {
                 }),
                 vue.createElementVNode("text", { class: "floating-text" }, "所有")
               ]),
+              vue.createCommentVNode(" 空状态提示 "),
+              $options.recentTrips.length === 0 ? (vue.openBlock(), vue.createElementBlock("div", {
+                key: 0,
+                class: "empty-tip"
+              }, [
+                vue.createElementVNode("image", {
+                  src: _imports_1$4,
+                  class: "empty-icon"
+                }),
+                vue.createElementVNode("text", { class: "empty-text" }, "暂无行程记录")
+              ])) : vue.createCommentVNode("v-if", true),
+              vue.createCommentVNode(" 行程卡片列表 "),
               (vue.openBlock(true), vue.createElementBlock(
                 vue.Fragment,
                 null,
@@ -4275,7 +8238,7 @@ if (uni.restoreGlobal) {
                     vue.createElementVNode("div", { class: "trip-details" }, [
                       vue.createElementVNode("div", { class: "start-point" }, [
                         vue.createElementVNode("image", {
-                          src: _imports_1$1,
+                          src: _imports_1$2,
                           class: "icon",
                           style: { "height": "20px", "width": "20px" }
                         }),
@@ -4356,7 +8319,7 @@ if (uni.restoreGlobal) {
       /* STABLE_FRAGMENT */
     );
   }
-  const PagesIndexPerson = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$6], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/person.vue"]]);
+  const PagesIndexPerson = /* @__PURE__ */ _export_sfc(_sfc_main$b, [["render", _sfc_render$a], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/person.vue"]]);
   var calendar = {
     /**
         * 农历1900-2100的润大小信息表
@@ -5607,12 +9570,12 @@ if (uni.restoreGlobal) {
   function startsWith(str, parts2) {
     return parts2.find((part) => str.indexOf(part) === 0);
   }
-  function normalizeLocale(locale, messages) {
+  function normalizeLocale(locale, messages2) {
     if (!locale) {
       return;
     }
     locale = locale.trim().replace(/_/g, "-");
-    if (messages && messages[locale]) {
+    if (messages2 && messages2[locale]) {
       return locale;
     }
     locale = locale.toLowerCase();
@@ -5632,8 +9595,8 @@ if (uni.restoreGlobal) {
       return LOCALE_ZH_HANS;
     }
     let locales = [LOCALE_EN, LOCALE_FR, LOCALE_ES];
-    if (messages && Object.keys(messages).length > 0) {
-      locales = Object.keys(messages);
+    if (messages2 && Object.keys(messages2).length > 0) {
+      locales = Object.keys(messages2);
     }
     const lang = startsWith(locale, locales);
     if (lang) {
@@ -5641,7 +9604,7 @@ if (uni.restoreGlobal) {
     }
   }
   class I18n {
-    constructor({ locale, fallbackLocale, messages, watcher, formater: formater2 }) {
+    constructor({ locale, fallbackLocale, messages: messages2, watcher, formater: formater2 }) {
       this.locale = LOCALE_EN;
       this.fallbackLocale = LOCALE_EN;
       this.message = {};
@@ -5651,7 +9614,7 @@ if (uni.restoreGlobal) {
         this.fallbackLocale = fallbackLocale;
       }
       this.formater = formater2 || defaultFormatter;
-      this.messages = messages || {};
+      this.messages = messages2 || {};
       this.setLocale(locale || LOCALE_EN);
       if (watcher) {
         this.watchLocale(watcher);
@@ -5733,14 +9696,14 @@ if (uni.restoreGlobal) {
     }
     return LOCALE_EN;
   }
-  function initVueI18n(locale, messages = {}, fallbackLocale, watcher) {
+  function initVueI18n(locale, messages2 = {}, fallbackLocale, watcher) {
     if (typeof locale !== "string") {
       const options = [
-        messages,
+        messages2,
         locale
       ];
       locale = options[0];
-      messages = options[1];
+      messages2 = options[1];
     }
     if (typeof locale !== "string") {
       locale = getDefaultLocale();
@@ -5751,7 +9714,7 @@ if (uni.restoreGlobal) {
     const i18n = new I18n({
       locale,
       fallbackLocale,
-      messages,
+      messages: messages2,
       watcher
     });
     let t2 = (key, values) => {
@@ -5797,7 +9760,7 @@ if (uni.restoreGlobal) {
       }
     };
   }
-  const en = {
+  const en$1 = {
     "uni-calender.ok": "ok",
     "uni-calender.cancel": "cancel",
     "uni-calender.today": "today",
@@ -5809,7 +9772,7 @@ if (uni.restoreGlobal) {
     "uni-calender.SAT": "SAT",
     "uni-calender.SUN": "SUN"
   };
-  const zhHans = {
+  const zhHans$1 = {
     "uni-calender.ok": "确定",
     "uni-calender.cancel": "取消",
     "uni-calender.today": "今日",
@@ -5821,7 +9784,7 @@ if (uni.restoreGlobal) {
     "uni-calender.FRI": "五",
     "uni-calender.SAT": "六"
   };
-  const zhHant = {
+  const zhHant$1 = {
     "uni-calender.ok": "確定",
     "uni-calender.cancel": "取消",
     "uni-calender.today": "今日",
@@ -5834,12 +9797,12 @@ if (uni.restoreGlobal) {
     "uni-calender.SAT": "六"
   };
   const i18nMessages = {
-    en,
-    "zh-Hans": zhHans,
-    "zh-Hant": zhHant
+    en: en$1,
+    "zh-Hans": zhHans$1,
+    "zh-Hant": zhHant$1
   };
-  const { t: t$1 } = initVueI18n(i18nMessages);
-  const _sfc_main$6 = {
+  const { t: t$2 } = initVueI18n(i18nMessages);
+  const _sfc_main$a = {
     emits: ["change"],
     props: {
       weeks: {
@@ -5867,7 +9830,7 @@ if (uni.restoreGlobal) {
     },
     computed: {
       todayText() {
-        return t$1("uni-calender.today");
+        return t$2("uni-calender.today");
       }
     },
     methods: {
@@ -5876,7 +9839,7 @@ if (uni.restoreGlobal) {
       }
     }
   };
-  function _sfc_render$5(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$9(_ctx, _cache, $props, $setup, $data, $options) {
     return vue.openBlock(), vue.createElementBlock(
       "view",
       {
@@ -5973,9 +9936,9 @@ if (uni.restoreGlobal) {
       /* CLASS */
     );
   }
-  const CalendarItem = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$5], ["__scopeId", "data-v-65626c58"], ["__file", "E:/Projects/SE/ride-sharing-se/uni_modules/uni-calendar/components/uni-calendar/uni-calendar-item.vue"]]);
-  const { t } = initVueI18n(i18nMessages);
-  const _sfc_main$5 = {
+  const CalendarItem = /* @__PURE__ */ _export_sfc(_sfc_main$a, [["render", _sfc_render$9], ["__scopeId", "data-v-65626c58"], ["__file", "E:/Projects/SE/ride-sharing-se/uni_modules/uni-calendar/components/uni-calendar/uni-calendar-item.vue"]]);
+  const { t: t$1 } = initVueI18n(i18nMessages);
+  const _sfc_main$9 = {
     components: {
       CalendarItem
     },
@@ -6034,34 +9997,34 @@ if (uni.restoreGlobal) {
        * for i18n
        */
       okText() {
-        return t("uni-calender.ok");
+        return t$1("uni-calender.ok");
       },
       cancelText() {
-        return t("uni-calender.cancel");
+        return t$1("uni-calender.cancel");
       },
       todayText() {
-        return t("uni-calender.today");
+        return t$1("uni-calender.today");
       },
       monText() {
-        return t("uni-calender.MON");
+        return t$1("uni-calender.MON");
       },
       TUEText() {
-        return t("uni-calender.TUE");
+        return t$1("uni-calender.TUE");
       },
       WEDText() {
-        return t("uni-calender.WED");
+        return t$1("uni-calender.WED");
       },
       THUText() {
-        return t("uni-calender.THU");
+        return t$1("uni-calender.THU");
       },
       FRIText() {
-        return t("uni-calender.FRI");
+        return t$1("uni-calender.FRI");
       },
       SATText() {
-        return t("uni-calender.SAT");
+        return t$1("uni-calender.SAT");
       },
       SUNText() {
-        return t("uni-calender.SUN");
+        return t$1("uni-calender.SUN");
       }
     },
     watch: {
@@ -6244,7 +10207,7 @@ if (uni.restoreGlobal) {
       }
     }
   };
-  function _sfc_render$4(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$8(_ctx, _cache, $props, $setup, $data, $options) {
     const _component_calendar_item = vue.resolveComponent("calendar-item");
     return vue.openBlock(), vue.createElementBlock("view", { class: "uni-calendar" }, [
       !$props.insert && $data.show ? (vue.openBlock(), vue.createElementBlock(
@@ -6451,8 +10414,8 @@ if (uni.restoreGlobal) {
       )) : vue.createCommentVNode("v-if", true)
     ]);
   }
-  const __easycom_0 = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$4], ["__scopeId", "data-v-b6ab2cfb"], ["__file", "E:/Projects/SE/ride-sharing-se/uni_modules/uni-calendar/components/uni-calendar/uni-calendar.vue"]]);
-  const _sfc_main$4 = {
+  const __easycom_0$2 = /* @__PURE__ */ _export_sfc(_sfc_main$9, [["render", _sfc_render$8], ["__scopeId", "data-v-b6ab2cfb"], ["__file", "E:/Projects/SE/ride-sharing-se/uni_modules/uni-calendar/components/uni-calendar/uni-calendar.vue"]]);
+  const _sfc_main$8 = {
     components: {
       NavigationBar
     },
@@ -6520,9 +10483,9 @@ if (uni.restoreGlobal) {
       this.fetchTripsForMonth(today.getFullYear(), today.getMonth() + 1);
     }
   };
-  function _sfc_render$3(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$7(_ctx, _cache, $props, $setup, $data, $options) {
     const _component_NavigationBar = vue.resolveComponent("NavigationBar");
-    const _component_uni_calendar = resolveEasycom(vue.resolveDynamicComponent("uni-calendar"), __easycom_0);
+    const _component_uni_calendar = resolveEasycom(vue.resolveDynamicComponent("uni-calendar"), __easycom_0$2);
     return vue.openBlock(), vue.createElementBlock("view", { class: "carpool-calendar-container" }, [
       vue.createVNode(_component_NavigationBar),
       vue.createCommentVNode(" 日历区域 "),
@@ -6575,7 +10538,7 @@ if (uni.restoreGlobal) {
                   vue.createElementVNode("view", { class: "trip-details" }, [
                     vue.createElementVNode("view", { class: "start-point" }, [
                       vue.createElementVNode("image", {
-                        src: _imports_1$1,
+                        src: _imports_1$2,
                         class: "trip-icon"
                       }),
                       vue.createElementVNode(
@@ -6653,8 +10616,8 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const PagesIndexCalendar = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__scopeId", "data-v-da8fb852"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/calendar.vue"]]);
-  const _sfc_main$3 = {
+  const PagesIndexCalendar = /* @__PURE__ */ _export_sfc(_sfc_main$8, [["render", _sfc_render$7], ["__scopeId", "data-v-da8fb852"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/calendar.vue"]]);
+  const _sfc_main$7 = {
     components: {
       NavigationBar
     },
@@ -6668,6 +10631,7 @@ if (uni.restoreGlobal) {
           gender: "",
           // 新增性别字段
           contact: "",
+          // 联系方式
           password: "",
           // 新增密码字段
           confirmPassword: ""
@@ -6689,22 +10653,27 @@ if (uni.restoreGlobal) {
       this.fetchUserModifiableData();
     },
     methods: {
+      /**
+        * 获取用户可修改数据（调用后端接口）
+        * 接口调用点1：fetchUserModifiableData()
+        * 接口调用点2：fetchUserAvatar()
+        */
       async fetchUserModifiableData() {
         this.loading = true;
         try {
-          const res = await fetchUserModifiableData();
+          const res2 = await fetchUserModifiableData();
           const avatar = await fetchUserAvatar();
-          formatAppLog("log", "at pages/index/info_manage.vue:130", res);
+          formatAppLog("log", "at pages/index/info_manage.vue:136", res2);
           const userData = {
             avatar: avatar || this.defaultAvatar,
-            gender: res.gender,
-            contact: res.telephone,
-            username: res.username
+            gender: res2.gender,
+            contact: res2.telephone,
+            username: res2.username
           };
           this.user = { ...userData };
           this.originalUser = { ...userData };
         } catch (error) {
-          formatAppLog("error", "at pages/index/info_manage.vue:141", "获取用户数据失败:", error);
+          formatAppLog("error", "at pages/index/info_manage.vue:147", "获取用户数据失败:", error);
           uni.showToast({ title: "获取信息失败", icon: "none" });
         }
       },
@@ -6721,9 +10690,9 @@ if (uni.restoreGlobal) {
           sizeType: ["compressed"],
           // 压缩图片
           sourceType: ["album", "camera"],
-          success: async (res) => {
+          success: async (res2) => {
             try {
-              const filePath = res.tempFilePaths[0];
+              const filePath = res2.tempFilePaths[0];
               plus.io.resolveLocalFileSystemURL(filePath, (entry) => {
                 entry.file((file) => {
                   const reader = new plus.io.FileReader();
@@ -6733,7 +10702,7 @@ if (uni.restoreGlobal) {
                     this.uploadAvatar(base64Data);
                   };
                   reader.onerror = (err) => {
-                    formatAppLog("error", "at pages/index/info_manage.vue:175", "读取文件失败:", err);
+                    formatAppLog("error", "at pages/index/info_manage.vue:181", "读取文件失败:", err);
                     uni.showToast({
                       title: "读取文件失败: " + err.message,
                       icon: "none"
@@ -6741,14 +10710,14 @@ if (uni.restoreGlobal) {
                   };
                 });
               }, (error) => {
-                formatAppLog("error", "at pages/index/info_manage.vue:183", "解析文件路径失败:", error);
+                formatAppLog("error", "at pages/index/info_manage.vue:189", "解析文件路径失败:", error);
                 uni.showToast({
                   title: "解析文件路径失败: " + error.message,
                   icon: "none"
                 });
               });
             } catch (error) {
-              formatAppLog("error", "at pages/index/info_manage.vue:190", "头像处理失败:", error);
+              formatAppLog("error", "at pages/index/info_manage.vue:196", "头像处理失败:", error);
               uni.showToast({
                 title: "头像处理失败: " + error.message,
                 icon: "none"
@@ -6764,7 +10733,7 @@ if (uni.restoreGlobal) {
             src: filePath,
             quality: 80,
             // 质量80%
-            success: (res) => resolve(res.tempFilePath),
+            success: (res2) => resolve(res2.tempFilePath),
             fail: (err) => reject(err)
           });
         });
@@ -6775,9 +10744,9 @@ if (uni.restoreGlobal) {
           fs.readFile({
             filePath,
             encoding: "base64",
-            success: (res) => {
+            success: (res2) => {
               const fileType = this.getFileType(filePath);
-              resolve(`data:image/${fileType};base64,${res.data}`);
+              resolve(`data:image/${fileType};base64,${res2.data}`);
             },
             fail: (err) => {
               reject(err);
@@ -6803,7 +10772,7 @@ if (uni.restoreGlobal) {
             icon: "success"
           });
         } catch (error) {
-          formatAppLog("error", "at pages/index/info_manage.vue:254", "头像上传失败:", error);
+          formatAppLog("error", "at pages/index/info_manage.vue:260", "头像上传失败:", error);
           uni.showToast({
             title: error.message || "头像上传失败",
             icon: "none"
@@ -6834,7 +10803,6 @@ if (uni.restoreGlobal) {
         }
         try {
           uni.showLoading({ title: "保存中..." });
-          const cacheUserID = uni.getStorageSync("user_id");
           const requestData = {
             username: this.user.username,
             gender: this.user.gender,
@@ -6843,7 +10811,7 @@ if (uni.restoreGlobal) {
           if (this.user.password) {
             requestData.password = this.user.password;
           }
-          const response = await updateUserInfo(cacheUserID, requestData);
+          const response = await updateUserInfo(requestData);
           if (response.code === 200) {
             uni.showToast({ title: "保存成功", icon: "success" });
             this.originalUser = { ...this.user };
@@ -6858,7 +10826,7 @@ if (uni.restoreGlobal) {
             throw new Error(response.message || "保存失败");
           }
         } catch (error) {
-          formatAppLog("error", "at pages/index/info_manage.vue:326", "保存失败:", error);
+          formatAppLog("error", "at pages/index/info_manage.vue:331", "保存失败:", error);
           uni.showToast({
             title: error.message || "保存失败，请重试",
             icon: "none"
@@ -6869,7 +10837,7 @@ if (uni.restoreGlobal) {
       }
     }
   };
-  function _sfc_render$2(_ctx, _cache, $props, $setup, $data, $options) {
+  function _sfc_render$6(_ctx, _cache, $props, $setup, $data, $options) {
     const _component_NavigationBar = vue.resolveComponent("NavigationBar");
     return vue.openBlock(), vue.createElementBlock("div", { class: "user-profile-container" }, [
       vue.createCommentVNode(" 使用 NavigationBar 组件 "),
@@ -7009,58 +10977,1824 @@ if (uni.restoreGlobal) {
       ])
     ]);
   }
-  const PagesIndexInfoManage = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$2], ["__scopeId", "data-v-2cb089b3"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/info_manage.vue"]]);
-  const _imports_0 = "/static/atm-fill.png";
-  const _sfc_main$2 = {
+  const PagesIndexInfoManage = /* @__PURE__ */ _export_sfc(_sfc_main$7, [["render", _sfc_render$6], ["__scopeId", "data-v-2cb089b3"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/info_manage.vue"]]);
+  const popup = {
+    data() {
+      return {};
+    },
+    created() {
+      this.popup = this.getParent();
+    },
+    methods: {
+      /**
+       * 获取父元素实例
+       */
+      getParent(name = "uniPopup") {
+        let parent = this.$parent;
+        let parentName = parent.$options.name;
+        while (parentName !== name) {
+          parent = parent.$parent;
+          if (!parent)
+            return false;
+          parentName = parent.$options.name;
+        }
+        return parent;
+      }
+    }
+  };
+  const en = {
+    "uni-popup.cancel": "cancel",
+    "uni-popup.ok": "ok",
+    "uni-popup.placeholder": "pleace enter",
+    "uni-popup.title": "Hint",
+    "uni-popup.shareTitle": "Share to"
+  };
+  const zhHans = {
+    "uni-popup.cancel": "取消",
+    "uni-popup.ok": "确定",
+    "uni-popup.placeholder": "请输入",
+    "uni-popup.title": "提示",
+    "uni-popup.shareTitle": "分享到"
+  };
+  const zhHant = {
+    "uni-popup.cancel": "取消",
+    "uni-popup.ok": "確定",
+    "uni-popup.placeholder": "請輸入",
+    "uni-popup.title": "提示",
+    "uni-popup.shareTitle": "分享到"
+  };
+  const messages = {
+    en,
+    "zh-Hans": zhHans,
+    "zh-Hant": zhHant
+  };
+  const {
+    t
+  } = initVueI18n(messages);
+  const _sfc_main$6 = {
+    name: "uniPopupDialog",
+    mixins: [popup],
+    emits: ["confirm", "close", "update:modelValue", "input"],
+    props: {
+      inputType: {
+        type: String,
+        default: "text"
+      },
+      showClose: {
+        type: Boolean,
+        default: true
+      },
+      modelValue: {
+        type: [Number, String],
+        default: ""
+      },
+      placeholder: {
+        type: [String, Number],
+        default: ""
+      },
+      type: {
+        type: String,
+        default: "error"
+      },
+      mode: {
+        type: String,
+        default: "base"
+      },
+      title: {
+        type: String,
+        default: ""
+      },
+      content: {
+        type: String,
+        default: ""
+      },
+      beforeClose: {
+        type: Boolean,
+        default: false
+      },
+      cancelText: {
+        type: String,
+        default: ""
+      },
+      confirmText: {
+        type: String,
+        default: ""
+      },
+      maxlength: {
+        type: Number,
+        default: -1
+      },
+      focus: {
+        type: Boolean,
+        default: true
+      }
+    },
     data() {
       return {
+        dialogType: "error",
+        val: ""
+      };
+    },
+    computed: {
+      okText() {
+        return this.confirmText || t("uni-popup.ok");
+      },
+      closeText() {
+        return this.cancelText || t("uni-popup.cancel");
+      },
+      placeholderText() {
+        return this.placeholder || t("uni-popup.placeholder");
+      },
+      titleText() {
+        return this.title || t("uni-popup.title");
+      }
+    },
+    watch: {
+      type(val) {
+        this.dialogType = val;
+      },
+      mode(val) {
+        if (val === "input") {
+          this.dialogType = "info";
+        }
+      },
+      value(val) {
+        if (this.maxlength != -1 && this.mode === "input") {
+          this.val = val.slice(0, this.maxlength);
+        } else {
+          this.val = val;
+        }
+      },
+      val(val) {
+        this.$emit("update:modelValue", val);
+      }
+    },
+    created() {
+      this.popup.disableMask();
+      if (this.mode === "input") {
+        this.dialogType = "info";
+        this.val = this.value;
+        this.val = this.modelValue;
+      } else {
+        this.dialogType = this.type;
+      }
+    },
+    methods: {
+      /**
+       * 点击确认按钮
+       */
+      onOk() {
+        if (this.mode === "input") {
+          this.$emit("confirm", this.val);
+        } else {
+          this.$emit("confirm");
+        }
+        if (this.beforeClose)
+          return;
+        this.popup.close();
+      },
+      /**
+       * 点击取消按钮
+       */
+      closeDialog() {
+        this.$emit("close");
+        if (this.beforeClose)
+          return;
+        this.popup.close();
+      },
+      close() {
+        this.popup.close();
+      }
+    }
+  };
+  function _sfc_render$5(_ctx, _cache, $props, $setup, $data, $options) {
+    return vue.openBlock(), vue.createElementBlock("view", { class: "uni-popup-dialog" }, [
+      vue.createElementVNode("view", { class: "uni-dialog-title" }, [
+        vue.createElementVNode(
+          "text",
+          {
+            class: vue.normalizeClass(["uni-dialog-title-text", ["uni-popup__" + $data.dialogType]])
+          },
+          vue.toDisplayString($options.titleText),
+          3
+          /* TEXT, CLASS */
+        )
+      ]),
+      $props.mode === "base" ? (vue.openBlock(), vue.createElementBlock("view", {
+        key: 0,
+        class: "uni-dialog-content"
+      }, [
+        vue.renderSlot(_ctx.$slots, "default", {}, () => [
+          vue.createElementVNode(
+            "text",
+            { class: "uni-dialog-content-text" },
+            vue.toDisplayString($props.content),
+            1
+            /* TEXT */
+          )
+        ], true)
+      ])) : (vue.openBlock(), vue.createElementBlock("view", {
+        key: 1,
+        class: "uni-dialog-content"
+      }, [
+        vue.renderSlot(_ctx.$slots, "default", {}, () => [
+          vue.withDirectives(vue.createElementVNode("input", {
+            class: "uni-dialog-input",
+            maxlength: $props.maxlength,
+            "onUpdate:modelValue": _cache[0] || (_cache[0] = ($event) => $data.val = $event),
+            type: $props.inputType,
+            placeholder: $options.placeholderText,
+            focus: $props.focus
+          }, null, 8, ["maxlength", "type", "placeholder", "focus"]), [
+            [vue.vModelDynamic, $data.val]
+          ])
+        ], true)
+      ])),
+      vue.createElementVNode("view", { class: "uni-dialog-button-group" }, [
+        $props.showClose ? (vue.openBlock(), vue.createElementBlock("view", {
+          key: 0,
+          class: "uni-dialog-button",
+          onClick: _cache[1] || (_cache[1] = (...args) => $options.closeDialog && $options.closeDialog(...args))
+        }, [
+          vue.createElementVNode(
+            "text",
+            { class: "uni-dialog-button-text" },
+            vue.toDisplayString($options.closeText),
+            1
+            /* TEXT */
+          )
+        ])) : vue.createCommentVNode("v-if", true),
+        vue.createElementVNode(
+          "view",
+          {
+            class: vue.normalizeClass(["uni-dialog-button", $props.showClose ? "uni-border-left" : ""]),
+            onClick: _cache[2] || (_cache[2] = (...args) => $options.onOk && $options.onOk(...args))
+          },
+          [
+            vue.createElementVNode(
+              "text",
+              { class: "uni-dialog-button-text uni-button-color" },
+              vue.toDisplayString($options.okText),
+              1
+              /* TEXT */
+            )
+          ],
+          2
+          /* CLASS */
+        )
+      ])
+    ]);
+  }
+  const __easycom_0$1 = /* @__PURE__ */ _export_sfc(_sfc_main$6, [["render", _sfc_render$5], ["__scopeId", "data-v-678a307f"], ["__file", "E:/Projects/SE/ride-sharing-se/node_modules/@dcloudio/uni-ui/lib/uni-popup-dialog/uni-popup-dialog.vue"]]);
+  class MPAnimation {
+    constructor(options, _this) {
+      this.options = options;
+      this.animation = uni.createAnimation({
+        ...options
+      });
+      this.currentStepAnimates = {};
+      this.next = 0;
+      this.$ = _this;
+    }
+    _nvuePushAnimates(type, args) {
+      let aniObj = this.currentStepAnimates[this.next];
+      let styles = {};
+      if (!aniObj) {
+        styles = {
+          styles: {},
+          config: {}
+        };
+      } else {
+        styles = aniObj;
+      }
+      if (animateTypes1.includes(type)) {
+        if (!styles.styles.transform) {
+          styles.styles.transform = "";
+        }
+        let unit = "";
+        if (type === "rotate") {
+          unit = "deg";
+        }
+        styles.styles.transform += `${type}(${args + unit}) `;
+      } else {
+        styles.styles[type] = `${args}`;
+      }
+      this.currentStepAnimates[this.next] = styles;
+    }
+    _animateRun(styles = {}, config2 = {}) {
+      let ref = this.$.$refs["ani"].ref;
+      if (!ref)
+        return;
+      return new Promise((resolve, reject) => {
+        nvueAnimation.transition(ref, {
+          styles,
+          ...config2
+        }, (res2) => {
+          resolve();
+        });
+      });
+    }
+    _nvueNextAnimate(animates, step = 0, fn) {
+      let obj = animates[step];
+      if (obj) {
+        let {
+          styles,
+          config: config2
+        } = obj;
+        this._animateRun(styles, config2).then(() => {
+          step += 1;
+          this._nvueNextAnimate(animates, step, fn);
+        });
+      } else {
+        this.currentStepAnimates = {};
+        typeof fn === "function" && fn();
+        this.isEnd = true;
+      }
+    }
+    step(config2 = {}) {
+      this.animation.step(config2);
+      return this;
+    }
+    run(fn) {
+      this.$.animationData = this.animation.export();
+      this.$.timer = setTimeout(() => {
+        typeof fn === "function" && fn();
+      }, this.$.durationTime);
+    }
+  }
+  const animateTypes1 = [
+    "matrix",
+    "matrix3d",
+    "rotate",
+    "rotate3d",
+    "rotateX",
+    "rotateY",
+    "rotateZ",
+    "scale",
+    "scale3d",
+    "scaleX",
+    "scaleY",
+    "scaleZ",
+    "skew",
+    "skewX",
+    "skewY",
+    "translate",
+    "translate3d",
+    "translateX",
+    "translateY",
+    "translateZ"
+  ];
+  const animateTypes2 = ["opacity", "backgroundColor"];
+  const animateTypes3 = ["width", "height", "left", "right", "top", "bottom"];
+  animateTypes1.concat(animateTypes2, animateTypes3).forEach((type) => {
+    MPAnimation.prototype[type] = function(...args) {
+      this.animation[type](...args);
+      return this;
+    };
+  });
+  function createAnimation(option, _this) {
+    if (!_this)
+      return;
+    clearTimeout(_this.timer);
+    return new MPAnimation(option, _this);
+  }
+  const _sfc_main$5 = {
+    name: "uniTransition",
+    emits: ["click", "change"],
+    props: {
+      show: {
+        type: Boolean,
+        default: false
+      },
+      modeClass: {
+        type: [Array, String],
+        default() {
+          return "fade";
+        }
+      },
+      duration: {
+        type: Number,
+        default: 300
+      },
+      styles: {
+        type: Object,
+        default() {
+          return {};
+        }
+      },
+      customClass: {
+        type: String,
+        default: ""
+      },
+      onceRender: {
+        type: Boolean,
+        default: false
+      }
+    },
+    data() {
+      return {
+        isShow: false,
+        transform: "",
+        opacity: 1,
+        animationData: {},
+        durationTime: 300,
+        config: {}
+      };
+    },
+    watch: {
+      show: {
+        handler(newVal) {
+          if (newVal) {
+            this.open();
+          } else {
+            if (this.isShow) {
+              this.close();
+            }
+          }
+        },
+        immediate: true
+      }
+    },
+    computed: {
+      // 生成样式数据
+      stylesObject() {
+        let styles = {
+          ...this.styles,
+          "transition-duration": this.duration / 1e3 + "s"
+        };
+        let transform = "";
+        for (let i in styles) {
+          let line = this.toLine(i);
+          transform += line + ":" + styles[i] + ";";
+        }
+        return transform;
+      },
+      // 初始化动画条件
+      transformStyles() {
+        return "transform:" + this.transform + ";opacity:" + this.opacity + ";" + this.stylesObject;
+      }
+    },
+    created() {
+      this.config = {
+        duration: this.duration,
+        timingFunction: "ease",
+        transformOrigin: "50% 50%",
+        delay: 0
+      };
+      this.durationTime = this.duration;
+    },
+    methods: {
+      /**
+       *  ref 触发 初始化动画
+       */
+      init(obj = {}) {
+        if (obj.duration) {
+          this.durationTime = obj.duration;
+        }
+        this.animation = createAnimation(Object.assign(this.config, obj), this);
+      },
+      /**
+       * 点击组件触发回调
+       */
+      onClick() {
+        this.$emit("click", {
+          detail: this.isShow
+        });
+      },
+      /**
+       * ref 触发 动画分组
+       * @param {Object} obj
+       */
+      step(obj, config2 = {}) {
+        if (!this.animation)
+          return;
+        for (let i in obj) {
+          try {
+            if (typeof obj[i] === "object") {
+              this.animation[i](...obj[i]);
+            } else {
+              this.animation[i](obj[i]);
+            }
+          } catch (e) {
+            formatAppLog("error", "at node_modules/@dcloudio/uni-ui/lib/uni-transition/uni-transition.vue:148", `方法 ${i} 不存在`);
+          }
+        }
+        this.animation.step(config2);
+        return this;
+      },
+      /**
+       *  ref 触发 执行动画
+       */
+      run(fn) {
+        if (!this.animation)
+          return;
+        this.animation.run(fn);
+      },
+      // 开始过度动画
+      open() {
+        clearTimeout(this.timer);
+        this.transform = "";
+        this.isShow = true;
+        let { opacity, transform } = this.styleInit(false);
+        if (typeof opacity !== "undefined") {
+          this.opacity = opacity;
+        }
+        this.transform = transform;
+        this.$nextTick(() => {
+          this.timer = setTimeout(() => {
+            this.animation = createAnimation(this.config, this);
+            this.tranfromInit(false).step();
+            this.animation.run();
+            this.$emit("change", {
+              detail: this.isShow
+            });
+          }, 20);
+        });
+      },
+      // 关闭过度动画
+      close(type) {
+        if (!this.animation)
+          return;
+        this.tranfromInit(true).step().run(() => {
+          this.isShow = false;
+          this.animationData = null;
+          this.animation = null;
+          let { opacity, transform } = this.styleInit(false);
+          this.opacity = opacity || 1;
+          this.transform = transform;
+          this.$emit("change", {
+            detail: this.isShow
+          });
+        });
+      },
+      // 处理动画开始前的默认样式
+      styleInit(type) {
+        let styles = {
+          transform: ""
+        };
+        let buildStyle = (type2, mode) => {
+          if (mode === "fade") {
+            styles.opacity = this.animationType(type2)[mode];
+          } else {
+            styles.transform += this.animationType(type2)[mode] + " ";
+          }
+        };
+        if (typeof this.modeClass === "string") {
+          buildStyle(type, this.modeClass);
+        } else {
+          this.modeClass.forEach((mode) => {
+            buildStyle(type, mode);
+          });
+        }
+        return styles;
+      },
+      // 处理内置组合动画
+      tranfromInit(type) {
+        let buildTranfrom = (type2, mode) => {
+          let aniNum = null;
+          if (mode === "fade") {
+            aniNum = type2 ? 0 : 1;
+          } else {
+            aniNum = type2 ? "-100%" : "0";
+            if (mode === "zoom-in") {
+              aniNum = type2 ? 0.8 : 1;
+            }
+            if (mode === "zoom-out") {
+              aniNum = type2 ? 1.2 : 1;
+            }
+            if (mode === "slide-right") {
+              aniNum = type2 ? "100%" : "0";
+            }
+            if (mode === "slide-bottom") {
+              aniNum = type2 ? "100%" : "0";
+            }
+          }
+          this.animation[this.animationMode()[mode]](aniNum);
+        };
+        if (typeof this.modeClass === "string") {
+          buildTranfrom(type, this.modeClass);
+        } else {
+          this.modeClass.forEach((mode) => {
+            buildTranfrom(type, mode);
+          });
+        }
+        return this.animation;
+      },
+      animationType(type) {
+        return {
+          fade: type ? 0 : 1,
+          "slide-top": `translateY(${type ? "0" : "-100%"})`,
+          "slide-right": `translateX(${type ? "0" : "100%"})`,
+          "slide-bottom": `translateY(${type ? "0" : "100%"})`,
+          "slide-left": `translateX(${type ? "0" : "-100%"})`,
+          "zoom-in": `scaleX(${type ? 1 : 0.8}) scaleY(${type ? 1 : 0.8})`,
+          "zoom-out": `scaleX(${type ? 1 : 1.2}) scaleY(${type ? 1 : 1.2})`
+        };
+      },
+      // 内置动画类型与实际动画对应字典
+      animationMode() {
+        return {
+          fade: "opacity",
+          "slide-top": "translateY",
+          "slide-right": "translateX",
+          "slide-bottom": "translateY",
+          "slide-left": "translateX",
+          "zoom-in": "scale",
+          "zoom-out": "scale"
+        };
+      },
+      // 驼峰转中横线
+      toLine(name) {
+        return name.replace(/([A-Z])/g, "-$1").toLowerCase();
+      }
+    }
+  };
+  function _sfc_render$4(_ctx, _cache, $props, $setup, $data, $options) {
+    return vue.withDirectives((vue.openBlock(), vue.createElementBlock("view", {
+      ref: "ani",
+      animation: $data.animationData,
+      class: vue.normalizeClass($props.customClass),
+      style: vue.normalizeStyle($options.transformStyles),
+      onClick: _cache[0] || (_cache[0] = (...args) => $options.onClick && $options.onClick(...args))
+    }, [
+      vue.renderSlot(_ctx.$slots, "default")
+    ], 14, ["animation"])), [
+      [vue.vShow, $data.isShow]
+    ]);
+  }
+  const __easycom_0 = /* @__PURE__ */ _export_sfc(_sfc_main$5, [["render", _sfc_render$4], ["__file", "E:/Projects/SE/ride-sharing-se/node_modules/@dcloudio/uni-ui/lib/uni-transition/uni-transition.vue"]]);
+  const _sfc_main$4 = {
+    name: "uniPopup",
+    components: {},
+    emits: ["change", "maskClick"],
+    props: {
+      // 开启动画
+      animation: {
+        type: Boolean,
+        default: true
+      },
+      // 弹出层类型，可选值，top: 顶部弹出层；bottom：底部弹出层；center：全屏弹出层
+      // message: 消息提示 ; dialog : 对话框
+      type: {
+        type: String,
+        default: "center"
+      },
+      // maskClick
+      isMaskClick: {
+        type: Boolean,
+        default: null
+      },
+      // TODO 2 个版本后废弃属性 ，使用 isMaskClick
+      maskClick: {
+        type: Boolean,
+        default: null
+      },
+      backgroundColor: {
+        type: String,
+        default: "none"
+      },
+      safeArea: {
+        type: Boolean,
+        default: true
+      },
+      maskBackgroundColor: {
+        type: String,
+        default: "rgba(0, 0, 0, 0.4)"
+      },
+      borderRadius: {
+        type: String
+      }
+    },
+    watch: {
+      /**
+       * 监听type类型
+       */
+      type: {
+        handler: function(type) {
+          if (!this.config[type])
+            return;
+          this[this.config[type]](true);
+        },
+        immediate: true
+      },
+      isDesktop: {
+        handler: function(newVal) {
+          if (!this.config[newVal])
+            return;
+          this[this.config[this.type]](true);
+        },
+        immediate: true
+      },
+      /**
+       * 监听遮罩是否可点击
+       * @param {Object} val
+       */
+      maskClick: {
+        handler: function(val) {
+          this.mkclick = val;
+        },
+        immediate: true
+      },
+      isMaskClick: {
+        handler: function(val) {
+          this.mkclick = val;
+        },
+        immediate: true
+      },
+      // H5 下禁止底部滚动
+      showPopup(show) {
+      }
+    },
+    data() {
+      return {
+        duration: 300,
+        ani: [],
+        showPopup: false,
+        showTrans: false,
+        popupWidth: 0,
+        popupHeight: 0,
+        config: {
+          top: "top",
+          bottom: "bottom",
+          center: "center",
+          left: "left",
+          right: "right",
+          message: "top",
+          dialog: "center",
+          share: "bottom"
+        },
+        maskClass: {
+          position: "fixed",
+          bottom: 0,
+          top: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.4)"
+        },
+        transClass: {
+          backgroundColor: "transparent",
+          borderRadius: this.borderRadius || "0",
+          position: "fixed",
+          left: 0,
+          right: 0
+        },
+        maskShow: true,
+        mkclick: true,
+        popupstyle: "top"
+      };
+    },
+    computed: {
+      getStyles() {
+        let res2 = { backgroundColor: this.bg };
+        if (this.borderRadius || "0") {
+          res2 = Object.assign(res2, { borderRadius: this.borderRadius });
+        }
+        return res2;
+      },
+      isDesktop() {
+        return this.popupWidth >= 500 && this.popupHeight >= 500;
+      },
+      bg() {
+        if (this.backgroundColor === "" || this.backgroundColor === "none") {
+          return "transparent";
+        }
+        return this.backgroundColor;
+      }
+    },
+    mounted() {
+      const fixSize = () => {
+        const {
+          windowWidth,
+          windowHeight,
+          windowTop,
+          safeArea,
+          screenHeight,
+          safeAreaInsets
+        } = uni.getSystemInfoSync();
+        this.popupWidth = windowWidth;
+        this.popupHeight = windowHeight + (windowTop || 0);
+        if (safeArea && this.safeArea) {
+          this.safeAreaInsets = safeAreaInsets.bottom;
+        } else {
+          this.safeAreaInsets = 0;
+        }
+      };
+      fixSize();
+    },
+    // TODO vue3
+    unmounted() {
+      this.setH5Visible();
+    },
+    activated() {
+      this.setH5Visible(!this.showPopup);
+    },
+    deactivated() {
+      this.setH5Visible(true);
+    },
+    created() {
+      if (this.isMaskClick === null && this.maskClick === null) {
+        this.mkclick = true;
+      } else {
+        this.mkclick = this.isMaskClick !== null ? this.isMaskClick : this.maskClick;
+      }
+      if (this.animation) {
+        this.duration = 300;
+      } else {
+        this.duration = 0;
+      }
+      this.messageChild = null;
+      this.clearPropagation = false;
+      this.maskClass.backgroundColor = this.maskBackgroundColor;
+    },
+    methods: {
+      setH5Visible(visible = true) {
+      },
+      /**
+       * 公用方法，不显示遮罩层
+       */
+      closeMask() {
+        this.maskShow = false;
+      },
+      /**
+       * 公用方法，遮罩层禁止点击
+       */
+      disableMask() {
+        this.mkclick = false;
+      },
+      // TODO nvue 取消冒泡
+      clear(e) {
+        e.stopPropagation();
+        this.clearPropagation = true;
+      },
+      open(direction) {
+        if (this.showPopup) {
+          return;
+        }
+        let innerType = ["top", "center", "bottom", "left", "right", "message", "dialog", "share"];
+        if (!(direction && innerType.indexOf(direction) !== -1)) {
+          direction = this.type;
+        }
+        if (!this.config[direction]) {
+          formatAppLog("error", "at node_modules/@dcloudio/uni-ui/lib/uni-popup/uni-popup.vue:310", "缺少类型：", direction);
+          return;
+        }
+        this[this.config[direction]]();
+        this.$emit("change", {
+          show: true,
+          type: direction
+        });
+      },
+      close(type) {
+        this.showTrans = false;
+        this.$emit("change", {
+          show: false,
+          type: this.type
+        });
+        clearTimeout(this.timer);
+        this.timer = setTimeout(() => {
+          this.showPopup = false;
+        }, 300);
+      },
+      // TODO 处理冒泡事件，头条的冒泡事件有问题 ，先这样兼容
+      touchstart() {
+        this.clearPropagation = false;
+      },
+      onTap() {
+        if (this.clearPropagation) {
+          this.clearPropagation = false;
+          return;
+        }
+        this.$emit("maskClick");
+        if (!this.mkclick)
+          return;
+        this.close();
+      },
+      /**
+       * 顶部弹出样式处理
+       */
+      top(type) {
+        this.popupstyle = this.isDesktop ? "fixforpc-top" : "top";
+        this.ani = ["slide-top"];
+        this.transClass = {
+          position: "fixed",
+          left: 0,
+          right: 0,
+          backgroundColor: this.bg,
+          borderRadius: this.borderRadius || "0"
+        };
+        if (type)
+          return;
+        this.showPopup = true;
+        this.showTrans = true;
+        this.$nextTick(() => {
+          this.showPoptrans();
+          if (this.messageChild && this.type === "message") {
+            this.messageChild.timerClose();
+          }
+        });
+      },
+      /**
+       * 底部弹出样式处理
+       */
+      bottom(type) {
+        this.popupstyle = "bottom";
+        this.ani = ["slide-bottom"];
+        this.transClass = {
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          paddingBottom: this.safeAreaInsets + "px",
+          backgroundColor: this.bg,
+          borderRadius: this.borderRadius || "0"
+        };
+        if (type)
+          return;
+        this.showPoptrans();
+      },
+      /**
+       * 中间弹出样式处理
+       */
+      center(type) {
+        this.popupstyle = "center";
+        this.ani = ["zoom-out", "fade"];
+        this.transClass = {
+          position: "fixed",
+          display: "flex",
+          flexDirection: "column",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          top: 0,
+          justifyContent: "center",
+          alignItems: "center",
+          borderRadius: this.borderRadius || "0"
+        };
+        if (type)
+          return;
+        this.showPoptrans();
+      },
+      left(type) {
+        this.popupstyle = "left";
+        this.ani = ["slide-left"];
+        this.transClass = {
+          position: "fixed",
+          left: 0,
+          bottom: 0,
+          top: 0,
+          backgroundColor: this.bg,
+          borderRadius: this.borderRadius || "0",
+          display: "flex",
+          flexDirection: "column"
+        };
+        if (type)
+          return;
+        this.showPoptrans();
+      },
+      right(type) {
+        this.popupstyle = "right";
+        this.ani = ["slide-right"];
+        this.transClass = {
+          position: "fixed",
+          bottom: 0,
+          right: 0,
+          top: 0,
+          backgroundColor: this.bg,
+          borderRadius: this.borderRadius || "0",
+          display: "flex",
+          flexDirection: "column"
+        };
+        if (type)
+          return;
+        this.showPoptrans();
+      },
+      showPoptrans() {
+        this.$nextTick(() => {
+          this.showPopup = true;
+          this.showTrans = true;
+        });
+      }
+    }
+  };
+  function _sfc_render$3(_ctx, _cache, $props, $setup, $data, $options) {
+    const _component_uni_transition = resolveEasycom(vue.resolveDynamicComponent("uni-transition"), __easycom_0);
+    return $data.showPopup ? (vue.openBlock(), vue.createElementBlock(
+      "view",
+      {
+        key: 0,
+        class: vue.normalizeClass(["uni-popup", [$data.popupstyle, $options.isDesktop ? "fixforpc-z-index" : ""]])
+      },
+      [
+        vue.createElementVNode(
+          "view",
+          {
+            onTouchstart: _cache[1] || (_cache[1] = (...args) => $options.touchstart && $options.touchstart(...args))
+          },
+          [
+            $data.maskShow ? (vue.openBlock(), vue.createBlock(_component_uni_transition, {
+              key: "1",
+              name: "mask",
+              "mode-class": "fade",
+              styles: $data.maskClass,
+              duration: $data.duration,
+              show: $data.showTrans,
+              onClick: $options.onTap
+            }, null, 8, ["styles", "duration", "show", "onClick"])) : vue.createCommentVNode("v-if", true),
+            vue.createVNode(_component_uni_transition, {
+              key: "2",
+              "mode-class": $data.ani,
+              name: "content",
+              styles: $data.transClass,
+              duration: $data.duration,
+              show: $data.showTrans,
+              onClick: $options.onTap
+            }, {
+              default: vue.withCtx(() => [
+                vue.createElementVNode(
+                  "view",
+                  {
+                    class: vue.normalizeClass(["uni-popup__wrapper", [$data.popupstyle]]),
+                    style: vue.normalizeStyle($options.getStyles),
+                    onClick: _cache[0] || (_cache[0] = (...args) => $options.clear && $options.clear(...args))
+                  },
+                  [
+                    vue.renderSlot(_ctx.$slots, "default", {}, void 0, true)
+                  ],
+                  6
+                  /* CLASS, STYLE */
+                )
+              ]),
+              _: 3
+              /* FORWARDED */
+            }, 8, ["mode-class", "styles", "duration", "show", "onClick"])
+          ],
+          32
+          /* NEED_HYDRATION */
+        )
+      ],
+      2
+      /* CLASS */
+    )) : vue.createCommentVNode("v-if", true);
+  }
+  const __easycom_1 = /* @__PURE__ */ _export_sfc(_sfc_main$4, [["render", _sfc_render$3], ["__scopeId", "data-v-7db519c7"], ["__file", "E:/Projects/SE/ride-sharing-se/node_modules/@dcloudio/uni-ui/lib/uni-popup/uni-popup.vue"]]);
+  const fontData = [
+    {
+      "font_class": "arrow-down",
+      "unicode": ""
+    },
+    {
+      "font_class": "arrow-left",
+      "unicode": ""
+    },
+    {
+      "font_class": "arrow-right",
+      "unicode": ""
+    },
+    {
+      "font_class": "arrow-up",
+      "unicode": ""
+    },
+    {
+      "font_class": "auth",
+      "unicode": ""
+    },
+    {
+      "font_class": "auth-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "back",
+      "unicode": ""
+    },
+    {
+      "font_class": "bars",
+      "unicode": ""
+    },
+    {
+      "font_class": "calendar",
+      "unicode": ""
+    },
+    {
+      "font_class": "calendar-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "camera",
+      "unicode": ""
+    },
+    {
+      "font_class": "camera-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "cart",
+      "unicode": ""
+    },
+    {
+      "font_class": "cart-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "chat",
+      "unicode": ""
+    },
+    {
+      "font_class": "chat-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "chatboxes",
+      "unicode": ""
+    },
+    {
+      "font_class": "chatboxes-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "chatbubble",
+      "unicode": ""
+    },
+    {
+      "font_class": "chatbubble-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "checkbox",
+      "unicode": ""
+    },
+    {
+      "font_class": "checkbox-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "checkmarkempty",
+      "unicode": ""
+    },
+    {
+      "font_class": "circle",
+      "unicode": ""
+    },
+    {
+      "font_class": "circle-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "clear",
+      "unicode": ""
+    },
+    {
+      "font_class": "close",
+      "unicode": ""
+    },
+    {
+      "font_class": "closeempty",
+      "unicode": ""
+    },
+    {
+      "font_class": "cloud-download",
+      "unicode": ""
+    },
+    {
+      "font_class": "cloud-download-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "cloud-upload",
+      "unicode": ""
+    },
+    {
+      "font_class": "cloud-upload-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "color",
+      "unicode": ""
+    },
+    {
+      "font_class": "color-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "compose",
+      "unicode": ""
+    },
+    {
+      "font_class": "contact",
+      "unicode": ""
+    },
+    {
+      "font_class": "contact-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "down",
+      "unicode": ""
+    },
+    {
+      "font_class": "bottom",
+      "unicode": ""
+    },
+    {
+      "font_class": "download",
+      "unicode": ""
+    },
+    {
+      "font_class": "download-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "email",
+      "unicode": ""
+    },
+    {
+      "font_class": "email-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "eye",
+      "unicode": ""
+    },
+    {
+      "font_class": "eye-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "eye-slash",
+      "unicode": ""
+    },
+    {
+      "font_class": "eye-slash-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "fire",
+      "unicode": ""
+    },
+    {
+      "font_class": "fire-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "flag",
+      "unicode": ""
+    },
+    {
+      "font_class": "flag-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "folder-add",
+      "unicode": ""
+    },
+    {
+      "font_class": "folder-add-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "font",
+      "unicode": ""
+    },
+    {
+      "font_class": "forward",
+      "unicode": ""
+    },
+    {
+      "font_class": "gear",
+      "unicode": ""
+    },
+    {
+      "font_class": "gear-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "gift",
+      "unicode": ""
+    },
+    {
+      "font_class": "gift-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "hand-down",
+      "unicode": ""
+    },
+    {
+      "font_class": "hand-down-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "hand-up",
+      "unicode": ""
+    },
+    {
+      "font_class": "hand-up-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "headphones",
+      "unicode": ""
+    },
+    {
+      "font_class": "heart",
+      "unicode": ""
+    },
+    {
+      "font_class": "heart-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "help",
+      "unicode": ""
+    },
+    {
+      "font_class": "help-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "home",
+      "unicode": ""
+    },
+    {
+      "font_class": "home-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "image",
+      "unicode": ""
+    },
+    {
+      "font_class": "image-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "images",
+      "unicode": ""
+    },
+    {
+      "font_class": "images-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "info",
+      "unicode": ""
+    },
+    {
+      "font_class": "info-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "left",
+      "unicode": ""
+    },
+    {
+      "font_class": "link",
+      "unicode": ""
+    },
+    {
+      "font_class": "list",
+      "unicode": ""
+    },
+    {
+      "font_class": "location",
+      "unicode": ""
+    },
+    {
+      "font_class": "location-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "locked",
+      "unicode": ""
+    },
+    {
+      "font_class": "locked-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "loop",
+      "unicode": ""
+    },
+    {
+      "font_class": "mail-open",
+      "unicode": ""
+    },
+    {
+      "font_class": "mail-open-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "map",
+      "unicode": ""
+    },
+    {
+      "font_class": "map-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "map-pin",
+      "unicode": ""
+    },
+    {
+      "font_class": "map-pin-ellipse",
+      "unicode": ""
+    },
+    {
+      "font_class": "medal",
+      "unicode": ""
+    },
+    {
+      "font_class": "medal-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "mic",
+      "unicode": ""
+    },
+    {
+      "font_class": "mic-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "micoff",
+      "unicode": ""
+    },
+    {
+      "font_class": "micoff-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "minus",
+      "unicode": ""
+    },
+    {
+      "font_class": "minus-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "more",
+      "unicode": ""
+    },
+    {
+      "font_class": "more-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "navigate",
+      "unicode": ""
+    },
+    {
+      "font_class": "navigate-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "notification",
+      "unicode": ""
+    },
+    {
+      "font_class": "notification-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "paperclip",
+      "unicode": ""
+    },
+    {
+      "font_class": "paperplane",
+      "unicode": ""
+    },
+    {
+      "font_class": "paperplane-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "person",
+      "unicode": ""
+    },
+    {
+      "font_class": "person-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "personadd",
+      "unicode": ""
+    },
+    {
+      "font_class": "personadd-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "personadd-filled-copy",
+      "unicode": ""
+    },
+    {
+      "font_class": "phone",
+      "unicode": ""
+    },
+    {
+      "font_class": "phone-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "plus",
+      "unicode": ""
+    },
+    {
+      "font_class": "plus-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "plusempty",
+      "unicode": ""
+    },
+    {
+      "font_class": "pulldown",
+      "unicode": ""
+    },
+    {
+      "font_class": "pyq",
+      "unicode": ""
+    },
+    {
+      "font_class": "qq",
+      "unicode": ""
+    },
+    {
+      "font_class": "redo",
+      "unicode": ""
+    },
+    {
+      "font_class": "redo-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "refresh",
+      "unicode": ""
+    },
+    {
+      "font_class": "refresh-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "refreshempty",
+      "unicode": ""
+    },
+    {
+      "font_class": "reload",
+      "unicode": ""
+    },
+    {
+      "font_class": "right",
+      "unicode": ""
+    },
+    {
+      "font_class": "scan",
+      "unicode": ""
+    },
+    {
+      "font_class": "search",
+      "unicode": ""
+    },
+    {
+      "font_class": "settings",
+      "unicode": ""
+    },
+    {
+      "font_class": "settings-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "shop",
+      "unicode": ""
+    },
+    {
+      "font_class": "shop-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "smallcircle",
+      "unicode": ""
+    },
+    {
+      "font_class": "smallcircle-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "sound",
+      "unicode": ""
+    },
+    {
+      "font_class": "sound-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "spinner-cycle",
+      "unicode": ""
+    },
+    {
+      "font_class": "staff",
+      "unicode": ""
+    },
+    {
+      "font_class": "staff-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "star",
+      "unicode": ""
+    },
+    {
+      "font_class": "star-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "starhalf",
+      "unicode": ""
+    },
+    {
+      "font_class": "trash",
+      "unicode": ""
+    },
+    {
+      "font_class": "trash-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "tune",
+      "unicode": ""
+    },
+    {
+      "font_class": "tune-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "undo",
+      "unicode": ""
+    },
+    {
+      "font_class": "undo-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "up",
+      "unicode": ""
+    },
+    {
+      "font_class": "top",
+      "unicode": ""
+    },
+    {
+      "font_class": "upload",
+      "unicode": ""
+    },
+    {
+      "font_class": "upload-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "videocam",
+      "unicode": ""
+    },
+    {
+      "font_class": "videocam-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "vip",
+      "unicode": ""
+    },
+    {
+      "font_class": "vip-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "wallet",
+      "unicode": ""
+    },
+    {
+      "font_class": "wallet-filled",
+      "unicode": ""
+    },
+    {
+      "font_class": "weibo",
+      "unicode": ""
+    },
+    {
+      "font_class": "weixin",
+      "unicode": ""
+    }
+  ];
+  const getVal = (val) => {
+    const reg = /^[0-9]*$/g;
+    return typeof val === "number" || reg.test(val) ? val + "px" : val;
+  };
+  const _sfc_main$3 = {
+    name: "UniIcons",
+    emits: ["click"],
+    props: {
+      type: {
+        type: String,
+        default: ""
+      },
+      color: {
+        type: String,
+        default: "#333333"
+      },
+      size: {
+        type: [Number, String],
+        default: 16
+      },
+      customPrefix: {
+        type: String,
+        default: ""
+      },
+      fontFamily: {
+        type: String,
+        default: ""
+      }
+    },
+    data() {
+      return {
+        icons: fontData
+      };
+    },
+    computed: {
+      unicode() {
+        let code = this.icons.find((v) => v.font_class === this.type);
+        if (code) {
+          return code.unicode;
+        }
+        return "";
+      },
+      iconSize() {
+        return getVal(this.size);
+      },
+      styleObj() {
+        if (this.fontFamily !== "") {
+          return `color: ${this.color}; font-size: ${this.iconSize}; font-family: ${this.fontFamily};`;
+        }
+        return `color: ${this.color}; font-size: ${this.iconSize};`;
+      }
+    },
+    methods: {
+      _onClick() {
+        this.$emit("click");
+      }
+    }
+  };
+  function _sfc_render$2(_ctx, _cache, $props, $setup, $data, $options) {
+    return vue.openBlock(), vue.createElementBlock(
+      "text",
+      {
+        style: vue.normalizeStyle($options.styleObj),
+        class: vue.normalizeClass(["uni-icons", ["uniui-" + $props.type, $props.customPrefix, $props.customPrefix ? $props.type : ""]]),
+        onClick: _cache[0] || (_cache[0] = (...args) => $options._onClick && $options._onClick(...args))
+      },
+      [
+        vue.renderSlot(_ctx.$slots, "default", {}, void 0, true)
+      ],
+      6
+      /* CLASS, STYLE */
+    );
+  }
+  const __easycom_2 = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["render", _sfc_render$2], ["__scopeId", "data-v-946bce22"], ["__file", "E:/Projects/SE/ride-sharing-se/node_modules/@dcloudio/uni-ui/lib/uni-icons/uni-icons.vue"]]);
+  const _imports_0 = "/static/atm-fill.png";
+  const _sfc_main$2 = {
+    components: {
+      NavigationBar,
+      uniPopup: __easycom_1,
+      uniPopupDialog: __easycom_0$1
+    },
+    data() {
+      return {
+        // 经纬度
         latitude: 0,
         longitude: 0,
         isPassenger: true,
+        // 订单显示状态(人找车/车找人)
         searchKeyword: "",
-        orders: [
-          {
-            id: 1,
-            infoType: "乘客",
-            date: "3月7日14:30",
-            startPoint: "创新港(2号)停车场",
-            endPoint: "上海市·台铃电动车(文汇路店)",
-            price: 41,
-            username: "张先生",
-            passengerCount: 2,
-            orderCount: 15,
-            userAvatar: "../../static/user.jpeg"
-          },
-          {
-            id: 2,
-            infoType: "乘客",
-            date: "3月8日08:35",
-            startPoint: "纪丰路327号3号楼",
-            endPoint: "苏州市·苏州大学附属理想眼科医院",
-            price: 62,
-            username: "李女士",
-            passengerCount: 1,
-            orderCount: 8,
-            userAvatar: "../../static/user.jpeg"
-          },
-          {
-            id: 3,
-            infoType: "车主",
-            date: "3月7日17:05",
-            startPoint: "汉庭酒店(上海安亭汽车城)",
-            endPoint: "南通市·丝绸路与通源路交叉口",
-            price: 87,
-            carType: "宝马 宝马5系",
-            maxSeats: 4,
-            orderCount: 12,
-            userAvatar: "../../static/user.jpeg"
-          }
-        ]
+        // 搜索关键字
+        orders: [],
+        // 订单列表
+        isLoading: false,
+        // 加载标志位
+        currentOrderId: null,
+        // 当前操作的订单ID
+        popupTitle: "申请加入",
+        popupContent: "确定要申请加入此行程吗？",
+        currentAction: "",
+        // 'accept' | 'apply'
+        isCarpool: false,
+        // 是否为拼车 
+        // 用于司机接单的数据
+        vehicles: [],
+        // 司机拥有的车辆列表
+        selectedVehicleId: null
+        // 选中的车辆ID
       };
     },
     computed: {
       filteredOrders() {
-        return this.orders.filter((order) => order.infoType === (this.isPassenger ? "乘客" : "车主"));
+        return this.orders.filter((order) => order.infoType === (this.isPassenger ? "人找车" : "车找人"));
       },
       filteredAndSearchedOrders() {
         if (!this.searchKeyword) {
@@ -7074,40 +12808,176 @@ if (uni.restoreGlobal) {
     },
     onLoad() {
       this.initMap();
+      this.initData();
     },
     methods: {
       initMap() {
         this.getLocation();
       },
+      initData() {
+        this.fetchOrders(true);
+      },
       getLocation() {
         if (typeof wx !== "undefined" && wx.getLocation) {
           wx.getLocation({
             type: "wgs84",
-            success: (res) => {
-              this.latitude = res.latitude;
-              this.longitude = res.longitude;
+            success: (res2) => {
+              this.latitude = res2.latitude;
+              this.longitude = res2.longitude;
             },
             fail: (error) => {
-              formatAppLog("error", "at pages/index/home.vue:166", "获取位置失败:", error);
+              formatAppLog("error", "at pages/index/home.vue:247", "获取位置失败:", error);
             }
           });
         } else {
-          formatAppLog("error", "at pages/index/home.vue:170", "当前环境不支持微信小程序的定位功能");
+          formatAppLog("error", "at pages/index/home.vue:251", "当前环境不支持微信小程序的定位功能");
         }
       },
       onMapTap(e) {
-        formatAppLog("log", "at pages/index/home.vue:174", "地图被点击了", e);
+        formatAppLog("log", "at pages/index/home.vue:255", "地图被点击了", e);
       },
       onMarkerTap(e) {
-        formatAppLog("log", "at pages/index/home.vue:177", "标记被点击了", e);
+        formatAppLog("log", "at pages/index/home.vue:258", "标记被点击了", e);
       },
       onRegionChange(e) {
-        formatAppLog("log", "at pages/index/home.vue:180", "地图区域改变", e);
+        formatAppLog("log", "at pages/index/home.vue:261", "地图区域改变", e);
       },
       toggleIdentity(identity) {
         this.isPassenger = identity === "passenger";
       },
-      applyToJoin(orderId) {
+      async fetchOrders(refresh = false) {
+        if (this.isLoading && !refresh)
+          return;
+        try {
+          this.isLoading = true;
+          formatAppLog("log", "at pages/index/home.vue:274", "获取首页订单数据");
+          const res2 = await fetchOrderList();
+          formatAppLog("log", "at pages/index/home.vue:276", res2.data);
+          if (refresh) {
+            this.orders = res2.data || [];
+            formatAppLog("log", "at pages/index/home.vue:279", this.orders);
+          } else {
+            this.orders = [...this.orders, ...res2.data || []];
+          }
+        } catch (error) {
+          uni.showToast({
+            title: `加载失败: ${error.message}`,
+            icon: "none",
+            duration: 2e3
+          });
+          formatAppLog("error", "at pages/index/home.vue:290", "获取订单失败:", error);
+        } finally {
+          this.isLoading = false;
+          uni.stopPullDownRefresh();
+        }
+      },
+      // 司机接单按钮点击事件
+      async handleDriverAction(order) {
+        formatAppLog("log", "at pages/index/home.vue:298", "司机接单按钮点击事件");
+        try {
+          const res2 = await fetchCars();
+          formatAppLog("log", "at pages/index/home.vue:302", "fetch car res", res2);
+          if (res2.data.count !== 0) {
+            this.vehicles = res2.data.vehicles;
+            this.currentOrderId = order.id;
+            this.$refs.vehiclePopup.open();
+          } else {
+            throw new Error("您还没有可用的车辆");
+          }
+        } catch (error) {
+          uni.showToast({ title: error.message, duration: 2e3, icon: "none" });
+        }
+      },
+      // 车辆选择确认
+      async confirmVehicleSelection() {
+        if (!this.selectedVehicleId) {
+          uni.showToast({ title: "请选择车辆", icon: "none" });
+          return;
+        }
+        this.$refs.vehiclePopup.close();
+        this.currentAction = "accept";
+        this.popupTitle = "确认接单";
+        this.popupContent = `确定使用选中的车辆接单吗？`;
+        this.$refs.actionPopup.open();
+      },
+      // 乘客申请按钮点击事件
+      handlePassengerAction(order) {
+        formatAppLog("log", "at pages/index/home.vue:330", "乘客申请按钮点击事件");
+        this.currentOrderId = order.id;
+        this.currentAction = "apply";
+        this.isCarpool = order.infoType === "人找车";
+        this.popupType = "info";
+        this.popupTitle = this.isCarpool ? "申请拼车" : "申请搭车";
+        this.popupContent = `确定要${this.isCarpool ? "拼车" : "搭车"}吗？`;
+        this.$refs.actionPopup.open();
+        this.currentOrderId = order.id;
+      },
+      // 弹窗确认操作
+      async handleConfirm() {
+        try {
+          formatAppLog("log", "at pages/index/home.vue:343", "弹窗确认操作");
+          uni.showLoading({ title: "处理中...", mask: true });
+          if (this.currentAction === "accept") {
+            await this.acceptOrder();
+          } else {
+            await this.applyOrder();
+          }
+          ;
+          uni.showToast({
+            title: this.getSuccessMessage(),
+            icon: "none"
+          });
+        } catch (error) {
+          this.popupType = "error";
+          this.popupContent = error.message;
+          this.$refs.actionPopup.open();
+        } finally {
+          uni.hideLoading();
+        }
+        this.$emit("refresh");
+      },
+      // 获取成功提示消息
+      getSuccessMessage() {
+        if (this.currentAction === "accept")
+          return "接单成功";
+        return this.isCarpool ? "拼车申请已提交" : "搭车申请已提交";
+      },
+      // 接单API
+      async acceptOrder() {
+        formatAppLog("log", "at pages/index/home.vue:372", "调用接单API");
+        try {
+          const res2 = await acceptOrder({
+            orderId: this.currentOrderId,
+            vehicleId: this.selectedVehicleId
+          });
+          this.fetchOrders(true);
+        } catch (error) {
+          uni.showToast({
+            title: res.message || "接单失败",
+            icon: "none"
+          });
+        }
+      },
+      // 申请API
+      async applyOrder() {
+        formatAppLog("log", "at pages/index/home.vue:390", "调用申请API");
+        try {
+          const res2 = await applyOrder({
+            orderId: this.currentOrderId
+          });
+          formatAppLog("log", "at pages/index/home.vue:395", res2);
+          this.fetchOrders(true);
+        } catch (error) {
+          uni.showToast({
+            title: res.message || "申请失败",
+            icon: "none"
+          });
+        }
+      },
+      // 关闭弹窗
+      closePopup() {
+        this.currentOrderId = null;
+        this.currentAction = "";
       },
       handleSearch() {
       }
@@ -7119,6 +12989,9 @@ if (uni.restoreGlobal) {
   };
   function _sfc_render$1(_ctx, _cache, $props, $setup, $data, $options) {
     const _component_NavigationBar = vue.resolveComponent("NavigationBar");
+    const _component_uni_popup_dialog = resolveEasycom(vue.resolveDynamicComponent("uni-popup-dialog"), __easycom_0$1);
+    const _component_uni_popup = resolveEasycom(vue.resolveDynamicComponent("uni-popup"), __easycom_1);
+    const _component_uni_icons = resolveEasycom(vue.resolveDynamicComponent("uni-icons"), __easycom_2);
     return vue.openBlock(), vue.createElementBlock(
       vue.Fragment,
       null,
@@ -7129,6 +13002,7 @@ if (uni.restoreGlobal) {
           vue.createCommentVNode(" 其他内容 ")
         ]),
         vue.createElementVNode("view", { class: "container" }, [
+          vue.createCommentVNode(" 地图部分 "),
           vue.createElementVNode("map", {
             id: "baiduMap",
             class: "map-container",
@@ -7143,6 +13017,7 @@ if (uni.restoreGlobal) {
             onMarkertap: _cache[1] || (_cache[1] = (...args) => $options.onMarkerTap && $options.onMarkerTap(...args)),
             onRegionchange: _cache[2] || (_cache[2] = (...args) => $options.onRegionChange && $options.onRegionChange(...args))
           }, null, 40, ["latitude", "longitude"]),
+          vue.createCommentVNode(" 搜索和身份切换栏 "),
           vue.createElementVNode("view", { class: "bar" }, [
             vue.createElementVNode("image", {
               src: _imports_0,
@@ -7152,7 +13027,7 @@ if (uni.restoreGlobal) {
               "input",
               {
                 class: "search-input",
-                placeholder: "搜索栏",
+                placeholder: "输入地点或路线搜索",
                 "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => $data.searchKeyword = $event),
                 onInput: _cache[4] || (_cache[4] = (...args) => $options.handleSearch && $options.handleSearch(...args))
               },
@@ -7162,14 +13037,17 @@ if (uni.restoreGlobal) {
             ), [
               [vue.vModelText, $data.searchKeyword]
             ]),
-            vue.createElementVNode("view", { class: "switch" }, [
+            vue.createElementVNode("view", {
+              class: "switch",
+              style: { "width": "260rpx" }
+            }, [
               vue.createElementVNode(
                 "text",
                 {
                   class: vue.normalizeClass({ "active": $data.isPassenger }),
                   onClick: _cache[5] || (_cache[5] = ($event) => $options.toggleIdentity("passenger"))
                 },
-                "乘客",
+                "人找车",
                 2
                 /* CLASS */
               ),
@@ -7179,17 +13057,33 @@ if (uni.restoreGlobal) {
                   class: vue.normalizeClass({ "active": !$data.isPassenger }),
                   onClick: _cache[6] || (_cache[6] = ($event) => $options.toggleIdentity("driver"))
                 },
-                "车主",
+                "车找人",
                 2
                 /* CLASS */
               )
             ])
           ]),
+          vue.createCommentVNode(" 订单列表 "),
           vue.createElementVNode("scroll-view", {
             class: "order-scroll",
             "scroll-y": "true",
             style: { "height": "calc(100vh - 200px)" }
           }, [
+            vue.createCommentVNode(" 空状态提示 "),
+            $options.filteredAndSearchedOrders.length === 0 ? (vue.openBlock(), vue.createElementBlock("view", {
+              key: 0,
+              class: "empty-tip"
+            }, [
+              vue.createElementVNode("image", {
+                src: _imports_1$4,
+                class: "empty-icon",
+                mode: "widthFix"
+              }),
+              vue.createElementVNode("text", {
+                class: "empty-text",
+                style: { "display": "block", "margin-top": "20rpx" }
+              }, "暂无匹配的行程")
+            ])) : vue.createCommentVNode("v-if", true),
             (vue.openBlock(true), vue.createElementBlock(
               vue.Fragment,
               null,
@@ -7199,6 +13093,7 @@ if (uni.restoreGlobal) {
                   key: order.id
                 }, [
                   vue.createElementVNode("view", { class: "order-card" }, [
+                    vue.createCommentVNode(" 订单头部内容 "),
                     vue.createElementVNode("view", { class: "order-header" }, [
                       vue.createElementVNode(
                         "text",
@@ -7207,15 +13102,25 @@ if (uni.restoreGlobal) {
                         1
                         /* TEXT */
                       ),
-                      vue.createElementVNode("button", {
-                        class: "join-button",
-                        onClick: ($event) => $options.applyToJoin(order.id)
-                      }, "发单邀请Ta", 8, ["onClick"])
+                      vue.createCommentVNode(" 按钮 "),
+                      vue.createElementVNode("view", { class: "button-group" }, [
+                        vue.createCommentVNode(" 司机可操作按钮 "),
+                        order.infoType === "人找车" ? (vue.openBlock(), vue.createElementBlock("button", {
+                          key: 0,
+                          class: "accept-button",
+                          onClick: ($event) => $options.handleDriverAction(order)
+                        }, " 接单 ", 8, ["onClick"])) : vue.createCommentVNode("v-if", true),
+                        vue.createCommentVNode(" 乘客可操作按钮 "),
+                        vue.createElementVNode("button", {
+                          class: "join-button",
+                          onClick: ($event) => $options.handlePassengerAction(order)
+                        }, vue.toDisplayString(order.infoType === "人找车" ? "申请拼车" : "申请搭车"), 9, ["onClick"])
+                      ])
                     ]),
                     vue.createElementVNode("view", { class: "order-details" }, [
                       vue.createElementVNode("view", { class: "start-point" }, [
                         vue.createElementVNode("image", {
-                          src: _imports_1$1,
+                          src: _imports_1$2,
                           class: "icon",
                           style: { "height": "20px", "width": "20px" }
                         }),
@@ -7251,7 +13156,7 @@ if (uni.restoreGlobal) {
                         }, null, 8, ["src"]),
                         vue.createElementVNode("view", { class: "user-info" }, [
                           vue.createCommentVNode(" 根据身份显示不同信息 "),
-                          order.infoType === "乘客" ? (vue.openBlock(), vue.createElementBlock("view", {
+                          order.infoType === "人找车" ? (vue.openBlock(), vue.createElementBlock("view", {
                             key: 0,
                             class: "passenger-info"
                           }, [
@@ -7319,7 +13224,105 @@ if (uni.restoreGlobal) {
               128
               /* KEYED_FRAGMENT */
             ))
-          ])
+          ]),
+          vue.createCommentVNode(" 申请加入的弹窗 "),
+          vue.createVNode(
+            _component_uni_popup,
+            {
+              ref: "actionPopup",
+              type: "dialog"
+            },
+            {
+              default: vue.withCtx(() => [
+                vue.createVNode(_component_uni_popup_dialog, {
+                  mode: "base",
+                  title: $data.popupTitle,
+                  content: $data.popupContent,
+                  duration: 2e3,
+                  onConfirm: $options.handleConfirm,
+                  onClose: $options.closePopup
+                }, null, 8, ["title", "content", "onConfirm", "onClose"])
+              ]),
+              _: 1
+              /* STABLE */
+            },
+            512
+            /* NEED_PATCH */
+          ),
+          vue.createCommentVNode(" 车辆选择弹窗 "),
+          vue.createVNode(
+            _component_uni_popup,
+            {
+              ref: "vehiclePopup",
+              type: "bottom"
+            },
+            {
+              default: vue.withCtx(() => [
+                vue.createElementVNode("view", { class: "vehicle-picker" }, [
+                  vue.createElementVNode("view", { class: "picker-header" }, [
+                    vue.createElementVNode("text", { class: "title" }, "选择接单车辆"),
+                    vue.createVNode(_component_uni_icons, {
+                      type: "close",
+                      size: "24",
+                      onClick: _cache[7] || (_cache[7] = ($event) => {
+                        this.$refs.vehiclePopup.close();
+                      })
+                    })
+                  ]),
+                  vue.createElementVNode("scroll-view", {
+                    "scroll-y": "",
+                    class: "vehicle-list"
+                  }, [
+                    (vue.openBlock(true), vue.createElementBlock(
+                      vue.Fragment,
+                      null,
+                      vue.renderList($data.vehicles, (vehicle) => {
+                        return vue.openBlock(), vue.createElementBlock("view", {
+                          key: vehicle.car_id,
+                          class: vue.normalizeClass(["vehicle-item", { active: $data.selectedVehicleId === vehicle.car_id }]),
+                          onClick: ($event) => $data.selectedVehicleId = vehicle.car_id
+                        }, [
+                          vue.createElementVNode("view", { class: "vehicle-info" }, [
+                            vue.createElementVNode(
+                              "text",
+                              { class: "model" },
+                              vue.toDisplayString(vehicle.brand_model),
+                              1
+                              /* TEXT */
+                            ),
+                            vue.createElementVNode(
+                              "text",
+                              { class: "plate" },
+                              vue.toDisplayString(vehicle.plate_number),
+                              1
+                              /* TEXT */
+                            )
+                          ]),
+                          $data.selectedVehicleId === vehicle.car_id ? (vue.openBlock(), vue.createBlock(_component_uni_icons, {
+                            key: 0,
+                            type: "checkmark-filled",
+                            color: "#007AFF",
+                            size: "20"
+                          })) : vue.createCommentVNode("v-if", true)
+                        ], 10, ["onClick"]);
+                      }),
+                      128
+                      /* KEYED_FRAGMENT */
+                    ))
+                  ]),
+                  vue.createElementVNode("button", {
+                    class: "confirm-btn",
+                    onClick: _cache[8] || (_cache[8] = (...args) => $options.confirmVehicleSelection && $options.confirmVehicleSelection(...args)),
+                    disabled: !$data.selectedVehicleId
+                  }, " 确认选择 ", 8, ["disabled"])
+                ])
+              ]),
+              _: 1
+              /* STABLE */
+            },
+            512
+            /* NEED_PATCH */
+          )
         ])
       ],
       64
@@ -7535,8 +13538,8 @@ if (uni.restoreGlobal) {
           uni.showModal({
             title: "确认删除",
             content: "确定要删除此订单吗？",
-            success: (res) => {
-              if (res.confirm) {
+            success: (res2) => {
+              if (res2.confirm) {
                 this.deleteOrder(order.id);
               }
             }
@@ -7720,7 +13723,7 @@ if (uni.restoreGlobal) {
                     vue.createElementVNode("view", { class: "order-details" }, [
                       vue.createElementVNode("view", { class: "start-point" }, [
                         vue.createElementVNode("image", {
-                          src: _imports_1$1,
+                          src: _imports_1$2,
                           class: "icon",
                           style: { "height": "20px", "width": "20px" }
                         }),

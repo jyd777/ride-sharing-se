@@ -1,10 +1,5 @@
 import { get, post } from '@/utils/request.js'
 
-// 获取用户车辆列表
-export const fetchUserVehicles = (userId) => {
-  return get(`/user/cars/${userId}`);
-};
-
 /**
  * 获取当前用户基本信息
  * @returns {Promise<UserInfo>}
@@ -55,14 +50,8 @@ export const fetchUserModifiableData = () => {
  * @param {number} userId - 用户ID
  * @returns {Promise}
  */
-export const fetchCars = (userId) => {
-  return get(`/user/cars/${userId}`).then(res => {
-	console.log(res.data);
-    return {
-      ...res.data
-    };
-	
-  });
+export const fetchCars = () => {
+  return get("/user/cars")
 };
 
 /**
@@ -71,15 +60,10 @@ export const fetchCars = (userId) => {
  * @returns Promise
  */
 export const updateUserInfo = (data) => {
-  return post(`/user/update`, data, {
+  return post("/user/update", data, {
     showLoading: true,
     loadingText: "正在更新用户信息..."
-  }).then(res => {
-    if (res.code !== 200) {
-      throw new Error(res.message || '更新失败');
-    }
-    return res;
-  });
+  })
 };
 
 /**

@@ -20,38 +20,48 @@
           </view>
         </view>
       </view>
-<!-- 修改 menu-items 部分的代码 -->
-<view class="flex-row menu-items">
-  <view class="flex-col items-center equal-division-item" @click="info_manage">
+      <!-- 修改 menu-items 部分的代码 -->
+      <view class="flex-row menu-items">
+        <view class="flex-col items-center equal-division-item" @click="info_manage">
     <image
       class="menu-icon"
       src="../../static/info-manage.png"
     />
     <text class="menu-text">信息编辑</text>
-  </view>
-  <view class="flex-col items-center equal-division-item" @click="car_manage">
+        </view>
+        <view class="flex-col items-center equal-division-item" @click="car_manage">
     <image
       class="menu-icon"
       src="../../static/car-manage.png"
     />
     <text class="menu-text">车牌管理</text>
-  </view>
-  <view class="flex-col items-center equal-division-item" @click="calendar">
+        </view>
+        <view class="flex-col items-center equal-division-item" @click="calendar">
     <image
       class="menu-icon"
       src="../../static/calendar.png"
     />
     <text class="menu-text">出行日历</text>
-  </view>
-</view>
+        </view>
+      </view>
     </view>
+    <!-- 查看所有其他的订单 -->
     <div class="trip-info-card">
       <div class="trip-scroll">
+
 		    <!-- 添加悬浮按钮 -->
 		    <button class="floating-button" @click="viewAllTrips">
 		      <image src="../../static/see-all.png" class="floating-icon" />
 		      <text class="floating-text">所有</text>
 		    </button>
+
+        <!-- 空状态提示 -->
+        <div class="empty-tip" v-if="recentTrips.length === 0">
+          <image src="../../static/empty.png" class="empty-icon" />
+          <text class="empty-text">暂无行程记录</text>
+        </div>
+        
+        <!-- 行程卡片列表 -->
         <div class="trip-card" v-for="trip in recentTrips" :key="trip.id">
           <div class="trip-header">
             <text class='trip-date'>{{ formatDate(trip.date) }}</text>
@@ -477,5 +487,24 @@ nav ul li a:hover {
 .floating-text {
   font-size: 10px;
   font-weight: bold;
+}
+
+.empty-tip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+.empty-icon {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 16px;
+}
+
+.empty-text {
+  font-size: 16px;
+  color: #999;
 }
 </style>

@@ -129,8 +129,8 @@ export default {
      // 新增订单状态选项
      statusOptions: [
        { name: '全部', value: 'all' },
-	   { name: '待审核', value: 'pending' },
-	   { name: '被拒绝', value: 'rejected' },
+	     { name: '待审核', value: 'pending' },
+	     { name: '被拒绝', value: 'rejected' },
        { name: '待支付', value: 'to-pay' },
        { name: '已完成', value: 'completed' },
        { name: '待评价', value: 'to-review' },
@@ -327,8 +327,8 @@ export default {
         'to-review': '待评价',
         'not-started': '未开始',
         'in-progress': '进行中',
-		'to-pay': '待支付',
-		'rejected': '被拒绝'
+		    'to-pay': '待支付',
+		    'rejected': '被拒绝'
       };
       return map[status] || '未知状态';
     },

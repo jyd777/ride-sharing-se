@@ -8,14 +8,14 @@
           :class="{ 'selected': identity === 'driver' }"
           @click="identity = 'driver'"
         >
-          车主
+          我是车主/找乘客
         </view>
         <view
           class="identity-option"
           :class="{ 'selected': identity === 'passenger' }"
           @click="identity = 'passenger'"
         >
-          乘客
+          我是乘客/找车主
         </view>
       </view>
 
@@ -185,14 +185,15 @@
 <script>
 import NavigationBar from '../../components/NavigationBar.vue';
 import { publishOrder } from '@/api/order.js';
-import {fetchUserVehicles} from '@/api/user.js';
+import {fetchCars} from '@/api/user.js';
 export default {
   components: {
     NavigationBar
   },
   data() {
     return {
-      identity: 'driver', // 默认身份 'driver' 或 'passenger'
+      identity: 'driver',   // 默认身份 'driver' 或 'passenger'
+	  order_type: '车找人',  // 订单类型 "车找人" "人找车"
       startAddress: '',   // 起点名称
       endAddress: '',     // 终点名称
       startSuggestions: [], // 起点建议列表
@@ -272,12 +273,11 @@ export default {
 
       uni.showLoading({ title: '加载车辆...' });
       try {
-        const res = await fetchUserVehicles(this.userId);
+        const res = await fetchCars();
 
-        if (Array.isArray(res.data)) {
-          console.log(res.data);
-          this.vehicleList = res.data; // 保留完整的车辆信息
-          this.vehiclePlateNumbers = res.data.map(vehicle => vehicle.plate_number); // 提取车牌号
+        if (Array.isArray(res.data.vehicles)) {
+          this.vehicleList = res.data.vehicles; // 保留完整的车辆信息
+          this.vehiclePlateNumbers = res.data.vehicles.map(vehicle => vehicle.plate_number); // 提取车牌号
           console.log("从后端获取车辆列表成功:", this.vehicleList);
           if (this.vehicleList.length === 0 && this.identity === 'driver') {
             uni.showToast({ title: '您还未添加车辆信息', icon: 'none' });
@@ -558,9 +558,11 @@ export default {
       }
 
       // 构造订单数据
+	  this.order_type = this.identity === 'driver' ? '车找人' : '人找车';
       const orderData = {
         initiator_id: this.userId,
         identity: this.identity,
+		order_type: this.order_type,
         startAddress: this.startAddress,
         endAddress: this.endAddress,
         departureTime: `${this.departureDate} ${this.departureTime}:00`,

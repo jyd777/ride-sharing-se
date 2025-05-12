@@ -15,6 +15,14 @@
       <!-- 聊天列表 -->
       <scroll-view class="chat-list" scroll-y="true">
         <view class="chat-list-content">
+          <!-- 空状态提示 -->
+          <view class="empty-chat-tip" v-if="processedListWithAvatars.length === 0">
+            <image class="empty-chat-icon" src="../../static/empty.png" />
+            <text class="empty-chat-text">暂无聊天记录</text>
+            <text class="empty-chat-hint">快去和司机/乘客聊聊吧</text>
+          </view>
+          
+          <!-- 聊天列表 -->
           <view 
             v-for="(chat, index) in processedListWithAvatars" 
             :key="index" 
@@ -438,5 +446,32 @@ export default {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.empty-chat-tip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 20px;
+  text-align: center;
+}
+
+.empty-chat-icon {
+  width: 120px;
+  height: 120px;
+  margin-bottom: 20px;
+  opacity: 0.6;
+}
+
+.empty-chat-text {
+  font-size: 18px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.empty-chat-hint {
+  font-size: 14px;
+  color: #999;
 }
 </style>

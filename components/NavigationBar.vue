@@ -25,11 +25,8 @@ export default {
   },
   created() {
     // 在组件创建时从缓存中获取 is_manager 的值
-    const storedValue = uni.getStorageSync('is_manager');
-    console.log('Stored is_manager value:', storedValue); // 调试输出
-    if (storedValue !== undefined && storedValue !== null) {
-      this.is_manager = parseInt(storedValue, 10) || 0; // 确保值为数字类型，默认为 0
-    }
+    const user_info = uni.getStorageSync('user_info');
+	this.is_manager = user_info.is_manager ? 1 : 0;
   },
   methods: {
     home() {

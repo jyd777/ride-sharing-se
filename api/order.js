@@ -5,6 +5,11 @@ export const publishOrder = (orderData) => {
   return post('/orders', orderData);
 };
 
+// 获取订单列表
+export const fetchOrderList = () => {
+  return get('orders/list');
+};
+
 // 支付订单
 export const payOrder = (orderId) => {
   return post(`/orders/${orderId}/paid`);
@@ -20,6 +25,7 @@ export const submitTripRating = (orderId, payload) => {
   return post(`/orders/${orderId}/rate`, payload);
 };
 
+// 获取日历行程
 export const fetchCalendarTrips = (year, month, userId) => {
   return get(`/orders/calendar/${userId}`, { 
     params: { year, month }
@@ -44,6 +50,7 @@ export const fetchCalendarTrips = (year, month, userId) => {
   });
 };
 
+// 获取用户的行程
 export function fetchUserTrips() {
   return get( `/orders/user/trips`);
 }
@@ -85,5 +92,22 @@ export const rejectOrder = (orderId, reason) => {
   return post(`/orders/manage/${orderId}/reject`, { reason });
 };
 
+/**
+ * 司机接单
+ * @param {Object} data - { orderId: number, vehicleId: number }
+ * @returns {Promise}
+ */
+export const acceptOrder = (data) => {
+  return post('/orders/driver/accept', data);
+};
 
+/**
+ * 乘客申请
+ * @param {Object} data - { orderId: number }
+ * @returns {Promise}
+ */
+export const applyOrder = (data) => {
+  console.log("applyOrder接口被调用")
+  return post('/orders/passenger/apply', data);
+};
 

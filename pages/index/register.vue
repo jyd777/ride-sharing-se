@@ -155,7 +155,7 @@ export default {
 			console.log("注册成功", res);
 			this.goToLogin(); // 跳转到登陆界面
 		}).catch(err => {
-			console.log('注册失败：', err);
+			console.log('注册失败：', err.message);
 		})
 		
       } else {

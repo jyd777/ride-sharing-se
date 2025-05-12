@@ -1,21 +1,26 @@
 <template>
   <view class="flex-col page">
+    <!-- 聊天顶部 -->
     <view class="flex-row align-items-center section" style="position: relative;height:30px">
       <image class="back" src="../../static/back.png" @click="goBack" />
+      <!-- 显示聊天的Title -->
       <text class="font text ml-39-5" style="color:white;font-size:20px;">{{ other_username }}</text>
+      <!-- 显示聊天的头像 -->
       <image
         class="otherAvatar"
         :src="otherAvatar"
         style="position: absolute; right: 70rpx;"
       />
     </view>
-	
+    
+    <!-- 滚动视图 -->
     <scroll-view 
-		class="flex-col group message-container"
-		scroll-y 
-		:scroll-into-view="lastMsgId"
-		:scroll-with-animation="true"
-		style="margin-bottom: 100rpx;">
+	  	class="message-container"
+	  	scroll-y 
+	  	:scroll-into-view="lastMsgId"
+	  	:scroll-with-animation="true"
+	  >
+      <!-- 显示消息 -->
       <view
         v-for="(message, index) in messages"
 		:id="'msg-' + message.id"
@@ -75,6 +80,33 @@
         </view>
       </view>
     </scroll-view>
+	
+	<!-- 底部输入框（固定位置） -->
+	<view class="flex-row items-center section_4">
+	  <image
+	    class="photo"
+	    src="../../static/photo.png"
+	    @click="chooseImage"
+	  />
+	  <input
+	    class="ml-20 flex-1 input_mes"
+	    v-model="inputMessage"
+	    placeholder="输入消息..."
+	    focus
+	    @focus="focusInput"
+	    @blur="blurInput"
+	  />
+	  <image
+	    class="send"
+	    src="../../static/send.png"
+	    @click="sendMessage"
+	  />
+	  <image
+	    class="order"
+	    src="../../static/icon-order.png"
+	    @click="showOrderPopup"
+	  />
+	</view>
     
     <!-- 订单选择弹窗 -->
     <view v-if="showOrderPopupFlag" class="custom-popup-mask" @click="closeOrderPopup">
@@ -148,32 +180,6 @@
       @close="closeInvitePopup"
     />
     
-    <view class="flex-row items-center section_4">
-      <image
-        class="photo"
-        src="../../static/photo.png"
-        @click="chooseImage"
-      />
-      <input
-        class="ml-20 flex-1 input_mes"
-        v-model="inputMessage"
-        placeholder="输入消息..."
-        focus
-        @focus="focusInput"
-        @blur="blurInput"
-      />
-      <image
-        class="send"
-        src="../../static/send.png"
-        @click="sendMessage"
-      />
-      <image
-        class="order"
-        src="../../static/icon-order.png"
-        @click="showOrderPopup"
-      />
-    </view>
-    
     <!-- 全屏显示图片 -->
     <view v-if="isPreviewing" class="preview-container" @click="closePreview">
       <image
@@ -182,6 +188,8 @@
         mode="widthFix"
       />
     </view>
+	
+	<!-- 展示车辆列表的弹窗 -->
     <view v-if="showVehiclePopup" class="custom-popup-mask" @click="showVehiclePopup = false">
       <view class="custom-popup-content" @click.stop>
         <view class="popup-header">
@@ -218,6 +226,7 @@
         </button>
       </view>
     </view>
+  
   </view>
 </template>
 
@@ -232,21 +241,16 @@ export default {
   },
   data() {
     return {
-	  conversationId: null, // 会话ID
+	  conversationId: null,  // 会话ID
       userAvatar: '../../static/user_2.jpg',
       otherAvatar: '../../static/user.jpeg',
-      username: '测试者',          // 当前用户
-      other_username: 'JYD777',    // 对方用户
-      inputMessage: '',
-      messages: [
-        { sender: 'user', content: '你好，JYD777！' },
-        { sender: 'other', content: '你好！' },
-        { sender: 'user', content: '你想拼车吗？' },
-        { sender: 'other', content: '当然！' }
-      ],
-      driverOrders: [],
-      passengerOrders: [],
-      invites: [],
+      username: '测试者',         // 当前用户
+      other_username: 'JYD777',  // 对方用户
+      inputMessage: '',    // 消息输入框信息
+      messages: [],        // 消息列表
+      driverOrders: [],    // 车找人的订单
+      passengerOrders: [], // 人找车的订单
+      invites: [],         // 拼车邀请信息
       showInvite: false,
       currentInvite: {},
       selectedOrderId: null,
@@ -255,8 +259,9 @@ export default {
       isPreviewing: false,
       previewImageSrc: '',
       showVehiclePopup: false, // 控制车辆选择弹窗的显示
-      selectedVehicle: null, // 用户选择的车辆
-      vehicles: [] // 用户的车辆列表
+      selectedVehicle: null,   // 用户选择的车辆
+      vehicles: [],            // 用户的车辆列表
+	  hasJoined: false,
     };
   },
   computed: {
@@ -265,28 +270,31 @@ export default {
     }
   },
   onLoad(options) {
-	console.log('接收到的参数:', options);
 	this.conversationId = options.conversationId;
 	this.initChatPage();
 	
 	// 先移除可能存在的旧监听器
 	SocketService.off('new_message', this.handleNewMessage);
 	SocketService.off('message_error');
-	
-	// 加入Socket房间
-	SocketService.emit('join_conversation', {
-	  conversationId: this.conversationId
-	});
 	// 消息监听
 	SocketService.on('new_message', this.handleNewMessage);
 	SocketService.on('message_error', (error) => {
 	  uni.showToast({ title: error.error, icon: 'none' });
 	});
+	
+	// 加入Socket房间
+	if (!this.hasJoined) {
+	  SocketService.emit('join_conversation', { conversationId: this.conversationId });
+	  this.hasJoined = true;
+	}
   },
   onUnload() {
+	// 离开房间并移除监听器
+	SocketService.emit('leave_conversation', { conversationId: this.conversationId });
   	// 取消监听
   	SocketService.off('new_message');
   	SocketService.off('message_error');
+	this.hasJoined = false;
   },
   methods: {
     goBack() {
@@ -301,9 +309,8 @@ export default {
 			console.error("初始化失败", err);
 		}
 	},
-	
+	// 获取会话消息
 	async fetchMessages() {
-		// 获取会话消息
 		try {
 			const currentUserId = uni.getStorageSync('user_info').userId;
 			const currentUsername = uni.getStorageSync('user_info').username;
@@ -336,7 +343,7 @@ export default {
 			});
 		}
 	},
-    
+    // 发送消息
     sendMessage() {
 		const msg = this.inputMessage.trim();
 		if (!msg) return;
@@ -347,26 +354,36 @@ export default {
 		
 		sendMessage(this.conversationId, msg);
     },
-    
+    // 处理新消息
 	handleNewMessage(msg) {
-	  // 检查是否已经处理过该消息
-	  if (this.messages.some(m => m.id === msg.id)) {
-	    return;
+	  // 如果消息已存在则直接返回
+	    if (this.messages.some(m => m.id === msg.id)) {
+	      return;
+	    }
+	  console.log("新消息", msg);
+	  const sender_id = msg.sender.id;
+	  const my_id = uni.getStorageSync('user_info').userId;
+	  if (!sender_id || !my_id) {
+	      return;
 	  }
 	  
-	  // 回调函数：处理新消息
-	  console.log("接受到new_message信号");
+	  const isCurrentUser = String(sender_id) === String(my_id);
+	  
 	  if (msg.conversationId === this.conversationId) {
-	    const isCurrentUser = msg.sender.userId === uni.getStorageSync('user_info').user_id;
-	    
-	    this.messages.push({
+	    const newMsg = {
 	      id: msg.id,
 	      sender: isCurrentUser ? 'user' : 'other',
 	      content: msg.content,
 	      createdAt: new Date(msg.createdAt),
 	      senderInfo: msg.sender
-	    });
-	  }
+	    };
+		this.messages = [...this.messages, newMsg];
+	  };
+	  
+	  // 下一个tick滚动到底部
+	  this.$nextTick(() => {
+	    this.scrollToBottom();
+	  });
 	},
 	
     getRandomReply() {
