@@ -87,6 +87,7 @@ export default {
 	await this.processConversationList();     // 处理会话列表数据
   },
   methods: {
+	// 获取当前用户基本信息
     async fetchCurrentUser() {
 		fetchBasicUserInfo().then(res => {
 			this.currentUser.username = res.data.username;
@@ -95,7 +96,7 @@ export default {
 			console.log('获取用户基本信息失败：', err);
 		});
     },
-	
+	// 获取会话列表数据
 	async fetchConversationListData() {
 		try {
 			const res = await fetchUserConversations();
@@ -105,7 +106,7 @@ export default {
 			console.log('获取用户会话列表失败：', err);
 		}
 	},
-	
+	// 处理获取到的会话列表数据
 	async processConversationList() {
 		try {
 			const processed = [];
@@ -173,7 +174,7 @@ export default {
 			console.error('处理会话列表失败:', err);
 		}
 	},
-
+	// 生成群聊头像
     async generateGroupAvatar(groupId, members) {
       // 如果有缓存，直接返回
       if (this.groupAvatarCache[groupId]) {
@@ -295,15 +296,9 @@ export default {
     },
     
     goToChat(conversation) {
-      uni.navigateTo({
-        url: `/pages/index/chat?conversationId=${conversation.id}`,
-		success: () => {
-		  console.log('跳转成功');
-		},
-		fail: (err) => {
-		  console.error('跳转失败:', err);
-		}
-      });
+	  // 跳转到聊天界面
+	  uni.setStorageSync('tempChatData', conversation);
+      uni.navigateTo({url: `/pages/index/chat`});
     },
 	
 	// 辅助函数：截断消息显示长度

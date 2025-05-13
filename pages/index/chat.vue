@@ -1,15 +1,17 @@
 <template>
   <view class="flex-col page">
     <!-- 聊天顶部 -->
-    <view class="flex-row align-items-center section" style="position: relative;height:30px">
-      <image class="back" src="../../static/back.png" @click="goBack" />
+    <view class="flex-row align-items-center section" style="position: relative; min-height: 60rpx; padding: 10rpx 0;">
+      <image class="back" src="../../static/back.png" @click="goBack" style="width: 40rpx; height: 40rpx; margin-right: 20rpx;"/>
       <!-- 显示聊天的Title -->
-      <text class="font text ml-39-5" style="color:white;font-size:20px;">{{ other_username }}</text>
+      <text class="font text" style="color: white; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65vw; line-height: 1.4;">
+        {{ conversation_title }}
+      </text>
       <!-- 显示聊天的头像 -->
       <image
         class="otherAvatar"
-        :src="otherAvatar"
-        style="position: absolute; right: 70rpx;"
+        :src="conversation_avatar"
+        style="position: absolute; right: 20rpx; width: 50rpx; height: 50rpx; border-radius: 50%;"
       />
     </view>
     
@@ -30,55 +32,151 @@
       >
         <!-- 对方消息：头像在左，气泡在右 -->
         <template v-if="message.sender === 'other'">
+		  <!-- 头像 -->
           <view class="avatar-container">
             <image class="otherAvatar" :src="otherAvatar" />
           </view>
           <view class="message-bubble message-bubble-other">
-            <text class="font text">{{ message.content }}</text>
+			<!-- 文本消息 -->
+			<text v-if="message.type === 'text'" class="font text">{{ message.content }}</text>
+			
+			<!-- 图片消息 -->
             <image
-              v-if="message.image"
-              :src="message.image"
+              v-else-if="message.type === 'image'"
+              :src="message.content"
               style="width: 200rpx; height: 200rpx; margin-top: 10rpx;"
               mode="aspectFill"
               @click="previewImage(message.image)"
             ></image>
+			
+			<!-- 文件消息 -->
+			<view v-else-if="message.type === 'file'" class="file-message">
+			  <text class="font text">文件: {{ message.fileName }}</text>
+			  <button @click="downloadFile(message)">下载文件</button>
+			</view>
+			
+			<!-- 拼车邀请 -->
+			<!-- 点击弹出接受邀请弹窗 -->
+			<view v-else-if="message.type === 'invitation'" @click="showOrderMessagePopup(message)">
+				<text class="font text">拼车邀请</text>
+				<view style="margin-top: 10rpx; padding: 10rpx; background-color: #f0f8ff; border-radius: 10rpx;">
+				  <text style="font-size: 12px; color:black">{{ message.orderInfo.startLoc }} → {{ message.orderInfo.destLoc }}</text><br>
+				  <text style="font-size: 12px;color:black">时间: {{ message.orderInfo.time }}</text>
+				  <text style="font-size: 12px;color:#666;display:block;margin-top:5rpx;">
+				    {{ message.role === 'driver' ? '对方发起的司机订单' : '对方发起的乘客订单' }}
+				  </text>
+				</view>
+			</view>
+			
+			<!-- 拼车申请 -->
+			<!-- 点击弹出申请同意弹窗 -->
+			<view v-else-if="message.type === 'apply_join'" @click="showOrderMessagePopup(message)">
+				<text class="font text">拼车申请</text>
+				<view style="margin-top: 10rpx; padding: 10rpx; background-color: #f0f8ff; border-radius: 10rpx;">
+				  <text style="font-size: 12px; color:black">{{ message.orderInfo.startLoc }} → {{ message.orderInfo.destLoc }}</text><br>
+				  <text style="font-size: 12px;color:black">时间: {{ message.orderInfo.time }}</text>
+				</view>
+			</view>
+			
+			<!-- 拼车邀请 -->
+			<!-- 点击弹出申请同意弹窗 -->
+			<view v-else-if="message.type === 'apply_order'" @click="showOrderMessagePopup(message)">
+				<text class="font text">接单申请</text>
+				<view style="margin-top: 10rpx; padding: 10rpx; background-color: #f0f8ff; border-radius: 10rpx;">
+				  <text style="font-size: 12px; color:black">{{ message.orderInfo.startLoc }} → {{ message.orderInfo.destLoc }}</text><br>
+				  <text style="font-size: 12px;color:black">时间: {{ message.orderInfo.time }}</text>
+				</view>
+			</view>
+			
+			<!-- 拼车邀请 -->
+			<!-- 点击弹出申请同意弹窗 -->
+			<view v-else-if="message.type.endsWith('_accept') || message.type.endsWith('_reject')">
+				<text v-if="message.type === 'apply_join_accept'" class="font text">乘客加入申请已同意</text>
+				<text v-else-if="message.type === 'apply_join_reject'" class="font text">乘客加入申请已拒绝</text>
+				<text v-else-if="message.type === 'apply_order_accept'" class="font text">司机接单申请已同意</text>
+				<text v-else-if="message.type === 'apply_order_reject'" class="font text">司机接单申请已拒绝</text>
+				<view style="margin-top: 10rpx; padding: 10rpx; background-color: #f0f8ff; border-radius: 10rpx;">
+				  <text style="font-size: 12px; color:black">{{ message.orderInfo.startLoc }} → {{ message.orderInfo.destLoc }}</text><br>
+				  <text style="font-size: 12px;color:black">时间: {{ message.orderInfo.time }}</text>
+				</view>
+			</view>
+			
           </view>
         </template>
 
         <!-- 用户消息：气泡在左，头像在右 -->
         <template v-else>
           <view class="message-bubble message-bubble-user">
-            <text class="font text">{{ message.content }}</text>
-            <image
-              v-if="message.image"
-              :src="message.image"
-              style="width: 200rpx; height: 200rpx; margin-top: 10rpx;"
-              mode="aspectFill"
-              @click="previewImage(message.image)"
-            ></image>
+            <!-- 文本消息 -->
+            <text v-if="message.type === 'text'" class="font text">{{ message.content }}</text>
+			
+			<!-- 图片消息 -->
+			<image
+			  v-else-if="message.type === 'image'"
+			  :src="message.content"
+			  style="width: 200rpx; height: 200rpx; margin-top: 10rpx;"
+			  mode="aspectFill"
+			  @click="previewImage(message.content)"
+			></image>
+			
+			<!-- 文件消息 -->
+			<view v-else-if="message.type === 'file'" class="file-message">
+			  <text class="font text">文件: {{ message.fileName }}</text>
+			</view>
+			
+			<!-- 拼车邀请 -->
+			<!-- 点击弹出接受邀请弹窗 -->
+			<view v-else-if="message.type === 'invitation'" @click="showOrderMessagePopup(message)">
+				<text class="font text">拼车邀请</text>
+				<view style="margin-top: 10rpx; padding: 10rpx; background-color: #f0f8ff; border-radius: 10rpx;">
+				  <text style="font-size: 12px; color:black">{{ message.orderInfo.startLoc }} → {{ message.orderInfo.destLoc }}</text><br>
+				  <text style="font-size: 12px;color:black">时间: {{ message.orderInfo.time }}</text>
+				  <text style="font-size: 12px;color:#666;display:block;margin-top:5rpx;">
+				    {{ message.role === 'driver' ? '对方发起的司机订单' : '对方发起的乘客订单' }}
+				  </text>
+				</view>
+			</view>
+			
+			<!-- 拼车申请 -->
+			<!-- 点击弹出申请同意弹窗 -->
+			<view v-else-if="message.type === 'apply_join'" @click="showOrderMessagePopup(message)">
+				<text class="font text">拼车申请</text>
+				<view style="margin-top: 10rpx; padding: 10rpx; background-color: #f0f8ff; border-radius: 10rpx;">
+				  <text style="font-size: 12px; color:black">{{ message.orderInfo.startLoc }} → {{ message.orderInfo.destLoc }}</text><br>
+				  <text style="font-size: 12px;color:black">时间: {{ message.orderInfo.time }}</text>
+				</view>
+			</view>
+			
+			<!-- 拼车邀请 -->
+			<!-- 点击弹出申请同意弹窗 -->
+			<view v-else-if="message.type === 'apply_order'" @click="showOrderMessagePopup(message)">
+				<text class="font text">接单申请</text>
+				<view style="margin-top: 10rpx; padding: 10rpx; background-color: #f0f8ff; border-radius: 10rpx;">
+				  <text style="font-size: 12px; color:black">{{ message.orderInfo.startLoc }} → {{ message.orderInfo.destLoc }}</text><br>
+				  <text style="font-size: 12px;color:black">时间: {{ message.orderInfo.time }}</text>
+				</view>
+			</view>
+			
+			<!-- 拼车邀请 -->
+			<!-- 点击弹出申请同意弹窗 -->
+			<view v-else-if="message.type.endsWith('_accept') || message.type.endsWith('_reject')">
+				<text v-if="message.type === 'apply_join_accept'" class="font text">对方已同意乘客加入申请</text>
+				<text v-else-if="message.type === 'apply_join_reject'" class="font text">对方已拒绝乘客加入申请</text>
+				<text v-else-if="message.type === 'apply_order_accept'" class="font text">对方已同意司机接单申请</text>
+				<text v-else-if="message.type === 'apply_order_reject'" class="font text">对方已拒绝司机接单申请</text>
+				<view style="margin-top: 10rpx; padding: 10rpx; background-color: #f0f8ff; border-radius: 10rpx;">
+				  <text style="font-size: 12px; color:black">{{ message.orderInfo.startLoc }} → {{ message.orderInfo.destLoc }}</text><br>
+				  <text style="font-size: 12px;color:black">时间: {{ message.orderInfo.time }}</text>
+				</view>
+			</view>
+			
           </view>
           <view class="avatar-container">
             <image class="userAvatar" :src="userAvatar" />
           </view>
         </template>
       </view>
-      
-      <!-- 拼车邀请消息 -->
-      <view v-for="(invite, index) in invites" :key="'invite-'+index" class="flex-row justify-end" style="display: flex; width: 100%; align-items: center;">
-        <view class="message-bubble message-bubble-user" @click="showInvitePopup(invite)">
-          <text class="font text">拼车邀请</text>
-          <view style="margin-top: 10rpx; padding: 10rpx; background-color: #f0f8ff; border-radius: 10rpx;">
-            <text style="font-size: 12px; color:black">{{ invite.start_loc }} → {{ invite.dest_loc }}</text><br>
-            <text style="font-size: 12px;color:black">时间: {{ invite.time }}</text>
-            <text style="font-size: 12px;color:#666;display:block;margin-top:5rpx;">
-              {{ invite.role === 'driver' ? '我发起的司机订单' : '对方发起的乘客订单' }}
-            </text>
-          </view>
-        </view>
-        <view class="avatar-container">
-          <image class="userAvatar" :src="userAvatar" />
-        </view>
-      </view>
+
     </scroll-view>
 	
 	<!-- 底部输入框（固定位置） -->
@@ -169,15 +267,19 @@
     
     <!-- 拼车邀请详情弹窗 -->
     <OrderInvite 
-      v-if="showInvite"
-      :isVisible="showInvite"
-      :username="currentInvite.role === 'driver' ? username : other_username"
-      :time="currentInvite.time"
-      :start_loc="currentInvite.start_loc"
-      :dest_loc="currentInvite.dest_loc"
-      :username_2="currentInvite.role === 'driver' ? other_username : username"
-      :avatar_url="currentInvite.role === 'driver' ? userAvatar : otherAvatar"
-      @close="closeInvitePopup"
+      v-if="showOrder"
+	  :userId="currentOrderMessage.senderInfo.userId"
+	  :orderId="currentOrderMessage.orderInfo.orderId"
+	  :messageId="currentOrderMessage.id"
+	  :isUserInOrder="currentOrderMessage.sender"
+      :isVisible="showOrder"
+	  :messageType="currentOrderMessage.type"
+      :username="currentOrderMessage.senderInfo.username"
+      :time="currentOrderMessage.orderInfo.time"
+      :start_loc="currentOrderMessage.orderInfo.startLoc"
+      :dest_loc="currentOrderMessage.orderInfo.destLoc"
+      :avatar_url="currentOrderMessage.sender.avatar"
+      @close="closeOrderMessagePopup"
     />
     
     <!-- 全屏显示图片 -->
@@ -232,8 +334,14 @@
 
 <script>
 import OrderInvite from '../../components/OrderInvite.vue';
-import { fetchConversationMessages, sendMessage } from '../../api/chat';
 import { SocketService } from '../../utils/socket_io';
+import { fetchConversationMessages, sendMessage } from '../../api/chat';
+import { 
+	acceptDriverOrder,
+	rejectDriverOrder,
+	acceptPassengerApplication,
+	rejectPassengerApplication,
+} from '../../api/order';
 
 export default {
   components: {
@@ -245,14 +353,15 @@ export default {
       userAvatar: '../../static/user_2.jpg',
       otherAvatar: '../../static/user.jpeg',
       username: '测试者',         // 当前用户
-      other_username: 'JYD777',  // 对方用户
+	  conversation_title: '',    // 会话标题
+	  conversation_avatar: '',   // 会话头像
       inputMessage: '',    // 消息输入框信息
       messages: [],        // 消息列表
       driverOrders: [],    // 车找人的订单
       passengerOrders: [], // 人找车的订单
       invites: [],         // 拼车邀请信息
-      showInvite: false,
-      currentInvite: {},
+      showOrder: false,
+      currentOrderMessage: {}, // 当前的订单消息
       selectedOrderId: null,
       orderType: 'driver',
       showOrderPopupFlag: false,
@@ -269,8 +378,12 @@ export default {
       return this.orderType === 'driver' ? this.driverOrders : this.passengerOrders;
     }
   },
-  onLoad(options) {
-	this.conversationId = options.conversationId;
+  onLoad() {
+	const conversation = uni.getStorageSync('tempChatData');
+	uni.removeStorageSync('tempChatData'); // 使用后清除
+	this.conversationId = conversation.id;
+	this.conversation_title = conversation.username;
+	this.conversation_avatar = conversation.avatar;
 	this.initChatPage();
 	
 	// 先移除可能存在的旧监听器
@@ -287,6 +400,8 @@ export default {
 	  SocketService.emit('join_conversation', { conversationId: this.conversationId });
 	  this.hasJoined = true;
 	}
+	
+	this.username = uni.getStorageSync('user_info').username;
   },
   onUnload() {
 	// 离开房间并移除监听器
@@ -319,23 +434,53 @@ export default {
 			
 			// 转换消息格式
 			this.messages = res.data.map(msg => {
-				// 判断消息发送者是否是当前用户
-				const isCurrentUser = msg.sender.user_id === currentUserId;
-				
-				return {
-					id: msg.message_id,
-					sender: isCurrentUser ? 'user' : 'other',
-					content: msg.content,
-					type: msg.type,
-					createdAt: new Date(msg.created_at),
-					senderInfo: {
-					  username: isCurrentUser ? currentUsername : msg.sender.username,
-					  avatar: msg.sender.avatar,
-					  realname: msg.sender.realname,
-					  userId: msg.sender.user_id
-					}
-				}
+			    const isCurrentUser = msg.sender.user_id === currentUserId;
+			    
+			    // 基础消息结构
+			    const message = {
+			        id: msg.message_id,
+			        sender: isCurrentUser ? 'user' : 'other',
+			        content: msg.content,
+			        type: msg.type,
+			        createdAt: new Date(msg.created_at),
+			        senderInfo: {
+			            username: isCurrentUser ? currentUsername : msg.sender.username,
+			            avatar: msg.sender.avatar,
+			            realname: msg.sender.realname,
+			            userId: msg.sender.user_id
+			        }
+			    };
+			    
+			    // 如果是拼车相关消息，添加订单信息
+			    if (msg.type === 'invitation' || msg.type === 'apply_join' || msg.type === 'apply_order' || 
+					msg.type === 'apply_join_accept' || msg.type === 'apply_join_reject' || 
+					msg.type === 'apply_order_accept' || msg.type === 'apply_order_reject'
+				) {
+			        message.orderInfo = {
+			            orderId: msg.order_info?.order_id,
+			            startLoc: msg.order_info?.start_loc || msg.start_loc,
+			            destLoc: msg.order_info?.dest_loc || msg.dest_loc,
+			            time: msg.order_info?.start_time || msg.time,
+			            price: msg.order_info?.price,
+			            status: msg.order_info?.status,
+			            orderType: msg.order_info?.order_type,
+			            carType: msg.order_info?.car_type,
+			            spareSeatNum: msg.order_info?.spare_seat_num,
+			            travelPartnerNum: msg.order_info?.travel_partner_num
+			        };
+			        
+			        // 兼容旧字段（逐步迁移时可以保留）
+			        if (!message.orderInfo.startLoc) message.orderInfo.startLoc = msg.start_loc;
+			        if (!message.orderInfo.destLoc) message.orderInfo.destLoc = msg.dest_loc;
+			        if (!message.orderInfo.time) message.orderInfo.time = msg.time;
+			    }
+			    
+			    return message;
 			});
+			
+			console.log("消息列表", this.messages);
+			
+			
 		} catch (err) {
 			uni.showToast({
 			  title: '加载消息失败',
@@ -410,7 +555,6 @@ export default {
       this.selectedOrderId = null;
       this.showOrderPopupFlag = true;
     },
-    
     closeOrderPopup() {
       this.showOrderPopupFlag = false;
     },
@@ -428,7 +572,7 @@ export default {
     closePreview() {
       this.isPreviewing = false;
     },
-    
+	// 模拟数据
     getAvailableOrders() {
       // 模拟获取作为司机的订单（当前用户发布的）
       this.driverOrders = [
@@ -478,7 +622,8 @@ export default {
     selectOrder(order) {
       this.selectedOrderId = order.id;
     },
-    
+   
+	// 发送订单邀请
     sendInvite() {
       if (!this.selectedOrderId) return;
     
@@ -538,18 +683,16 @@ export default {
         });
       }
     },
-
-    showInvitePopup(invite) {
-      this.currentInvite = {
-        ...invite,
-        // 确保用户名正确
-        username: invite.role === 'driver' ? this.username : this.other_username
+	// 展示邀请弹窗
+    showOrderMessagePopup(orderMessage) {
+      this.currentOrderMessage = {
+        ...orderMessage,
       };
-      this.showInvite = true;
+      this.showOrder = true;
     },
     
-    closeInvitePopup() {
-      this.showInvite = false;
+    closeOrderMessagePopup() {
+      this.showOrder = false;
     },
     
     chooseImage() {

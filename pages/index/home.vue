@@ -21,7 +21,7 @@
       @regionchange="onRegionChange"
     ></map>
 	
-	  <!-- 搜索和身份切换栏 -->
+	<!-- 搜索和身份切换栏 -->
     <view class="bar">
       <image src="../../static/atm-fill.png" class="icon" />
       <input 
@@ -42,10 +42,10 @@
       </view>
     </view>
 	
-	  <!-- 订单列表 -->
+	<!-- 订单列表 -->
     <scroll-view class="order-scroll" scroll-y="true" style="height:calc(100vh - 200px);">
-	    <!-- 空状态提示 -->
-	    <view class="empty-tip" v-if="filteredAndSearchedOrders.length === 0">
+	  <!-- 空状态提示 -->
+	  <view class="empty-tip" v-if="filteredAndSearchedOrders.length === 0">
         <image src="../../static/empty.png" class="empty-icon" mode="widthFix" />
         <text class="empty-text" style="display: block; margin-top: 20rpx;">暂无匹配的行程</text>
       </view>
@@ -175,7 +175,7 @@
 import NavigationBar from '../../components/NavigationBar.vue';
 import uniPopup from '@dcloudio/uni-ui/lib/uni-popup/uni-popup.vue'
 import uniPopupDialog from '@dcloudio/uni-ui/lib/uni-popup-dialog/uni-popup-dialog.vue'
-import { fetchOrderList, acceptOrder, applyOrder } from '@/api/order.js';
+import { fetchOrderList, driverApplyOrder, passengerApplyOrder } from '@/api/order.js';
 import { fetchCars } from '../../api/user';
 
 export default {
@@ -343,9 +343,9 @@ export default {
 			console.log("弹窗确认操作")
 			uni.showLoading({ title: '处理中...', mask: true });
 			if (this.currentAction === 'accept') {
-				await this.acceptOrder();
+				await this.driverApplyOrder();
 			} else {
-				await this.applyOrder();
+				await this.passengerApplyOrder();
 			};
 			
 			uni.showToast({ 
@@ -368,10 +368,10 @@ export default {
 		return this.isCarpool ? '拼车申请已提交' : '搭车申请已提交';
 	},
 	// 接单API
-	async acceptOrder() {
+	async driverApplyOrder() {
 		console.log("调用接单API")
 		try {
-			const res = await acceptOrder({
+			const res = await driverApplyOrder({
 				orderId: this.currentOrderId,
 				vehicleId: this.selectedVehicleId,
 			});
@@ -386,10 +386,10 @@ export default {
 		}
 	},
 	// 申请API
-	async applyOrder() {
+	async passengerApplyOrder() {
 		console.log("调用申请API")
 		try {
-			const res = await applyOrder({
+			const res = await passengerApplyOrder({
 				orderId: this.currentOrderId
 			});
 			console.log(res);

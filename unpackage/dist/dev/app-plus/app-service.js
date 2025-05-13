@@ -4104,23 +4104,26 @@ if (uni.restoreGlobal) {
       await this.processConversationList();
     },
     methods: {
+      // 获取当前用户基本信息
       async fetchCurrentUser() {
         fetchBasicUserInfo().then((res2) => {
           this.currentUser.username = res2.data.username;
           this.currentUser.avatar = res2.data.avatar;
         }).catch((err) => {
-          formatAppLog("log", "at pages/index/chatlist.vue:95", "获取用户基本信息失败：", err);
+          formatAppLog("log", "at pages/index/chatlist.vue:96", "获取用户基本信息失败：", err);
         });
       },
+      // 获取会话列表数据
       async fetchConversationListData() {
         try {
           const res2 = await fetchUserConversations();
-          formatAppLog("log", "at pages/index/chatlist.vue:102", "会话列表数据:", res2);
+          formatAppLog("log", "at pages/index/chatlist.vue:103", "会话列表数据:", res2);
           this.ConversationList = res2;
         } catch (err) {
-          formatAppLog("log", "at pages/index/chatlist.vue:105", "获取用户会话列表失败：", err);
+          formatAppLog("log", "at pages/index/chatlist.vue:106", "获取用户会话列表失败：", err);
         }
       },
+      // 处理获取到的会话列表数据
       async processConversationList() {
         var _a, _b, _c;
         try {
@@ -4149,9 +4152,9 @@ if (uni.restoreGlobal) {
               processedConversation.members = memberAvatars;
               try {
                 processedConversation.avatar = memberAvatars.length > 0 ? await this.generateGroupAvatar(conversation.id, memberAvatars) : "../../static/default_group_avatar.png";
-                formatAppLog("log", "at pages/index/chatlist.vue:153", processedConversation.avatar);
+                formatAppLog("log", "at pages/index/chatlist.vue:154", processedConversation.avatar);
               } catch (e) {
-                formatAppLog("error", "at pages/index/chatlist.vue:155", "生成群头像失败:", e);
+                formatAppLog("error", "at pages/index/chatlist.vue:156", "生成群头像失败:", e);
                 processedConversation.avatar = "../../static/default_group_avatar.png";
               }
             }
@@ -4165,11 +4168,12 @@ if (uni.restoreGlobal) {
             return timeB - timeA;
           });
           this.processedListWithAvatars = processed;
-          formatAppLog("log", "at pages/index/chatlist.vue:171", "处理后的会话列表:", processed);
+          formatAppLog("log", "at pages/index/chatlist.vue:172", "处理后的会话列表:", processed);
         } catch (err) {
-          formatAppLog("error", "at pages/index/chatlist.vue:173", "处理会话列表失败:", err);
+          formatAppLog("error", "at pages/index/chatlist.vue:174", "处理会话列表失败:", err);
         }
       },
+      // 生成群聊头像
       async generateGroupAvatar(groupId, members) {
         if (this.groupAvatarCache[groupId]) {
           return this.groupAvatarCache[groupId];
@@ -4189,7 +4193,7 @@ if (uni.restoreGlobal) {
           this.groupAvatarCache[groupId] = tempFilePath;
           return tempFilePath;
         } catch (error) {
-          formatAppLog("error", "at pages/index/chatlist.vue:207", "生成群聊头像失败:", error);
+          formatAppLog("error", "at pages/index/chatlist.vue:208", "生成群聊头像失败:", error);
           return "../../static/default_group_avatar.png";
         }
       },
@@ -4224,7 +4228,7 @@ if (uni.restoreGlobal) {
                   resolve(res2.tempFilePath);
                 },
                 fail: (err) => {
-                  formatAppLog("error", "at pages/index/chatlist.vue:251", "Canvas导出失败:", err);
+                  formatAppLog("error", "at pages/index/chatlist.vue:252", "Canvas导出失败:", err);
                   reject(err);
                 }
               });
@@ -4264,15 +4268,8 @@ if (uni.restoreGlobal) {
         });
       },
       goToChat(conversation) {
-        uni.navigateTo({
-          url: `/pages/index/chat?conversationId=${conversation.id}`,
-          success: () => {
-            formatAppLog("log", "at pages/index/chatlist.vue:301", "跳转成功");
-          },
-          fail: (err) => {
-            formatAppLog("error", "at pages/index/chatlist.vue:304", "跳转失败:", err);
-          }
-        });
+        uni.setStorageSync("tempChatData", conversation);
+        uni.navigateTo({ url: `/pages/index/chat` });
       },
       // 辅助函数：截断消息显示长度
       truncateMessage(text, maxLength = 15) {
@@ -4418,15 +4415,123 @@ if (uni.restoreGlobal) {
     );
   }
   const PagesIndexChatlist = /* @__PURE__ */ _export_sfc(_sfc_main$k, [["render", _sfc_render$j], ["__scopeId", "data-v-c2d98f75"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/chatlist.vue"]]);
+  const publishOrder = (orderData) => {
+    return post("/orders", orderData);
+  };
+  const fetchOrderList = () => {
+    return get("orders/list");
+  };
+  const payOrder = (orderId) => {
+    return post(`/orders/${orderId}/paid`);
+  };
+  const fetchTripDetail = (orderId) => {
+    return get(`/orders/${orderId}`);
+  };
+  const submitTripRating = (orderId, payload) => {
+    return post(`/orders/${orderId}/rate`, payload);
+  };
+  const fetchCalendarTrips = (year, month, userId) => {
+    return get(`/orders/calendar/${userId}`, {
+      params: { year, month }
+    }).then((response) => {
+      return response.data.map((trip) => ({
+        id: trip.order_id,
+        order_id: trip.order_id,
+        start_time: trip.start_time,
+        start_loc: trip.start_loc,
+        dest_loc: trip.dest_loc,
+        date: trip.start_time,
+        startPoint: trip.start_loc,
+        endPoint: trip.dest_loc,
+        price: trip.price,
+        car_type: trip.car_type,
+        carType: trip.car_type || "未接单",
+        status: trip.status,
+        userAvatar: trip.initiator.avatar || "../../static/user.jpeg",
+        orderCount: trip.participants_count || 0,
+        initiator: trip.initiator
+      }));
+    });
+  };
+  function fetchUserTrips() {
+    return get(`/orders/user/trips`);
+  }
+  const fetchManagedOrders = (params) => {
+    formatAppLog("log", "at api/order.js:65", params.status || "all");
+    return get("/orders/manage/list", {
+      params: {
+        status: params.status || "all",
+        type: params.type || "all",
+        year: params.year || "",
+        month: params.month || ""
+      }
+    }).then((response) => {
+      formatAppLog("log", "at api/order.js:74", response.data);
+      return response.data.map((order) => ({
+        id: order.id,
+        date: order.date,
+        startPoint: order.startPoint,
+        endPoint: order.endPoint,
+        price: order.price,
+        carType: order.carType || "未接单",
+        status: order.status,
+        publisher: order.publisher,
+        userAvatar: order.userAvatar || "../../static/user.jpeg",
+        rejectReason: order.rejectReason
+      }));
+    });
+  };
+  const approveOrder = (orderId) => {
+    return post(`/orders/manage/${orderId}/approve`);
+  };
+  const rejectOrder = (orderId, reason) => {
+    return post(`/orders/manage/${orderId}/reject`, { reason });
+  };
+  const driverApplyOrder = (data) => {
+    return post("/orders/driver/apply", data);
+  };
+  const acceptDriverOrder = (data) => {
+    return post("/orders/driver/accept", data);
+  };
+  const rejectDriverOrder = (data) => {
+    return post("/orders/driver/reject", data);
+  };
+  const passengerApplyOrder = (data) => {
+    return post("/orders/passenger/apply", data);
+  };
+  const acceptPassengerApplication = (data) => {
+    return post("/orders/apply/accept", data);
+  };
+  const rejectPassengerApplication = (data) => {
+    return post("/orders/apply/reject", data);
+  };
   const _imports_4 = "/static/close.png";
   const _imports_1$3 = "/static/clock.png";
   const _imports_1$2 = "/static/start.png";
   const _imports_2$2 = "/static/dest.png";
   const _sfc_main$j = {
     props: {
+      userId: {
+        type: Number
+      },
+      orderId: {
+        type: Number
+      },
+      messageId: {
+        type: Number
+      },
+      sender: {
+        type: String
+      },
       isVisible: {
         type: Boolean,
         default: true
+      },
+      // 有关订单消息的类型
+      messageType: {
+        type: String,
+        default: "invitation"
+        // invitation | apply_join | apply_order
       },
       username: {
         type: String,
@@ -4443,10 +4548,6 @@ if (uni.restoreGlobal) {
       dest_loc: {
         type: String,
         default: "同济大学（四平校区）"
-      },
-      username_2: {
-        type: String,
-        default: "JYD"
       },
       avatar_url: {
         type: String,
@@ -4468,16 +4569,61 @@ if (uni.restoreGlobal) {
         // 用户的车辆列表
       };
     },
+    computed: {
+      popupTitle() {
+        switch (this.messageType) {
+          case "apply_join":
+            return `${this.username}申请加入拼车`;
+          case "apply_order":
+            return `${this.username}申请接单`;
+          case "invitation":
+          default:
+            return `${this.username}发起的拼车邀约`;
+        }
+      },
+      buttonText() {
+        switch (this.messageType) {
+          case "apply_join":
+            return "同 意 申 请";
+          case "apply_order":
+            return "同 意 接 单";
+          case "invitation":
+          default:
+            return "接 受 邀 约";
+        }
+      }
+    },
     methods: {
       closePopup() {
         this.$emit("close");
       },
-      handleAcceptInvite() {
-        if (this.username_2 === "乘客") {
+      handleAccept() {
+        const needsVehicle = this.messageType === "invitation";
+        if (needsVehicle) {
           this.fetchUserVehicles();
           this.showVehiclePopup = true;
         } else {
           this.acceptInvite();
+        }
+      },
+      handleReject() {
+        const requestdata = {
+          userId: this.userId,
+          orderId: this.orderId,
+          messageId: this.messageId
+        };
+        switch (this.messageType) {
+          case "apply_join":
+            rejectPassengerApplication(requestdata);
+            break;
+          case "apply_order":
+            rejectDriverOrder(requestdata);
+            break;
+          case "invitation":
+          default:
+            uni.showToast({ title: "不接受邀约", icon: "none" });
+            this.closePopup();
+            return;
         }
       },
       fetchUserVehicles() {
@@ -4495,11 +4641,27 @@ if (uni.restoreGlobal) {
         this.showVehiclePopup = false;
       },
       acceptInvite() {
-        uni.showToast({
-          title: "添加成功",
-          icon: "success"
-        });
-        this.closePopup();
+        const requestdata = {
+          userId: this.userId,
+          orderId: this.orderId,
+          messageId: this.messageId
+        };
+        switch (this.messageType) {
+          case "apply_join":
+            acceptPassengerApplication(requestdata);
+            break;
+          case "apply_order":
+            acceptDriverOrder(requestdata);
+            break;
+          case "invitation":
+          default:
+            if (!this.selectedVehicle) {
+              uni.showToast({ title: "请选择车辆", icon: "none" });
+              return;
+            }
+            acceptDriverOrder({ vehicleId: this.selectedVehicle.id });
+            break;
+        }
       }
     }
   };
@@ -4524,7 +4686,7 @@ if (uni.restoreGlobal) {
           vue.createElementVNode(
             "text",
             { class: "self-start text mt-28-5" },
-            vue.toDisplayString($props.username) + "发起的拼车邀约",
+            vue.toDisplayString($options.popupTitle),
             1
             /* TEXT */
           )
@@ -4577,23 +4739,27 @@ if (uni.restoreGlobal) {
               )
             ])
           ]),
-          vue.createElementVNode("view", { class: "self-start group_5 mt-43" }, [
-            vue.createElementVNode("text", { class: "font text_4" }, "参与人："),
+          vue.createCommentVNode(" 接受邀约按钮 "),
+          $props.isUserInOrder === "other" ? (vue.openBlock(), vue.createElementBlock("button", {
+            key: 0,
+            class: "flex-col justify-center items-center self-stretch button mt-43",
+            onClick: _cache[1] || (_cache[1] = (...args) => $options.handleAccept && $options.handleAccept(...args))
+          }, [
             vue.createElementVNode(
               "text",
-              { class: "text_5" },
-              vue.toDisplayString($props.username_2),
+              { class: "font text_6" },
+              vue.toDisplayString($options.buttonText),
               1
               /* TEXT */
             )
-          ]),
-          vue.createCommentVNode(" 接受邀约按钮 "),
-          !$props.isUserInOrder ? (vue.openBlock(), vue.createElementBlock("button", {
-            key: 0,
+          ])) : vue.createCommentVNode("v-if", true),
+          vue.createCommentVNode(" 拒绝按钮 "),
+          $props.isUserInOrder === "other" ? (vue.openBlock(), vue.createElementBlock("button", {
+            key: 1,
             class: "flex-col justify-center items-center self-stretch button mt-43",
-            onClick: _cache[1] || (_cache[1] = (...args) => $options.handleAcceptInvite && $options.handleAcceptInvite(...args))
+            onClick: _cache[2] || (_cache[2] = (...args) => $options.handleReject && $options.handleReject(...args))
           }, [
-            vue.createElementVNode("text", { class: "font text_6" }, "接 受 邀 约")
+            vue.createElementVNode("text", { class: "font text_6" }, "拒 绝")
           ])) : vue.createCommentVNode("v-if", true)
         ])
       ]),
@@ -4601,18 +4767,18 @@ if (uni.restoreGlobal) {
       $data.showVehiclePopup ? (vue.openBlock(), vue.createElementBlock("view", {
         key: 0,
         class: "custom-popup-mask",
-        onClick: _cache[5] || (_cache[5] = ($event) => $data.showVehiclePopup = false)
+        onClick: _cache[6] || (_cache[6] = ($event) => $data.showVehiclePopup = false)
       }, [
         vue.createElementVNode("view", {
           class: "custom-popup-content",
-          onClick: _cache[4] || (_cache[4] = vue.withModifiers(() => {
+          onClick: _cache[5] || (_cache[5] = vue.withModifiers(() => {
           }, ["stop"]))
         }, [
           vue.createElementVNode("view", { class: "popup-header" }, [
             vue.createElementVNode("text", { style: { "font-size": "16px", "font-weight": "bold" } }, "选择车辆"),
             vue.createElementVNode("image", {
               src: _imports_4,
-              onClick: _cache[2] || (_cache[2] = ($event) => $data.showVehiclePopup = false),
+              onClick: _cache[3] || (_cache[3] = ($event) => $data.showVehiclePopup = false),
               style: { "width": "40rpx", "height": "40rpx" }
             })
           ]),
@@ -4651,7 +4817,7 @@ if (uni.restoreGlobal) {
           $data.selectedVehicle ? (vue.openBlock(), vue.createElementBlock("button", {
             key: 0,
             class: "send-btn",
-            onClick: _cache[3] || (_cache[3] = (...args) => $options.confirmVehicleSelection && $options.confirmVehicleSelection(...args))
+            onClick: _cache[4] || (_cache[4] = (...args) => $options.confirmVehicleSelection && $options.confirmVehicleSelection(...args))
           }, " 确认选择 ")) : vue.createCommentVNode("v-if", true)
         ])
       ])) : vue.createCommentVNode("v-if", true)
@@ -4674,8 +4840,10 @@ if (uni.restoreGlobal) {
         otherAvatar: "../../static/user.jpeg",
         username: "测试者",
         // 当前用户
-        other_username: "JYD777",
-        // 对方用户
+        conversation_title: "",
+        // 会话标题
+        conversation_avatar: "",
+        // 会话头像
         inputMessage: "",
         // 消息输入框信息
         messages: [],
@@ -4686,8 +4854,9 @@ if (uni.restoreGlobal) {
         // 人找车的订单
         invites: [],
         // 拼车邀请信息
-        showInvite: false,
-        currentInvite: {},
+        showOrder: false,
+        currentOrderMessage: {},
+        // 当前的订单消息
         selectedOrderId: null,
         orderType: "driver",
         showOrderPopupFlag: false,
@@ -4707,8 +4876,12 @@ if (uni.restoreGlobal) {
         return this.orderType === "driver" ? this.driverOrders : this.passengerOrders;
       }
     },
-    onLoad(options) {
-      this.conversationId = options.conversationId;
+    onLoad() {
+      const conversation = uni.getStorageSync("tempChatData");
+      uni.removeStorageSync("tempChatData");
+      this.conversationId = conversation.id;
+      this.conversation_title = conversation.username;
+      this.conversation_avatar = conversation.avatar;
       this.initChatPage();
       SocketService.off("new_message", this.handleNewMessage);
       SocketService.off("message_error");
@@ -4720,6 +4893,7 @@ if (uni.restoreGlobal) {
         SocketService.emit("join_conversation", { conversationId: this.conversationId });
         this.hasJoined = true;
       }
+      this.username = uni.getStorageSync("user_info").username;
     },
     onUnload() {
       SocketService.emit("leave_conversation", { conversationId: this.conversationId });
@@ -4732,11 +4906,11 @@ if (uni.restoreGlobal) {
         uni.navigateBack();
       },
       async initChatPage() {
-        formatAppLog("log", "at pages/index/chat.vue:305", "初始化聊天界面");
+        formatAppLog("log", "at pages/index/chat.vue:420", "初始化聊天界面");
         try {
           await this.fetchMessages();
         } catch (err) {
-          formatAppLog("error", "at pages/index/chat.vue:309", "初始化失败", err);
+          formatAppLog("error", "at pages/index/chat.vue:424", "初始化失败", err);
         }
       },
       // 获取会话消息
@@ -4746,8 +4920,9 @@ if (uni.restoreGlobal) {
           const currentUsername = uni.getStorageSync("user_info").username;
           const res2 = await fetchConversationMessages(this.conversationId);
           this.messages = res2.data.map((msg) => {
+            var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
             const isCurrentUser = msg.sender.user_id === currentUserId;
-            return {
+            const message = {
               id: msg.message_id,
               sender: isCurrentUser ? "user" : "other",
               content: msg.content,
@@ -4760,7 +4935,29 @@ if (uni.restoreGlobal) {
                 userId: msg.sender.user_id
               }
             };
+            if (msg.type === "invitation" || msg.type === "apply_join" || msg.type === "apply_order" || msg.type === "apply_join_accept" || msg.type === "apply_join_reject" || msg.type === "apply_order_accept" || msg.type === "apply_order_reject") {
+              message.orderInfo = {
+                orderId: (_a = msg.order_info) == null ? void 0 : _a.order_id,
+                startLoc: ((_b = msg.order_info) == null ? void 0 : _b.start_loc) || msg.start_loc,
+                destLoc: ((_c = msg.order_info) == null ? void 0 : _c.dest_loc) || msg.dest_loc,
+                time: ((_d = msg.order_info) == null ? void 0 : _d.start_time) || msg.time,
+                price: (_e = msg.order_info) == null ? void 0 : _e.price,
+                status: (_f = msg.order_info) == null ? void 0 : _f.status,
+                orderType: (_g = msg.order_info) == null ? void 0 : _g.order_type,
+                carType: (_h = msg.order_info) == null ? void 0 : _h.car_type,
+                spareSeatNum: (_i = msg.order_info) == null ? void 0 : _i.spare_seat_num,
+                travelPartnerNum: (_j = msg.order_info) == null ? void 0 : _j.travel_partner_num
+              };
+              if (!message.orderInfo.startLoc)
+                message.orderInfo.startLoc = msg.start_loc;
+              if (!message.orderInfo.destLoc)
+                message.orderInfo.destLoc = msg.dest_loc;
+              if (!message.orderInfo.time)
+                message.orderInfo.time = msg.time;
+            }
+            return message;
           });
+          formatAppLog("log", "at pages/index/chat.vue:481", "消息列表", this.messages);
         } catch (err) {
           uni.showToast({
             title: "加载消息失败",
@@ -4774,7 +4971,7 @@ if (uni.restoreGlobal) {
         if (!msg)
           return;
         this.inputMessage = "";
-        formatAppLog("log", "at pages/index/chat.vue:352", "发送消息");
+        formatAppLog("log", "at pages/index/chat.vue:497", "发送消息");
         this.scrollToBottom();
         sendMessage(this.conversationId, msg);
       },
@@ -4783,7 +4980,7 @@ if (uni.restoreGlobal) {
         if (this.messages.some((m) => m.id === msg.id)) {
           return;
         }
-        formatAppLog("log", "at pages/index/chat.vue:363", "新消息", msg);
+        formatAppLog("log", "at pages/index/chat.vue:508", "新消息", msg);
         const sender_id = msg.sender.id;
         const my_id = uni.getStorageSync("user_info").userId;
         if (!sender_id || !my_id) {
@@ -4815,7 +5012,7 @@ if (uni.restoreGlobal) {
         return replies[Math.floor(Math.random() * replies.length)];
       },
       scrollToBottom() {
-        formatAppLog("log", "at pages/index/chat.vue:402", "滚动到底部");
+        formatAppLog("log", "at pages/index/chat.vue:547", "滚动到底部");
         if (this.messages.length > 0) {
           this.lastMsgId = "msg-" + this.messages[this.messages.length - 1].id;
         }
@@ -4839,6 +5036,7 @@ if (uni.restoreGlobal) {
       closePreview() {
         this.isPreviewing = false;
       },
+      // 模拟数据
       getAvailableOrders() {
         this.driverOrders = [
           {
@@ -4886,6 +5084,7 @@ if (uni.restoreGlobal) {
       selectOrder(order) {
         this.selectedOrderId = order.id;
       },
+      // 发送订单邀请
       sendInvite() {
         if (!this.selectedOrderId)
           return;
@@ -4936,16 +5135,15 @@ if (uni.restoreGlobal) {
           });
         }
       },
-      showInvitePopup(invite) {
-        this.currentInvite = {
-          ...invite,
-          // 确保用户名正确
-          username: invite.role === "driver" ? this.username : this.other_username
+      // 展示邀请弹窗
+      showOrderMessagePopup(orderMessage) {
+        this.currentOrderMessage = {
+          ...orderMessage
         };
-        this.showInvite = true;
+        this.showOrder = true;
       },
-      closeInvitePopup() {
-        this.showInvite = false;
+      closeOrderMessagePopup() {
+        this.showOrder = false;
       },
       chooseImage() {
         uni.chooseImage({
@@ -4974,29 +5172,30 @@ if (uni.restoreGlobal) {
       vue.createCommentVNode(" 聊天顶部 "),
       vue.createElementVNode("view", {
         class: "flex-row align-items-center section",
-        style: { "position": "relative", "height": "30px" }
+        style: { "position": "relative", "min-height": "60rpx", "padding": "10rpx 0" }
       }, [
         vue.createElementVNode("image", {
           class: "back",
           src: _imports_0$3,
-          onClick: _cache[0] || (_cache[0] = (...args) => $options.goBack && $options.goBack(...args))
+          onClick: _cache[0] || (_cache[0] = (...args) => $options.goBack && $options.goBack(...args)),
+          style: { "width": "40rpx", "height": "40rpx", "margin-right": "20rpx" }
         }),
         vue.createCommentVNode(" 显示聊天的Title "),
         vue.createElementVNode(
           "text",
           {
-            class: "font text ml-39-5",
-            style: { "color": "white", "font-size": "20px" }
+            class: "font text",
+            style: { "color": "white", "font-size": "18px", "white-space": "nowrap", "overflow": "hidden", "text-overflow": "ellipsis", "max-width": "65vw", "line-height": "1.4" }
           },
-          vue.toDisplayString($data.other_username),
+          vue.toDisplayString($data.conversation_title),
           1
           /* TEXT */
         ),
         vue.createCommentVNode(" 显示聊天的头像 "),
         vue.createElementVNode("image", {
           class: "otherAvatar",
-          src: $data.otherAvatar,
-          style: { "position": "absolute", "right": "70rpx" }
+          src: $data.conversation_avatar,
+          style: { "position": "absolute", "right": "20rpx", "width": "50rpx", "height": "50rpx", "border-radius": "50%" }
         }, null, 8, ["src"])
       ]),
       vue.createCommentVNode(" 滚动视图 "),
@@ -5022,6 +5221,7 @@ if (uni.restoreGlobal) {
                 vue.Fragment,
                 { key: 0 },
                 [
+                  vue.createCommentVNode(" 头像 "),
                   vue.createElementVNode("view", { class: "avatar-container" }, [
                     vue.createElementVNode("image", {
                       class: "otherAvatar",
@@ -5029,20 +5229,192 @@ if (uni.restoreGlobal) {
                     }, null, 8, ["src"])
                   ]),
                   vue.createElementVNode("view", { class: "message-bubble message-bubble-other" }, [
-                    vue.createElementVNode(
+                    vue.createCommentVNode(" 文本消息 "),
+                    message.type === "text" ? (vue.openBlock(), vue.createElementBlock(
                       "text",
-                      { class: "font text" },
+                      {
+                        key: 0,
+                        class: "font text"
+                      },
                       vue.toDisplayString(message.content),
                       1
                       /* TEXT */
-                    ),
-                    message.image ? (vue.openBlock(), vue.createElementBlock("image", {
-                      key: 0,
-                      src: message.image,
-                      style: { "width": "200rpx", "height": "200rpx", "margin-top": "10rpx" },
-                      mode: "aspectFill",
-                      onClick: ($event) => $options.previewImage(message.image)
-                    }, null, 8, ["src", "onClick"])) : vue.createCommentVNode("v-if", true)
+                    )) : message.type === "image" ? (vue.openBlock(), vue.createElementBlock(
+                      vue.Fragment,
+                      { key: 1 },
+                      [
+                        vue.createCommentVNode(" 图片消息 "),
+                        vue.createElementVNode("image", {
+                          src: message.content,
+                          style: { "width": "200rpx", "height": "200rpx", "margin-top": "10rpx" },
+                          mode: "aspectFill",
+                          onClick: ($event) => $options.previewImage(message.image)
+                        }, null, 8, ["src", "onClick"])
+                      ],
+                      2112
+                      /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
+                    )) : message.type === "file" ? (vue.openBlock(), vue.createElementBlock(
+                      vue.Fragment,
+                      { key: 2 },
+                      [
+                        vue.createCommentVNode(" 文件消息 "),
+                        vue.createElementVNode("view", { class: "file-message" }, [
+                          vue.createElementVNode(
+                            "text",
+                            { class: "font text" },
+                            "文件: " + vue.toDisplayString(message.fileName),
+                            1
+                            /* TEXT */
+                          ),
+                          vue.createElementVNode("button", {
+                            onClick: ($event) => _ctx.downloadFile(message)
+                          }, "下载文件", 8, ["onClick"])
+                        ])
+                      ],
+                      2112
+                      /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
+                    )) : message.type === "invitation" ? (vue.openBlock(), vue.createElementBlock(
+                      vue.Fragment,
+                      { key: 3 },
+                      [
+                        vue.createCommentVNode(" 拼车邀请 "),
+                        vue.createCommentVNode(" 点击弹出接受邀请弹窗 "),
+                        vue.createElementVNode("view", {
+                          onClick: ($event) => $options.showOrderMessagePopup(message)
+                        }, [
+                          vue.createElementVNode("text", { class: "font text" }, "拼车邀请"),
+                          vue.createElementVNode("view", { style: { "margin-top": "10rpx", "padding": "10rpx", "background-color": "#f0f8ff", "border-radius": "10rpx" } }, [
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              vue.toDisplayString(message.orderInfo.startLoc) + " → " + vue.toDisplayString(message.orderInfo.destLoc),
+                              1
+                              /* TEXT */
+                            ),
+                            vue.createElementVNode("br"),
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              "时间: " + vue.toDisplayString(message.orderInfo.time),
+                              1
+                              /* TEXT */
+                            ),
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "#666", "display": "block", "margin-top": "5rpx" } },
+                              vue.toDisplayString(message.role === "driver" ? "对方发起的司机订单" : "对方发起的乘客订单"),
+                              1
+                              /* TEXT */
+                            )
+                          ])
+                        ], 8, ["onClick"])
+                      ],
+                      2112
+                      /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
+                    )) : message.type === "apply_join" ? (vue.openBlock(), vue.createElementBlock(
+                      vue.Fragment,
+                      { key: 4 },
+                      [
+                        vue.createCommentVNode(" 拼车申请 "),
+                        vue.createCommentVNode(" 点击弹出申请同意弹窗 "),
+                        vue.createElementVNode("view", {
+                          onClick: ($event) => $options.showOrderMessagePopup(message)
+                        }, [
+                          vue.createElementVNode("text", { class: "font text" }, "拼车申请"),
+                          vue.createElementVNode("view", { style: { "margin-top": "10rpx", "padding": "10rpx", "background-color": "#f0f8ff", "border-radius": "10rpx" } }, [
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              vue.toDisplayString(message.orderInfo.startLoc) + " → " + vue.toDisplayString(message.orderInfo.destLoc),
+                              1
+                              /* TEXT */
+                            ),
+                            vue.createElementVNode("br"),
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              "时间: " + vue.toDisplayString(message.orderInfo.time),
+                              1
+                              /* TEXT */
+                            )
+                          ])
+                        ], 8, ["onClick"])
+                      ],
+                      2112
+                      /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
+                    )) : message.type === "apply_order" ? (vue.openBlock(), vue.createElementBlock(
+                      vue.Fragment,
+                      { key: 5 },
+                      [
+                        vue.createCommentVNode(" 拼车邀请 "),
+                        vue.createCommentVNode(" 点击弹出申请同意弹窗 "),
+                        vue.createElementVNode("view", {
+                          onClick: ($event) => $options.showOrderMessagePopup(message)
+                        }, [
+                          vue.createElementVNode("text", { class: "font text" }, "接单申请"),
+                          vue.createElementVNode("view", { style: { "margin-top": "10rpx", "padding": "10rpx", "background-color": "#f0f8ff", "border-radius": "10rpx" } }, [
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              vue.toDisplayString(message.orderInfo.startLoc) + " → " + vue.toDisplayString(message.orderInfo.destLoc),
+                              1
+                              /* TEXT */
+                            ),
+                            vue.createElementVNode("br"),
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              "时间: " + vue.toDisplayString(message.orderInfo.time),
+                              1
+                              /* TEXT */
+                            )
+                          ])
+                        ], 8, ["onClick"])
+                      ],
+                      2112
+                      /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
+                    )) : message.type.endsWith("_accept") || message.type.endsWith("_reject") ? (vue.openBlock(), vue.createElementBlock(
+                      vue.Fragment,
+                      { key: 6 },
+                      [
+                        vue.createCommentVNode(" 拼车邀请 "),
+                        vue.createCommentVNode(" 点击弹出申请同意弹窗 "),
+                        vue.createElementVNode("view", null, [
+                          message.type === "apply_join_accept" ? (vue.openBlock(), vue.createElementBlock("text", {
+                            key: 0,
+                            class: "font text"
+                          }, "乘客加入申请已同意")) : message.type === "apply_join_reject" ? (vue.openBlock(), vue.createElementBlock("text", {
+                            key: 1,
+                            class: "font text"
+                          }, "乘客加入申请已拒绝")) : message.type === "apply_order_accept" ? (vue.openBlock(), vue.createElementBlock("text", {
+                            key: 2,
+                            class: "font text"
+                          }, "司机接单申请已同意")) : message.type === "apply_order_reject" ? (vue.openBlock(), vue.createElementBlock("text", {
+                            key: 3,
+                            class: "font text"
+                          }, "司机接单申请已拒绝")) : vue.createCommentVNode("v-if", true),
+                          vue.createElementVNode("view", { style: { "margin-top": "10rpx", "padding": "10rpx", "background-color": "#f0f8ff", "border-radius": "10rpx" } }, [
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              vue.toDisplayString(message.orderInfo.startLoc) + " → " + vue.toDisplayString(message.orderInfo.destLoc),
+                              1
+                              /* TEXT */
+                            ),
+                            vue.createElementVNode("br"),
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              "时间: " + vue.toDisplayString(message.orderInfo.time),
+                              1
+                              /* TEXT */
+                            )
+                          ])
+                        ])
+                      ],
+                      2112
+                      /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
+                    )) : vue.createCommentVNode("v-if", true)
                   ])
                 ],
                 64
@@ -5053,20 +5425,189 @@ if (uni.restoreGlobal) {
                 [
                   vue.createCommentVNode(" 用户消息：气泡在左，头像在右 "),
                   vue.createElementVNode("view", { class: "message-bubble message-bubble-user" }, [
-                    vue.createElementVNode(
+                    vue.createCommentVNode(" 文本消息 "),
+                    message.type === "text" ? (vue.openBlock(), vue.createElementBlock(
                       "text",
-                      { class: "font text" },
+                      {
+                        key: 0,
+                        class: "font text"
+                      },
                       vue.toDisplayString(message.content),
                       1
                       /* TEXT */
-                    ),
-                    message.image ? (vue.openBlock(), vue.createElementBlock("image", {
-                      key: 0,
-                      src: message.image,
-                      style: { "width": "200rpx", "height": "200rpx", "margin-top": "10rpx" },
-                      mode: "aspectFill",
-                      onClick: ($event) => $options.previewImage(message.image)
-                    }, null, 8, ["src", "onClick"])) : vue.createCommentVNode("v-if", true)
+                    )) : message.type === "image" ? (vue.openBlock(), vue.createElementBlock(
+                      vue.Fragment,
+                      { key: 1 },
+                      [
+                        vue.createCommentVNode(" 图片消息 "),
+                        vue.createElementVNode("image", {
+                          src: message.content,
+                          style: { "width": "200rpx", "height": "200rpx", "margin-top": "10rpx" },
+                          mode: "aspectFill",
+                          onClick: ($event) => $options.previewImage(message.content)
+                        }, null, 8, ["src", "onClick"])
+                      ],
+                      2112
+                      /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
+                    )) : message.type === "file" ? (vue.openBlock(), vue.createElementBlock(
+                      vue.Fragment,
+                      { key: 2 },
+                      [
+                        vue.createCommentVNode(" 文件消息 "),
+                        vue.createElementVNode("view", { class: "file-message" }, [
+                          vue.createElementVNode(
+                            "text",
+                            { class: "font text" },
+                            "文件: " + vue.toDisplayString(message.fileName),
+                            1
+                            /* TEXT */
+                          )
+                        ])
+                      ],
+                      2112
+                      /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
+                    )) : message.type === "invitation" ? (vue.openBlock(), vue.createElementBlock(
+                      vue.Fragment,
+                      { key: 3 },
+                      [
+                        vue.createCommentVNode(" 拼车邀请 "),
+                        vue.createCommentVNode(" 点击弹出接受邀请弹窗 "),
+                        vue.createElementVNode("view", {
+                          onClick: ($event) => $options.showOrderMessagePopup(message)
+                        }, [
+                          vue.createElementVNode("text", { class: "font text" }, "拼车邀请"),
+                          vue.createElementVNode("view", { style: { "margin-top": "10rpx", "padding": "10rpx", "background-color": "#f0f8ff", "border-radius": "10rpx" } }, [
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              vue.toDisplayString(message.orderInfo.startLoc) + " → " + vue.toDisplayString(message.orderInfo.destLoc),
+                              1
+                              /* TEXT */
+                            ),
+                            vue.createElementVNode("br"),
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              "时间: " + vue.toDisplayString(message.orderInfo.time),
+                              1
+                              /* TEXT */
+                            ),
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "#666", "display": "block", "margin-top": "5rpx" } },
+                              vue.toDisplayString(message.role === "driver" ? "对方发起的司机订单" : "对方发起的乘客订单"),
+                              1
+                              /* TEXT */
+                            )
+                          ])
+                        ], 8, ["onClick"])
+                      ],
+                      2112
+                      /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
+                    )) : message.type === "apply_join" ? (vue.openBlock(), vue.createElementBlock(
+                      vue.Fragment,
+                      { key: 4 },
+                      [
+                        vue.createCommentVNode(" 拼车申请 "),
+                        vue.createCommentVNode(" 点击弹出申请同意弹窗 "),
+                        vue.createElementVNode("view", {
+                          onClick: ($event) => $options.showOrderMessagePopup(message)
+                        }, [
+                          vue.createElementVNode("text", { class: "font text" }, "拼车申请"),
+                          vue.createElementVNode("view", { style: { "margin-top": "10rpx", "padding": "10rpx", "background-color": "#f0f8ff", "border-radius": "10rpx" } }, [
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              vue.toDisplayString(message.orderInfo.startLoc) + " → " + vue.toDisplayString(message.orderInfo.destLoc),
+                              1
+                              /* TEXT */
+                            ),
+                            vue.createElementVNode("br"),
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              "时间: " + vue.toDisplayString(message.orderInfo.time),
+                              1
+                              /* TEXT */
+                            )
+                          ])
+                        ], 8, ["onClick"])
+                      ],
+                      2112
+                      /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
+                    )) : message.type === "apply_order" ? (vue.openBlock(), vue.createElementBlock(
+                      vue.Fragment,
+                      { key: 5 },
+                      [
+                        vue.createCommentVNode(" 拼车邀请 "),
+                        vue.createCommentVNode(" 点击弹出申请同意弹窗 "),
+                        vue.createElementVNode("view", {
+                          onClick: ($event) => $options.showOrderMessagePopup(message)
+                        }, [
+                          vue.createElementVNode("text", { class: "font text" }, "接单申请"),
+                          vue.createElementVNode("view", { style: { "margin-top": "10rpx", "padding": "10rpx", "background-color": "#f0f8ff", "border-radius": "10rpx" } }, [
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              vue.toDisplayString(message.orderInfo.startLoc) + " → " + vue.toDisplayString(message.orderInfo.destLoc),
+                              1
+                              /* TEXT */
+                            ),
+                            vue.createElementVNode("br"),
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              "时间: " + vue.toDisplayString(message.orderInfo.time),
+                              1
+                              /* TEXT */
+                            )
+                          ])
+                        ], 8, ["onClick"])
+                      ],
+                      2112
+                      /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
+                    )) : message.type.endsWith("_accept") || message.type.endsWith("_reject") ? (vue.openBlock(), vue.createElementBlock(
+                      vue.Fragment,
+                      { key: 6 },
+                      [
+                        vue.createCommentVNode(" 拼车邀请 "),
+                        vue.createCommentVNode(" 点击弹出申请同意弹窗 "),
+                        vue.createElementVNode("view", null, [
+                          message.type === "apply_join_accept" ? (vue.openBlock(), vue.createElementBlock("text", {
+                            key: 0,
+                            class: "font text"
+                          }, "对方已同意乘客加入申请")) : message.type === "apply_join_reject" ? (vue.openBlock(), vue.createElementBlock("text", {
+                            key: 1,
+                            class: "font text"
+                          }, "对方已拒绝乘客加入申请")) : message.type === "apply_order_accept" ? (vue.openBlock(), vue.createElementBlock("text", {
+                            key: 2,
+                            class: "font text"
+                          }, "对方已同意司机接单申请")) : message.type === "apply_order_reject" ? (vue.openBlock(), vue.createElementBlock("text", {
+                            key: 3,
+                            class: "font text"
+                          }, "对方已拒绝司机接单申请")) : vue.createCommentVNode("v-if", true),
+                          vue.createElementVNode("view", { style: { "margin-top": "10rpx", "padding": "10rpx", "background-color": "#f0f8ff", "border-radius": "10rpx" } }, [
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              vue.toDisplayString(message.orderInfo.startLoc) + " → " + vue.toDisplayString(message.orderInfo.destLoc),
+                              1
+                              /* TEXT */
+                            ),
+                            vue.createElementVNode("br"),
+                            vue.createElementVNode(
+                              "text",
+                              { style: { "font-size": "12px", "color": "black" } },
+                              "时间: " + vue.toDisplayString(message.orderInfo.time),
+                              1
+                              /* TEXT */
+                            )
+                          ])
+                        ])
+                      ],
+                      2112
+                      /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */
+                    )) : vue.createCommentVNode("v-if", true)
                   ]),
                   vue.createElementVNode("view", { class: "avatar-container" }, [
                     vue.createElementVNode("image", {
@@ -5079,57 +5620,6 @@ if (uni.restoreGlobal) {
                 /* STABLE_FRAGMENT */
               ))
             ], 10, ["id"]);
-          }),
-          128
-          /* KEYED_FRAGMENT */
-        )),
-        vue.createCommentVNode(" 拼车邀请消息 "),
-        (vue.openBlock(true), vue.createElementBlock(
-          vue.Fragment,
-          null,
-          vue.renderList($data.invites, (invite, index) => {
-            return vue.openBlock(), vue.createElementBlock("view", {
-              key: "invite-" + index,
-              class: "flex-row justify-end",
-              style: { "display": "flex", "width": "100%", "align-items": "center" }
-            }, [
-              vue.createElementVNode("view", {
-                class: "message-bubble message-bubble-user",
-                onClick: ($event) => $options.showInvitePopup(invite)
-              }, [
-                vue.createElementVNode("text", { class: "font text" }, "拼车邀请"),
-                vue.createElementVNode("view", { style: { "margin-top": "10rpx", "padding": "10rpx", "background-color": "#f0f8ff", "border-radius": "10rpx" } }, [
-                  vue.createElementVNode(
-                    "text",
-                    { style: { "font-size": "12px", "color": "black" } },
-                    vue.toDisplayString(invite.start_loc) + " → " + vue.toDisplayString(invite.dest_loc),
-                    1
-                    /* TEXT */
-                  ),
-                  vue.createElementVNode("br"),
-                  vue.createElementVNode(
-                    "text",
-                    { style: { "font-size": "12px", "color": "black" } },
-                    "时间: " + vue.toDisplayString(invite.time),
-                    1
-                    /* TEXT */
-                  ),
-                  vue.createElementVNode(
-                    "text",
-                    { style: { "font-size": "12px", "color": "#666", "display": "block", "margin-top": "5rpx" } },
-                    vue.toDisplayString(invite.role === "driver" ? "我发起的司机订单" : "对方发起的乘客订单"),
-                    1
-                    /* TEXT */
-                  )
-                ])
-              ], 8, ["onClick"]),
-              vue.createElementVNode("view", { class: "avatar-container" }, [
-                vue.createElementVNode("image", {
-                  class: "userAvatar",
-                  src: $data.userAvatar
-                }, null, 8, ["src"])
-              ])
-            ]);
           }),
           128
           /* KEYED_FRAGMENT */
@@ -5272,17 +5762,21 @@ if (uni.restoreGlobal) {
         ])
       ])) : vue.createCommentVNode("v-if", true),
       vue.createCommentVNode(" 拼车邀请详情弹窗 "),
-      $data.showInvite ? (vue.openBlock(), vue.createBlock(_component_OrderInvite, {
+      $data.showOrder ? (vue.openBlock(), vue.createBlock(_component_OrderInvite, {
         key: 1,
-        isVisible: $data.showInvite,
-        username: $data.currentInvite.role === "driver" ? $data.username : $data.other_username,
-        time: $data.currentInvite.time,
-        start_loc: $data.currentInvite.start_loc,
-        dest_loc: $data.currentInvite.dest_loc,
-        username_2: $data.currentInvite.role === "driver" ? $data.other_username : $data.username,
-        avatar_url: $data.currentInvite.role === "driver" ? $data.userAvatar : $data.otherAvatar,
-        onClose: $options.closeInvitePopup
-      }, null, 8, ["isVisible", "username", "time", "start_loc", "dest_loc", "username_2", "avatar_url", "onClose"])) : vue.createCommentVNode("v-if", true),
+        userId: $data.currentOrderMessage.senderInfo.userId,
+        orderId: $data.currentOrderMessage.orderInfo.orderId,
+        messageId: $data.currentOrderMessage.id,
+        isUserInOrder: $data.currentOrderMessage.sender,
+        isVisible: $data.showOrder,
+        messageType: $data.currentOrderMessage.type,
+        username: $data.currentOrderMessage.senderInfo.username,
+        time: $data.currentOrderMessage.orderInfo.time,
+        start_loc: $data.currentOrderMessage.orderInfo.startLoc,
+        dest_loc: $data.currentOrderMessage.orderInfo.destLoc,
+        avatar_url: $data.currentOrderMessage.sender.avatar,
+        onClose: $options.closeOrderMessagePopup
+      }, null, 8, ["userId", "orderId", "messageId", "isUserInOrder", "isVisible", "messageType", "username", "time", "start_loc", "dest_loc", "avatar_url", "onClose"])) : vue.createCommentVNode("v-if", true),
       vue.createCommentVNode(" 全屏显示图片 "),
       $data.isPreviewing ? (vue.openBlock(), vue.createElementBlock("view", {
         key: 2,
@@ -5356,85 +5850,6 @@ if (uni.restoreGlobal) {
     ]);
   }
   const PagesIndexChat = /* @__PURE__ */ _export_sfc(_sfc_main$i, [["render", _sfc_render$h], ["__scopeId", "data-v-8595e4ae"], ["__file", "E:/Projects/SE/ride-sharing-se/pages/index/chat.vue"]]);
-  const publishOrder = (orderData) => {
-    return post("/orders", orderData);
-  };
-  const fetchOrderList = () => {
-    return get("orders/list");
-  };
-  const payOrder = (orderId) => {
-    return post(`/orders/${orderId}/paid`);
-  };
-  const fetchTripDetail = (orderId) => {
-    return get(`/orders/${orderId}`);
-  };
-  const submitTripRating = (orderId, payload) => {
-    return post(`/orders/${orderId}/rate`, payload);
-  };
-  const fetchCalendarTrips = (year, month, userId) => {
-    return get(`/orders/calendar/${userId}`, {
-      params: { year, month }
-    }).then((response) => {
-      return response.data.map((trip) => ({
-        id: trip.order_id,
-        order_id: trip.order_id,
-        start_time: trip.start_time,
-        start_loc: trip.start_loc,
-        dest_loc: trip.dest_loc,
-        date: trip.start_time,
-        startPoint: trip.start_loc,
-        endPoint: trip.dest_loc,
-        price: trip.price,
-        car_type: trip.car_type,
-        carType: trip.car_type || "未接单",
-        status: trip.status,
-        userAvatar: trip.initiator.avatar || "../../static/user.jpeg",
-        orderCount: trip.participants_count || 0,
-        initiator: trip.initiator
-      }));
-    });
-  };
-  function fetchUserTrips() {
-    return get(`/orders/user/trips`);
-  }
-  const fetchManagedOrders = (params) => {
-    formatAppLog("log", "at api/order.js:60", params.status || "all");
-    return get("/orders/manage/list", {
-      params: {
-        status: params.status || "all",
-        type: params.type || "all",
-        year: params.year || "",
-        month: params.month || ""
-      }
-    }).then((response) => {
-      formatAppLog("log", "at api/order.js:69", response.data);
-      return response.data.map((order) => ({
-        id: order.id,
-        date: order.date,
-        startPoint: order.startPoint,
-        endPoint: order.endPoint,
-        price: order.price,
-        carType: order.carType || "未接单",
-        status: order.status,
-        publisher: order.publisher,
-        userAvatar: order.userAvatar || "../../static/user.jpeg",
-        rejectReason: order.rejectReason
-      }));
-    });
-  };
-  const approveOrder = (orderId) => {
-    return post(`/orders/manage/${orderId}/approve`);
-  };
-  const rejectOrder = (orderId, reason) => {
-    return post(`/orders/manage/${orderId}/reject`, { reason });
-  };
-  const acceptOrder = (data) => {
-    return post("/orders/driver/accept", data);
-  };
-  const applyOrder = (data) => {
-    formatAppLog("log", "at api/order.js:110", "applyOrder接口被调用");
-    return post("/orders/passenger/apply", data);
-  };
   const _sfc_main$h = {
     props: {
       visible: {
@@ -12918,9 +13333,9 @@ if (uni.restoreGlobal) {
           formatAppLog("log", "at pages/index/home.vue:343", "弹窗确认操作");
           uni.showLoading({ title: "处理中...", mask: true });
           if (this.currentAction === "accept") {
-            await this.acceptOrder();
+            await this.driverApplyOrder();
           } else {
-            await this.applyOrder();
+            await this.passengerApplyOrder();
           }
           ;
           uni.showToast({
@@ -12943,10 +13358,10 @@ if (uni.restoreGlobal) {
         return this.isCarpool ? "拼车申请已提交" : "搭车申请已提交";
       },
       // 接单API
-      async acceptOrder() {
+      async driverApplyOrder() {
         formatAppLog("log", "at pages/index/home.vue:372", "调用接单API");
         try {
-          const res2 = await acceptOrder({
+          const res2 = await driverApplyOrder({
             orderId: this.currentOrderId,
             vehicleId: this.selectedVehicleId
           });
@@ -12959,10 +13374,10 @@ if (uni.restoreGlobal) {
         }
       },
       // 申请API
-      async applyOrder() {
+      async passengerApplyOrder() {
         formatAppLog("log", "at pages/index/home.vue:390", "调用申请API");
         try {
-          const res2 = await applyOrder({
+          const res2 = await passengerApplyOrder({
             orderId: this.currentOrderId
           });
           formatAppLog("log", "at pages/index/home.vue:395", res2);
@@ -13547,6 +13962,7 @@ if (uni.restoreGlobal) {
         }
       },
       // 新增方法：删除订单
+      // TODO: 后端接口删除
       deleteOrder(orderId) {
         this.orders = this.orders.filter((order) => order.id !== orderId);
         uni.showToast({

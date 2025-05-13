@@ -50,9 +50,14 @@ export const fetchCalendarTrips = (year, month, userId) => {
   });
 };
 
-// 获取用户的行程
+// 获取用户的行程 -- 限制3条
 export function fetchUserTrips() {
   return get( `/orders/user/trips`);
+}
+
+// 获取用户的行程列表
+export function fetchUserTripList() {
+  return get( `/orders/user/trips/list`);
 }
 
 // 获取管理后台订单列表
@@ -93,21 +98,55 @@ export const rejectOrder = (orderId, reason) => {
 };
 
 /**
- * 司机接单
+ * 司机申请接单
  * @param {Object} data - { orderId: number, vehicleId: number }
  * @returns {Promise}
  */
-export const acceptOrder = (data) => {
+export const driverApplyOrder = (data) => {
+  return post('/orders/driver/apply', data);
+};
+
+/**
+ * 同意司机接单申请
+ * @param {Object} data - { orderId: number, vehicleId: number }
+ * @returns {Promise}
+ */
+export const acceptDriverOrder = (data) => {
   return post('/orders/driver/accept', data);
 };
 
 /**
- * 乘客申请
+ * 拒绝司机接单申请
+ * @param {Object} data - { orderId: number, vehicleId: number }
+ * @returns {Promise}
+ */
+export const rejectDriverOrder = (data) => {
+  return post('/orders/driver/reject', data);
+};
+
+/**
+ * 乘客申请拼车/搭车
  * @param {Object} data - { orderId: number }
  * @returns {Promise}
  */
-export const applyOrder = (data) => {
-  console.log("applyOrder接口被调用")
+export const passengerApplyOrder = (data) => {
   return post('/orders/passenger/apply', data);
 };
 
+/**
+ * 同意乘客拼车/搭车申请
+ * @param {Object} data - { orderId: number, userId: number, messageId: number }
+ * @returns {Promise}
+ */
+export const acceptPassengerApplication = (data) => {
+  return post('/orders/apply/accept', data);
+};
+
+/**
+ * 拒绝乘客拼车/搭车申请
+ * @param {Object} data - { orderId: number, userId: number, messageId: number }
+ * @returns {Promise}
+ */
+export const rejectPassengerApplication = (data) => {
+  return post('/orders/apply/reject', data);
+};
