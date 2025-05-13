@@ -173,8 +173,8 @@
 <script>
 // 引入 NavigationBar 组件
 import NavigationBar from '../../components/NavigationBar.vue';
-import uniPopup from '@dcloudio/uni-ui/lib/uni-popup/uni-popup.vue'
-import uniPopupDialog from '@dcloudio/uni-ui/lib/uni-popup-dialog/uni-popup-dialog.vue'
+import uniPopup from '../../uni_modules/uni-popup/components/uni-popup/uni-popup.vue'
+import uniPopupDialog from '../../uni_modules/uni-popup/components/uni-popup-dialog/uni-popup-dialog.vue'
 import { fetchOrderList, acceptOrder, applyOrder } from '@/api/order.js';
 import { fetchCars } from '../../api/user';
 
