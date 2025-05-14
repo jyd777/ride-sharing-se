@@ -11145,7 +11145,8 @@ if (uni.restoreGlobal) {
       async uploadAvatar(base64Data) {
         try {
           uni.showLoading({ title: "上传中..." });
-          const cacheUserID = uni.getStorageSync("user_id");
+          const cacheUser = uni.getStorageSync("user_info");
+          const cacheUserID = cacheUser.user_id;
           await uploadUserAvatar(cacheUserID, base64Data);
           const newAvatar = await fetchUserAvatar(cacheUserID);
           this.user.avatar = newAvatar;
@@ -11155,7 +11156,7 @@ if (uni.restoreGlobal) {
             icon: "success"
           });
         } catch (error) {
-          formatAppLog("error", "at pages/index/info_manage.vue:260", "头像上传失败:", error);
+          formatAppLog("error", "at pages/index/info_manage.vue:261", "头像上传失败:", error);
           uni.showToast({
             title: error.message || "头像上传失败",
             icon: "none"
@@ -11209,7 +11210,7 @@ if (uni.restoreGlobal) {
             throw new Error(response.message || "保存失败");
           }
         } catch (error) {
-          formatAppLog("error", "at pages/index/info_manage.vue:331", "保存失败:", error);
+          formatAppLog("error", "at pages/index/info_manage.vue:332", "保存失败:", error);
           uni.showToast({
             title: error.message || "保存失败，请重试",
             icon: "none"
@@ -13209,21 +13210,21 @@ if (uni.restoreGlobal) {
               this.longitude = res2.longitude;
             },
             fail: (error) => {
-              formatAppLog("error", "at pages/index/home.vue:247", "获取位置失败:", error);
+              formatAppLog("error", "at pages/index/home.vue:248", "获取位置失败:", error);
             }
           });
         } else {
-          formatAppLog("error", "at pages/index/home.vue:251", "当前环境不支持微信小程序的定位功能");
+          formatAppLog("error", "at pages/index/home.vue:252", "当前环境不支持微信小程序的定位功能");
         }
       },
       onMapTap(e) {
-        formatAppLog("log", "at pages/index/home.vue:255", "地图被点击了", e);
+        formatAppLog("log", "at pages/index/home.vue:256", "地图被点击了", e);
       },
       onMarkerTap(e) {
-        formatAppLog("log", "at pages/index/home.vue:258", "标记被点击了", e);
+        formatAppLog("log", "at pages/index/home.vue:259", "标记被点击了", e);
       },
       onRegionChange(e) {
-        formatAppLog("log", "at pages/index/home.vue:261", "地图区域改变", e);
+        formatAppLog("log", "at pages/index/home.vue:262", "地图区域改变", e);
       },
       toggleIdentity(identity) {
         this.isPassenger = identity === "passenger";
@@ -13233,12 +13234,12 @@ if (uni.restoreGlobal) {
           return;
         try {
           this.isLoading = true;
-          formatAppLog("log", "at pages/index/home.vue:274", "获取首页订单数据");
+          formatAppLog("log", "at pages/index/home.vue:275", "获取首页订单数据");
           const res2 = await fetchOrderList();
-          formatAppLog("log", "at pages/index/home.vue:276", res2.data);
+          formatAppLog("log", "at pages/index/home.vue:277", res2.data);
           if (refresh) {
             this.orders = res2.data || [];
-            formatAppLog("log", "at pages/index/home.vue:279", this.orders);
+            formatAppLog("log", "at pages/index/home.vue:280", this.orders);
           } else {
             this.orders = [...this.orders, ...res2.data || []];
           }
@@ -13248,7 +13249,7 @@ if (uni.restoreGlobal) {
             icon: "none",
             duration: 2e3
           });
-          formatAppLog("error", "at pages/index/home.vue:290", "获取订单失败:", error);
+          formatAppLog("error", "at pages/index/home.vue:291", "获取订单失败:", error);
         } finally {
           this.isLoading = false;
           uni.stopPullDownRefresh();
@@ -13256,10 +13257,10 @@ if (uni.restoreGlobal) {
       },
       // 司机接单按钮点击事件
       async handleDriverAction(order) {
-        formatAppLog("log", "at pages/index/home.vue:298", "司机接单按钮点击事件");
+        formatAppLog("log", "at pages/index/home.vue:299", "司机接单按钮点击事件");
         try {
           const res2 = await fetchCars();
-          formatAppLog("log", "at pages/index/home.vue:302", "fetch car res", res2);
+          formatAppLog("log", "at pages/index/home.vue:303", "fetch car res", res2);
           if (res2.data.count !== 0) {
             this.vehicles = res2.data.vehicles;
             this.currentOrderId = order.id;
@@ -13285,7 +13286,7 @@ if (uni.restoreGlobal) {
       },
       // 乘客申请按钮点击事件
       handlePassengerAction(order) {
-        formatAppLog("log", "at pages/index/home.vue:330", "乘客申请按钮点击事件");
+        formatAppLog("log", "at pages/index/home.vue:331", "乘客申请按钮点击事件");
         this.currentOrderId = order.id;
         this.currentAction = "apply";
         this.isCarpool = order.infoType === "人找车";
@@ -13298,7 +13299,7 @@ if (uni.restoreGlobal) {
       // 弹窗确认操作
       async handleConfirm() {
         try {
-          formatAppLog("log", "at pages/index/home.vue:343", "弹窗确认操作");
+          formatAppLog("log", "at pages/index/home.vue:344", "弹窗确认操作");
           uni.showLoading({ title: "处理中...", mask: true });
           if (this.currentAction === "accept") {
             await this.driverApplyOrder();
@@ -13327,7 +13328,7 @@ if (uni.restoreGlobal) {
       },
       // 接单API
       async driverApplyOrder() {
-        formatAppLog("log", "at pages/index/home.vue:372", "调用接单API");
+        formatAppLog("log", "at pages/index/home.vue:373", "调用接单API");
         try {
           const res2 = await driverApplyOrder({
             orderId: this.currentOrderId,
@@ -13343,12 +13344,12 @@ if (uni.restoreGlobal) {
       },
       // 申请API
       async passengerApplyOrder() {
-        formatAppLog("log", "at pages/index/home.vue:390", "调用申请API");
+        formatAppLog("log", "at pages/index/home.vue:391", "调用申请API");
         try {
           const res2 = await passengerApplyOrder({
             orderId: this.currentOrderId
           });
-          formatAppLog("log", "at pages/index/home.vue:395", res2);
+          formatAppLog("log", "at pages/index/home.vue:396", res2);
           this.fetchOrders(true);
         } catch (error) {
           uni.showToast({
