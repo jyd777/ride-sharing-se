@@ -10,6 +10,11 @@ export const fetchOrderList = () => {
   return get('orders/list');
 };
 
+// 获取可以用于发送邀请信息的订单
+export const fetchActiveOrderList = () => {
+	return get('orders/active');
+};
+
 // 支付订单
 export const payOrder = (orderId) => {
   return post(`/orders/${orderId}/paid`);
@@ -149,4 +154,22 @@ export const acceptPassengerApplication = (data) => {
  */
 export const rejectPassengerApplication = (data) => {
   return post('/orders/apply/reject', data);
+};
+
+/**
+ * 接受拼车邀请
+ * @param {Object} data - { orderId: number, userId: number, messageId: number }
+ * @returns {Promise}
+ */
+export const acceptInvitation = (data) => {
+  return post('/orders/invitation/accept', data);
+};
+
+/**
+ * 拒绝拼车邀请
+ * @param {Object} data - { orderId: number, userId: number, messageId: number }
+ * @returns {Promise}
+ */
+export const rejectInvitation = (data) => {
+  return post('/orders/invitation/reject', data);
 };

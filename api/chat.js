@@ -51,9 +51,12 @@ export function sendMessage(conversationId, content, type = 'text') {
 	});
 }
 
-SocketService.on('private_message', (data) => {
-	console.log(`收到来自${data.from}的消息：${data.content}`);
-	
-})
+export function sendInvitation(conversationId, orderId) {
+	SocketService.emit('send_invitation', {
+		conversationId: conversationId,
+		orderId: orderId
+	});
+}
+
 
 

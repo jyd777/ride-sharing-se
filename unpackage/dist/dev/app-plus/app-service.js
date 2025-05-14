@@ -4068,9 +4068,12 @@ if (uni.restoreGlobal) {
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     });
   }
-  SocketService.on("private_message", (data) => {
-    formatAppLog("log", "at api/chat.js:55", `收到来自${data.from}的消息：${data.content}`);
-  });
+  function sendInvitation(conversationId, orderId) {
+    SocketService.emit("send_invitation", {
+      conversationId,
+      orderId
+    });
+  }
   const _imports_1$4 = "/static/empty.png";
   const _sfc_main$k = {
     components: {
@@ -4421,6 +4424,9 @@ if (uni.restoreGlobal) {
   const fetchOrderList = () => {
     return get("orders/list");
   };
+  const fetchActiveOrderList = () => {
+    return get("orders/active");
+  };
   const payOrder = (orderId) => {
     return post(`/orders/${orderId}/paid`);
   };
@@ -4457,7 +4463,7 @@ if (uni.restoreGlobal) {
     return get(`/orders/user/trips`);
   }
   const fetchManagedOrders = (params) => {
-    formatAppLog("log", "at api/order.js:65", params.status || "all");
+    formatAppLog("log", "at api/order.js:70", params.status || "all");
     return get("/orders/manage/list", {
       params: {
         status: params.status || "all",
@@ -4466,7 +4472,7 @@ if (uni.restoreGlobal) {
         month: params.month || ""
       }
     }).then((response) => {
-      formatAppLog("log", "at api/order.js:74", response.data);
+      formatAppLog("log", "at api/order.js:79", response.data);
       return response.data.map((order) => ({
         id: order.id,
         date: order.date,
@@ -4505,6 +4511,12 @@ if (uni.restoreGlobal) {
   const rejectPassengerApplication = (data) => {
     return post("/orders/apply/reject", data);
   };
+  const acceptInvitation = (data) => {
+    return post("/orders/invitation/accept", data);
+  };
+  const rejectInvitation = (data) => {
+    return post("/orders/invitation/reject", data);
+  };
   const _imports_4 = "/static/close.png";
   const _imports_1$3 = "/static/clock.png";
   const _imports_1$2 = "/static/start.png";
@@ -4512,6 +4524,9 @@ if (uni.restoreGlobal) {
   const _sfc_main$j = {
     props: {
       userId: {
+        type: Number
+      },
+      conversationId: {
         type: Number
       },
       orderId: {
@@ -4577,7 +4592,6 @@ if (uni.restoreGlobal) {
           case "apply_order":
             return `${this.username}申请接单`;
           case "invitation":
-          default:
             return `${this.username}发起的拼车邀约`;
         }
       },
@@ -4588,7 +4602,6 @@ if (uni.restoreGlobal) {
           case "apply_order":
             return "同 意 接 单";
           case "invitation":
-          default:
             return "接 受 邀 约";
         }
       }
@@ -4598,13 +4611,7 @@ if (uni.restoreGlobal) {
         this.$emit("close");
       },
       handleAccept() {
-        const needsVehicle = this.messageType === "invitation";
-        if (needsVehicle) {
-          this.fetchUserVehicles();
-          this.showVehiclePopup = true;
-        } else {
-          this.acceptInvite();
-        }
+        this.acceptInvite();
       },
       handleReject() {
         const requestdata = {
@@ -4615,30 +4622,19 @@ if (uni.restoreGlobal) {
         switch (this.messageType) {
           case "apply_join":
             rejectPassengerApplication(requestdata);
+            uni.showToast({ title: "已拒绝", icon: "none" });
+            this.closePopup();
             break;
           case "apply_order":
             rejectDriverOrder(requestdata);
+            uni.showToast({ title: "已拒绝", icon: "none" });
+            this.closePopup();
             break;
           case "invitation":
-          default:
-            uni.showToast({ title: "不接受邀约", icon: "none" });
+            rejectInvitation(requestdata);
+            uni.showToast({ title: "已拒绝", icon: "none" });
             this.closePopup();
-            return;
         }
-      },
-      fetchUserVehicles() {
-        this.vehicles = [
-          { id: 1, plate_number: "沪A12345" },
-          { id: 2, plate_number: "沪B67890" }
-        ];
-      },
-      confirmVehicleSelection() {
-        if (!this.selectedVehicle) {
-          uni.showToast({ title: "请选择车辆", icon: "none" });
-          return;
-        }
-        this.acceptInvite();
-        this.showVehiclePopup = false;
       },
       acceptInvite() {
         const requestdata = {
@@ -4649,17 +4645,18 @@ if (uni.restoreGlobal) {
         switch (this.messageType) {
           case "apply_join":
             acceptPassengerApplication(requestdata);
+            uni.showToast({ title: "已同意", icon: "none" });
+            this.closePopup();
             break;
           case "apply_order":
             acceptDriverOrder(requestdata);
+            uni.showToast({ title: "已同意", icon: "none" });
+            this.closePopup();
             break;
           case "invitation":
-          default:
-            if (!this.selectedVehicle) {
-              uni.showToast({ title: "请选择车辆", icon: "none" });
-              return;
-            }
-            acceptDriverOrder({ vehicleId: this.selectedVehicle.id });
+            acceptInvitation(requestdata);
+            uni.showToast({ title: "已同意", icon: "none" });
+            this.closePopup();
             break;
         }
       }
@@ -4817,7 +4814,7 @@ if (uni.restoreGlobal) {
           $data.selectedVehicle ? (vue.openBlock(), vue.createElementBlock("button", {
             key: 0,
             class: "send-btn",
-            onClick: _cache[4] || (_cache[4] = (...args) => $options.confirmVehicleSelection && $options.confirmVehicleSelection(...args))
+            onClick: _cache[4] || (_cache[4] = (...args) => _ctx.confirmVehicleSelection && _ctx.confirmVehicleSelection(...args))
           }, " 确认选择 ")) : vue.createCommentVNode("v-if", true)
         ])
       ])) : vue.createCommentVNode("v-if", true)
@@ -4858,7 +4855,7 @@ if (uni.restoreGlobal) {
         currentOrderMessage: {},
         // 当前的订单消息
         selectedOrderId: null,
-        orderType: "driver",
+        orderType: "车找人",
         showOrderPopupFlag: false,
         isPreviewing: false,
         previewImageSrc: "",
@@ -4873,7 +4870,7 @@ if (uni.restoreGlobal) {
     },
     computed: {
       filteredOrders() {
-        return this.orderType === "driver" ? this.driverOrders : this.passengerOrders;
+        return this.orderType === "车找人" ? this.driverOrders : this.passengerOrders;
       }
     },
     onLoad() {
@@ -4882,7 +4879,7 @@ if (uni.restoreGlobal) {
       this.conversationId = conversation.id;
       this.conversation_title = conversation.username;
       this.conversation_avatar = conversation.avatar;
-      this.initChatPage();
+      this.init();
       SocketService.off("new_message", this.handleNewMessage);
       SocketService.off("message_error");
       SocketService.on("new_message", this.handleNewMessage);
@@ -4905,15 +4902,11 @@ if (uni.restoreGlobal) {
       goBack() {
         uni.navigateBack();
       },
-      async initChatPage() {
-        formatAppLog("log", "at pages/index/chat.vue:420", "初始化聊天界面");
-        try {
-          await this.fetchMessages();
-        } catch (err) {
-          formatAppLog("error", "at pages/index/chat.vue:424", "初始化失败", err);
-        }
+      async init() {
+        await this.fetchMessages();
+        await this.fetchActiveOrders();
       },
-      // 获取会话消息
+      // 消息相关函数
       async fetchMessages() {
         try {
           const currentUserId = uni.getStorageSync("user_info").userId;
@@ -4935,7 +4928,7 @@ if (uni.restoreGlobal) {
                 userId: msg.sender.user_id
               }
             };
-            if (msg.type === "invitation" || msg.type === "apply_join" || msg.type === "apply_order" || msg.type === "apply_join_accept" || msg.type === "apply_join_reject" || msg.type === "apply_order_accept" || msg.type === "apply_order_reject") {
+            if (msg.type === "invitation" || msg.type === "apply_join" || msg.type === "apply_order" || msg.type === "apply_join_accept" || msg.type === "apply_join_reject" || msg.type === "apply_order_accept" || msg.type === "apply_order_reject" || msg.type === "invitation_accept" || msg.type === "invitation_reject") {
               message.orderInfo = {
                 orderId: (_a = msg.order_info) == null ? void 0 : _a.order_id,
                 startLoc: ((_b = msg.order_info) == null ? void 0 : _b.start_loc) || msg.start_loc,
@@ -4957,7 +4950,6 @@ if (uni.restoreGlobal) {
             }
             return message;
           });
-          formatAppLog("log", "at pages/index/chat.vue:481", "消息列表", this.messages);
         } catch (err) {
           uni.showToast({
             title: "加载消息失败",
@@ -4965,7 +4957,6 @@ if (uni.restoreGlobal) {
           });
         }
       },
-      // 发送消息
       sendMessage() {
         const msg = this.inputMessage.trim();
         if (!msg)
@@ -4975,49 +4966,64 @@ if (uni.restoreGlobal) {
         this.scrollToBottom();
         sendMessage(this.conversationId, msg);
       },
-      // 处理新消息
       handleNewMessage(msg) {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
         if (this.messages.some((m) => m.id === msg.id)) {
           return;
         }
         formatAppLog("log", "at pages/index/chat.vue:508", "新消息", msg);
-        const sender_id = msg.sender.id;
-        const my_id = uni.getStorageSync("user_info").userId;
-        if (!sender_id || !my_id) {
+        const currentUserId = uni.getStorageSync("user_info").userId;
+        const currentUsername = uni.getStorageSync("user_info").username;
+        if (!((_a = msg.sender) == null ? void 0 : _a.id) || !currentUserId) {
           return;
         }
-        const isCurrentUser = String(sender_id) === String(my_id);
-        if (msg.conversationId === this.conversationId) {
-          const newMsg = {
-            id: msg.id,
-            sender: isCurrentUser ? "user" : "other",
-            content: msg.content,
-            createdAt: new Date(msg.createdAt),
-            senderInfo: msg.sender
+        const isCurrentUser = String(msg.sender.id) === String(currentUserId);
+        const newMsg = {
+          id: msg.id,
+          sender: isCurrentUser ? "user" : "other",
+          content: msg.content,
+          type: msg.type || "text",
+          // 默认文本类型
+          createdAt: new Date(msg.createdAt),
+          senderInfo: {
+            username: isCurrentUser ? currentUsername : msg.sender.username,
+            avatar: msg.sender.avatar,
+            realname: msg.sender.realname,
+            userId: msg.sender.id || msg.sender.user_id
+          }
+        };
+        if (msg.type === "invitation" || msg.type === "apply_join" || msg.type === "apply_order" || msg.type === "apply_join_accept" || msg.type === "apply_join_reject" || msg.type === "apply_order_accept" || msg.type === "apply_order_reject") {
+          newMsg.orderInfo = {
+            orderId: ((_b = msg.orderInfo) == null ? void 0 : _b.order_id) || msg.orderId,
+            startLoc: ((_c = msg.orderInfo) == null ? void 0 : _c.start_loc) || msg.start_loc || ((_d = msg.orderInfo) == null ? void 0 : _d.startLoc),
+            destLoc: ((_e = msg.orderInfo) == null ? void 0 : _e.dest_loc) || msg.dest_loc || ((_f = msg.orderInfo) == null ? void 0 : _f.destLoc),
+            time: ((_g = msg.orderInfo) == null ? void 0 : _g.start_time) || msg.time || ((_h = msg.orderInfo) == null ? void 0 : _h.time),
+            price: ((_i = msg.orderInfo) == null ? void 0 : _i.price) || ((_j = msg.orderInfo) == null ? void 0 : _j.price),
+            status: ((_k = msg.orderInfo) == null ? void 0 : _k.status) || ((_l = msg.orderInfo) == null ? void 0 : _l.status),
+            orderType: ((_m = msg.orderInfo) == null ? void 0 : _m.order_type) || ((_n = msg.orderInfo) == null ? void 0 : _n.orderType),
+            carType: ((_o = msg.orderInfo) == null ? void 0 : _o.car_type) || ((_p = msg.orderInfo) == null ? void 0 : _p.carType),
+            spareSeatNum: ((_q = msg.orderInfo) == null ? void 0 : _q.spare_seat_num) || ((_r = msg.orderInfo) == null ? void 0 : _r.spareSeatNum),
+            travelPartnerNum: ((_s = msg.orderInfo) == null ? void 0 : _s.travel_partner_num) || ((_t = msg.orderInfo) == null ? void 0 : _t.travelPartnerNum)
           };
+        }
+        formatAppLog("log", "at pages/index/chat.vue:550", msg.conversationId, this.conversationId);
+        if (msg.conversationId === this.conversationId) {
+          formatAppLog("log", "at pages/index/chat.vue:552", "添加新消息成功", newMsg);
           this.messages = [...this.messages, newMsg];
         }
         this.$nextTick(() => {
           this.scrollToBottom();
         });
       },
-      getRandomReply() {
-        const replies = [
-          "收到你的消息了",
-          "好的，我知道了",
-          "这个问题我需要想想",
-          "谢谢你的分享",
-          "我们稍后再聊这个话题"
-        ];
-        return replies[Math.floor(Math.random() * replies.length)];
-      },
-      scrollToBottom() {
-        formatAppLog("log", "at pages/index/chat.vue:547", "滚动到底部");
-        if (this.messages.length > 0) {
-          this.lastMsgId = "msg-" + this.messages[this.messages.length - 1].id;
-        }
-      },
       // 订单相关方法
+      async fetchActiveOrders() {
+        const res2 = await fetchActiveOrderList();
+        this.driverOrders = res2.data.driver_orders;
+        this.passengerOrders = res2.data.passenger_orders;
+        formatAppLog("log", "at pages/index/chat.vue:567", "获取活跃订单");
+        formatAppLog("log", "at pages/index/chat.vue:568", this.driverOrders);
+        formatAppLog("log", "at pages/index/chat.vue:569", this.passengerOrders);
+      },
       showOrderPopup() {
         this.selectedOrderId = null;
         this.showOrderPopupFlag = true;
@@ -5029,79 +5035,16 @@ if (uni.restoreGlobal) {
         this.orderType = type;
         this.selectedOrderId = null;
       },
-      previewImage(src) {
-        this.previewImageSrc = src;
-        this.isPreviewing = true;
-      },
-      closePreview() {
-        this.isPreviewing = false;
-      },
-      // 模拟数据
-      getAvailableOrders() {
-        this.driverOrders = [
-          {
-            id: 1,
-            start_loc: "同济大学（嘉定校区）",
-            dest_loc: "同济大学（四平校区）",
-            time: "今天 14:30",
-            status: "待出发",
-            role: "driver",
-            username: this.username
-          },
-          {
-            id: 2,
-            start_loc: "嘉定新城地铁站",
-            dest_loc: "虹桥机场",
-            time: "明天 08:00",
-            status: "待出发",
-            role: "driver",
-            username: this.username
-          }
-        ];
-        this.passengerOrders = [
-          {
-            id: 101,
-            start_loc: "人民广场",
-            dest_loc: "浦东机场",
-            time: "后天 10:00",
-            status: "寻找司机",
-            role: "passenger",
-            username: this.other_username
-            // 使用对方用户名
-          },
-          {
-            id: 102,
-            start_loc: "静安寺",
-            dest_loc: "虹桥火车站",
-            time: "大后天 15:30",
-            status: "寻找司机",
-            role: "passenger",
-            username: this.other_username
-            // 使用对方用户名
-          }
-        ];
-      },
       selectOrder(order) {
         this.selectedOrderId = order.id;
       },
-      // 发送订单邀请
       sendInvite() {
         if (!this.selectedOrderId)
           return;
         const allOrders = [...this.driverOrders, ...this.passengerOrders];
         const order = allOrders.find((o) => o.id === this.selectedOrderId);
         if (order) {
-          if (order.role === "passenger") {
-            this.fetchUserVehicles();
-            this.showVehiclePopup = true;
-            return;
-          }
-          this.invites.push({
-            ...order,
-            type: "invite",
-            inviter: order.role === "driver" ? this.username : this.other_username,
-            inviter_avatar: order.role === "driver" ? this.userAvatar : this.otherAvatar
-          });
+          sendInvitation(this.conversationId, order.id);
           this.closeOrderPopup();
           this.scrollToBottom();
           uni.showToast({
@@ -5109,6 +5052,26 @@ if (uni.restoreGlobal) {
             icon: "success"
           });
         }
+      },
+      // 预览图片
+      previewImage(src) {
+        this.previewImageSrc = src;
+        this.isPreviewing = true;
+      },
+      closePreview() {
+        this.isPreviewing = false;
+      },
+      chooseImage() {
+        uni.chooseImage({
+          count: 1,
+          success: (res2) => {
+            this.messages.push({
+              sender: "user",
+              image: res2.tempFilePaths[0]
+            });
+            this.scrollToBottom();
+          }
+        });
       },
       confirmVehicleSelection() {
         if (!this.selectedVehicle) {
@@ -5135,7 +5098,7 @@ if (uni.restoreGlobal) {
           });
         }
       },
-      // 展示邀请弹窗
+      // 展示订单申请已经订单邀请弹窗
       showOrderMessagePopup(orderMessage) {
         this.currentOrderMessage = {
           ...orderMessage
@@ -5145,24 +5108,16 @@ if (uni.restoreGlobal) {
       closeOrderMessagePopup() {
         this.showOrder = false;
       },
-      chooseImage() {
-        uni.chooseImage({
-          count: 1,
-          success: (res2) => {
-            this.messages.push({
-              sender: "user",
-              image: res2.tempFilePaths[0]
-            });
-            this.scrollToBottom();
-          }
-        });
-      },
       focusInput() {
         setTimeout(() => {
           this.scrollToBottom();
         }, 300);
       },
       blurInput() {
+      },
+      // TODO: 现在只是输出调试信息
+      scrollToBottom() {
+        formatAppLog("log", "at pages/index/chat.vue:677", "滚动到底部");
       }
     }
   };
@@ -5392,7 +5347,13 @@ if (uni.restoreGlobal) {
                           }, "司机接单申请已同意")) : message.type === "apply_order_reject" ? (vue.openBlock(), vue.createElementBlock("text", {
                             key: 3,
                             class: "font text"
-                          }, "司机接单申请已拒绝")) : vue.createCommentVNode("v-if", true),
+                          }, "司机接单申请已拒绝")) : message.type === "invitation_accept" ? (vue.openBlock(), vue.createElementBlock("text", {
+                            key: 4,
+                            class: "font text"
+                          }, "拼单邀请已同意")) : message.type === "invitation_reject" ? (vue.openBlock(), vue.createElementBlock("text", {
+                            key: 5,
+                            class: "font text"
+                          }, "拼单邀请已拒绝")) : vue.createCommentVNode("v-if", true),
                           vue.createElementVNode("view", { style: { "margin-top": "10rpx", "padding": "10rpx", "background-color": "#f0f8ff", "border-radius": "10rpx" } }, [
                             vue.createElementVNode(
                               "text",
@@ -5585,7 +5546,13 @@ if (uni.restoreGlobal) {
                           }, "对方已同意司机接单申请")) : message.type === "apply_order_reject" ? (vue.openBlock(), vue.createElementBlock("text", {
                             key: 3,
                             class: "font text"
-                          }, "对方已拒绝司机接单申请")) : vue.createCommentVNode("v-if", true),
+                          }, "对方已拒绝司机接单申请")) : message.type === "invitation_accept" ? (vue.openBlock(), vue.createElementBlock("text", {
+                            key: 4,
+                            class: "font text"
+                          }, "对方已同意拼单邀请")) : message.type === "invitation_reject" ? (vue.openBlock(), vue.createElementBlock("text", {
+                            key: 5,
+                            class: "font text"
+                          }, "对方已拒绝拼单邀请")) : vue.createCommentVNode("v-if", true),
                           vue.createElementVNode("view", { style: { "margin-top": "10rpx", "padding": "10rpx", "background-color": "#f0f8ff", "border-radius": "10rpx" } }, [
                             vue.createElementVNode(
                               "text",
@@ -5683,20 +5650,20 @@ if (uni.restoreGlobal) {
             vue.createElementVNode(
               "view",
               {
-                class: vue.normalizeClass(["order-type-tab", { active: $data.orderType === "driver" }]),
-                onClick: _cache[8] || (_cache[8] = ($event) => $options.switchOrderType("driver"))
+                class: vue.normalizeClass(["order-type-tab", { active: $data.orderType === "车找人" }]),
+                onClick: _cache[8] || (_cache[8] = ($event) => $options.switchOrderType("车找人"))
               },
-              " 我的订单(司机) ",
+              " 我发起的车找人订单 ",
               2
               /* CLASS */
             ),
             vue.createElementVNode(
               "view",
               {
-                class: vue.normalizeClass(["order-type-tab", { active: $data.orderType === "passenger" }]),
-                onClick: _cache[9] || (_cache[9] = ($event) => $options.switchOrderType("passenger"))
+                class: vue.normalizeClass(["order-type-tab", { active: $data.orderType === "人找车" }]),
+                onClick: _cache[9] || (_cache[9] = ($event) => $options.switchOrderType("人找车"))
               },
-              " 对方订单(乘客) ",
+              " 我发起的人找车订单 ",
               2
               /* CLASS */
             )
@@ -5717,7 +5684,7 @@ if (uni.restoreGlobal) {
                   vue.createElementVNode(
                     "text",
                     { class: "order-text" },
-                    vue.toDisplayString(order.start_loc) + " → " + vue.toDisplayString(order.dest_loc),
+                    vue.toDisplayString(order.startLoc) + " → " + vue.toDisplayString(order.destLoc),
                     1
                     /* TEXT */
                   ),
@@ -5735,13 +5702,7 @@ if (uni.restoreGlobal) {
                     1
                     /* TEXT */
                   ),
-                  vue.createElementVNode(
-                    "text",
-                    { class: "order-role" },
-                    vue.toDisplayString(order.role === "driver" ? "(我的司机订单)" : "(对方乘客订单)"),
-                    1
-                    /* TEXT */
-                  )
+                  vue.createCommentVNode(` <text class="order-role">{{ order.role === '车找人' ? '(我的司机订单)' : '(对方乘客订单)' }}</text>           `)
                 ], 10, ["onClick"]);
               }),
               128
@@ -5751,7 +5712,13 @@ if (uni.restoreGlobal) {
               key: 0,
               class: "empty-tip"
             }, [
-              vue.createElementVNode("text", null, "暂无可用订单")
+              vue.createElementVNode(
+                "text",
+                null,
+                vue.toDisplayString($data.orderType === "车找人" ? "您没有发起的车找人订单" : "您没有发起的人找车订单"),
+                1
+                /* TEXT */
+              )
             ])) : vue.createCommentVNode("v-if", true)
           ]),
           $data.selectedOrderId ? (vue.openBlock(), vue.createElementBlock("button", {
@@ -5765,6 +5732,7 @@ if (uni.restoreGlobal) {
       $data.showOrder ? (vue.openBlock(), vue.createBlock(_component_OrderInvite, {
         key: 1,
         userId: $data.currentOrderMessage.senderInfo.userId,
+        conversationId: this.conversationId,
         orderId: $data.currentOrderMessage.orderInfo.orderId,
         messageId: $data.currentOrderMessage.id,
         isUserInOrder: $data.currentOrderMessage.sender,
@@ -5776,7 +5744,7 @@ if (uni.restoreGlobal) {
         dest_loc: $data.currentOrderMessage.orderInfo.destLoc,
         avatar_url: $data.currentOrderMessage.sender.avatar,
         onClose: $options.closeOrderMessagePopup
-      }, null, 8, ["userId", "orderId", "messageId", "isUserInOrder", "isVisible", "messageType", "username", "time", "start_loc", "dest_loc", "avatar_url", "onClose"])) : vue.createCommentVNode("v-if", true),
+      }, null, 8, ["userId", "conversationId", "orderId", "messageId", "isUserInOrder", "isVisible", "messageType", "username", "time", "start_loc", "dest_loc", "avatar_url", "onClose"])) : vue.createCommentVNode("v-if", true),
       vue.createCommentVNode(" 全屏显示图片 "),
       $data.isPreviewing ? (vue.openBlock(), vue.createElementBlock("view", {
         key: 2,

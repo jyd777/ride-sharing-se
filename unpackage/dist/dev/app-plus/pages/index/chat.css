@@ -475,3 +475,35 @@ to {
   overflow-anchor: none; /* 防止iOS跳动 */
   -webkit-overflow-scrolling: touch;
 }
+
+/* 订单 */
+.order-header[data-v-8595e4ae] {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+.order-type-tag[data-v-8595e4ae] {
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 12px;
+}
+.order-type-tag.car_find_person[data-v-8595e4ae] {
+  background-color: #e6f7ff;
+  color: #1890ff;
+}
+.order-type-tag.person_find_car[data-v-8595e4ae] {
+  background-color: #f6ffed;
+  color: #52c41a;
+}
+.order-route[data-v-8595e4ae] {
+  font-size: 16px;
+  font-weight: 500;
+  display: block;
+  margin: 0.25rem 0;
+}
+.order-details[data-v-8595e4ae] {
+  display: flex;
+  justify-content: space-between;
+  color: #666;
+  font-size: 12px;
+}

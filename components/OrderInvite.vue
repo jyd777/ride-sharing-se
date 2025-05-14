@@ -89,11 +89,16 @@ import {
 	rejectDriverOrder,
 	acceptPassengerApplication,
 	rejectPassengerApplication,
+	acceptInvitation,
+	rejectInvitation
 } from '@/api/order.js'
 
 export default {
   props: {
 	userId: {
+		type: Number,
+	},
+	conversationId: {
 		type: Number,
 	},
 	orderId: {
@@ -154,8 +159,7 @@ export default {
         case 'apply_order':
           return `${this.username}申请接单`;
         case 'invitation':
-        default:
-          return `${this.username}发起的拼车邀约`;
+		  return `${this.username}发起的拼车邀约`;         
       }
     },
     buttonText() {
@@ -165,8 +169,7 @@ export default {
         case 'apply_order':
           return '同 意 接 单';
         case 'invitation':
-        default:
-          return '接 受 邀 约';
+		  return '接 受 邀 约';         
       }
     }
   },
@@ -175,14 +178,7 @@ export default {
       this.$emit('close');
     },
     handleAccept() {
-		const needsVehicle = this.messageType === 'invitation';
-		if (needsVehicle) {
-			this.fetchUserVehicles();
-			this.showVehiclePopup = true;
-		} else {
-			this.acceptInvite();
-			
-		}
+		this.acceptInvite();
     },
 	handleReject() {
 		let rejectPromise;
@@ -194,34 +190,20 @@ export default {
 		switch(this.messageType) {
 			case 'apply_join':
 			  rejectPromise = rejectPassengerApplication(requestdata); // 拒绝乘客加入
+			  uni.showToast({ title: '已拒绝', icon: 'none' });
+			  this.closePopup();
 			  break;
 			case 'apply_order':
 			  rejectPromise = rejectDriverOrder(requestdata); // 拒绝司机接单
+			  uni.showToast({ title: '已拒绝', icon: 'none' });
+			  this.closePopup();
 			  break;
 			case 'invitation':
-			default:
-			  uni.showToast({ title: '不接受邀约', icon: 'none' });
+			  rejectPromise = rejectInvitation(requestdata); // 拒绝邀请
+			  uni.showToast({ title: '已拒绝', icon: 'none' });
 			  this.closePopup();
-			  return;
 		}
 	},
-    fetchUserVehicles() {
-      // 模拟从后端获取车辆列表
-      this.vehicles = [
-        { id: 1, plate_number: '沪A12345' },
-        { id: 2, plate_number: '沪B67890' }
-      ];
-    },
-    confirmVehicleSelection() {
-      if (!this.selectedVehicle) {
-        uni.showToast({ title: '请选择车辆', icon: 'none' });
-        return;
-      }
-
-      // 选择车辆后接受邀约
-      this.acceptInvite();
-      this.showVehiclePopup = false; // 关闭车辆选择弹窗
-    },
     acceptInvite() {
       let acceptPromise;
 	  const requestdata = {
@@ -232,19 +214,19 @@ export default {
       switch (this.messageType) {
         case 'apply_join':
           acceptPromise = acceptPassengerApplication(requestdata); // 同意乘客加入
+		  uni.showToast({ title: '已同意', icon: 'none' });
+		  this.closePopup();
           break;
         case 'apply_order':
           acceptPromise = acceptDriverOrder(requestdata); // 同意司机接单
+		  uni.showToast({ title: '已同意', icon: 'none' });
+		  this.closePopup();
           break;
         case 'invitation':
-        default:
-          // 带上选中的车辆信息（示例）
-          if (!this.selectedVehicle) {
-            uni.showToast({ title: '请选择车辆', icon: 'none' });
-            return;
-          }
-          acceptPromise = acceptDriverOrder({ vehicleId: this.selectedVehicle.id });
-          break;
+		  acceptPromise = acceptInvitation(requestdata); // 同意司机接单
+		  uni.showToast({ title: '已同意', icon: 'none' });
+		  this.closePopup();
+		  break;
       }
     }
   }

@@ -95,6 +95,8 @@
 				<text v-else-if="message.type === 'apply_join_reject'" class="font text">乘客加入申请已拒绝</text>
 				<text v-else-if="message.type === 'apply_order_accept'" class="font text">司机接单申请已同意</text>
 				<text v-else-if="message.type === 'apply_order_reject'" class="font text">司机接单申请已拒绝</text>
+				<text v-else-if="message.type === 'invitation_accept'" class="font text">拼单邀请已同意</text>
+				<text v-else-if="message.type === 'invitation_reject'" class="font text">拼单邀请已拒绝</text>
 				<view style="margin-top: 10rpx; padding: 10rpx; background-color: #f0f8ff; border-radius: 10rpx;">
 				  <text style="font-size: 12px; color:black">{{ message.orderInfo.startLoc }} → {{ message.orderInfo.destLoc }}</text><br>
 				  <text style="font-size: 12px;color:black">时间: {{ message.orderInfo.time }}</text>
@@ -164,6 +166,8 @@
 				<text v-else-if="message.type === 'apply_join_reject'" class="font text">对方已拒绝乘客加入申请</text>
 				<text v-else-if="message.type === 'apply_order_accept'" class="font text">对方已同意司机接单申请</text>
 				<text v-else-if="message.type === 'apply_order_reject'" class="font text">对方已拒绝司机接单申请</text>
+				<text v-else-if="message.type === 'invitation_accept'" class="font text">对方已同意拼单邀请</text>
+				<text v-else-if="message.type === 'invitation_reject'" class="font text">对方已拒绝拼单邀请</text>
 				<view style="margin-top: 10rpx; padding: 10rpx; background-color: #f0f8ff; border-radius: 10rpx;">
 				  <text style="font-size: 12px; color:black">{{ message.orderInfo.startLoc }} → {{ message.orderInfo.destLoc }}</text><br>
 				  <text style="font-size: 12px;color:black">时间: {{ message.orderInfo.time }}</text>
@@ -222,17 +226,17 @@
         <view class="order-type-tabs">
           <view 
             class="order-type-tab" 
-            :class="{active: orderType === 'driver'}"
-            @click="switchOrderType('driver')"
+            :class="{active: orderType === '车找人'}"
+            @click="switchOrderType('车找人')"
           >
-            我的订单(司机)
+            我发起的车找人订单
           </view>
           <view 
             class="order-type-tab" 
-            :class="{active: orderType === 'passenger'}"
-            @click="switchOrderType('passenger')"
+            :class="{active: orderType === '人找车'}"
+            @click="switchOrderType('人找车')"
           >
-            对方订单(乘客)
+            我发起的人找车订单
           </view>
         </view>
         
@@ -244,14 +248,14 @@
             :class="{'selected-order': selectedOrderId === order.id}"
             @click="selectOrder(order)"
           >
-            <text class="order-text">{{ order.start_loc }} → {{ order.dest_loc }}</text>
-            <text class="order-time">发车时间: {{ order.time }}</text>
-            <text class="order-status">状态: {{ order.status }}</text>
-            <text class="order-role">{{ order.role === 'driver' ? '(我的司机订单)' : '(对方乘客订单)' }}</text>
+            <text class="order-text">{{ order.startLoc }} → {{ order.destLoc }}</text>
+			<text class="order-time">发车时间: {{ order.time }}</text>
+			<text class="order-status">状态: {{ order.status }}</text>
+			<!-- <text class="order-role">{{ order.role === '车找人' ? '(我的司机订单)' : '(对方乘客订单)' }}</text>           -->
           </view>
           
           <view v-if="filteredOrders.length === 0" class="empty-tip">
-            <text>暂无可用订单</text>
+            <text>{{ orderType === '车找人' ? '您没有发起的车找人订单' : '您没有发起的人找车订单' }}</text>
           </view>
         </scroll-view>
         
@@ -269,6 +273,7 @@
     <OrderInvite 
       v-if="showOrder"
 	  :userId="currentOrderMessage.senderInfo.userId"
+	  :conversationId="this.conversationId"
 	  :orderId="currentOrderMessage.orderInfo.orderId"
 	  :messageId="currentOrderMessage.id"
 	  :isUserInOrder="currentOrderMessage.sender"
@@ -335,12 +340,13 @@
 <script>
 import OrderInvite from '../../components/OrderInvite.vue';
 import { SocketService } from '../../utils/socket_io';
-import { fetchConversationMessages, sendMessage } from '../../api/chat';
+import { fetchConversationMessages, sendMessage, sendInvitation } from '../../api/chat';
 import { 
 	acceptDriverOrder,
 	rejectDriverOrder,
 	acceptPassengerApplication,
 	rejectPassengerApplication,
+	fetchActiveOrderList
 } from '../../api/order';
 
 export default {
@@ -363,7 +369,7 @@ export default {
       showOrder: false,
       currentOrderMessage: {}, // 当前的订单消息
       selectedOrderId: null,
-      orderType: 'driver',
+      orderType: '车找人',
       showOrderPopupFlag: false,
       isPreviewing: false,
       previewImageSrc: '',
@@ -375,7 +381,7 @@ export default {
   },
   computed: {
     filteredOrders() {
-      return this.orderType === 'driver' ? this.driverOrders : this.passengerOrders;
+      return this.orderType === '车找人' ? this.driverOrders : this.passengerOrders;
     }
   },
   onLoad() {
@@ -384,7 +390,7 @@ export default {
 	this.conversationId = conversation.id;
 	this.conversation_title = conversation.username;
 	this.conversation_avatar = conversation.avatar;
-	this.initChatPage();
+	this.init();
 	
 	// 先移除可能存在的旧监听器
 	SocketService.off('new_message', this.handleNewMessage);
@@ -416,15 +422,12 @@ export default {
       uni.navigateBack();
     },
 	
-	async initChatPage() {
-		console.log("初始化聊天界面");
-		try {
-			await this.fetchMessages();
-		} catch (err) {
-			console.error("初始化失败", err);
-		}
+	async init() {
+		await this.fetchMessages();
+		await this.fetchActiveOrders();
 	},
-	// 获取会话消息
+		
+	// 消息相关函数
 	async fetchMessages() {
 		try {
 			const currentUserId = uni.getStorageSync('user_info').userId;
@@ -454,7 +457,8 @@ export default {
 			    // 如果是拼车相关消息，添加订单信息
 			    if (msg.type === 'invitation' || msg.type === 'apply_join' || msg.type === 'apply_order' || 
 					msg.type === 'apply_join_accept' || msg.type === 'apply_join_reject' || 
-					msg.type === 'apply_order_accept' || msg.type === 'apply_order_reject'
+					msg.type === 'apply_order_accept' || msg.type === 'apply_order_reject' ||
+					msg.type === 'invitation_accept' || msg.type === 'invitation_reject'
 				) {
 			        message.orderInfo = {
 			            orderId: msg.order_info?.order_id,
@@ -476,10 +480,7 @@ export default {
 			    }
 			    
 			    return message;
-			});
-			
-			console.log("消息列表", this.messages);
-			
+			});	
 			
 		} catch (err) {
 			uni.showToast({
@@ -488,7 +489,6 @@ export default {
 			});
 		}
 	},
-    // 发送消息
     sendMessage() {
 		const msg = this.inputMessage.trim();
 		if (!msg) return;
@@ -499,31 +499,59 @@ export default {
 		
 		sendMessage(this.conversationId, msg);
     },
-    // 处理新消息
 	handleNewMessage(msg) {
-	  // 如果消息已存在则直接返回
-	    if (this.messages.some(m => m.id === msg.id)) {
-	      return;
-	    }
-	  console.log("新消息", msg);
-	  const sender_id = msg.sender.id;
-	  const my_id = uni.getStorageSync('user_info').userId;
-	  if (!sender_id || !my_id) {
-	      return;
-	  }
+		// 如果消息已存在则直接返回
+		if (this.messages.some(m => m.id === msg.id)) {
+			return;
+		}
+			
+		console.log("新消息", msg);
+		const currentUserId = uni.getStorageSync('user_info').userId;
+		const currentUsername = uni.getStorageSync('user_info').username;
+		
+		if (!msg.sender?.id || !currentUserId) {
+			return;
+		}
 	  
-	  const isCurrentUser = String(sender_id) === String(my_id);
+		const isCurrentUser = String(msg.sender.id) === String(currentUserId);
 	  
-	  if (msg.conversationId === this.conversationId) {
-	    const newMsg = {
-	      id: msg.id,
-	      sender: isCurrentUser ? 'user' : 'other',
-	      content: msg.content,
-	      createdAt: new Date(msg.createdAt),
-	      senderInfo: msg.sender
-	    };
-		this.messages = [...this.messages, newMsg];
-	  };
+		const newMsg = {
+			id: msg.id,
+			sender: isCurrentUser ? 'user' : 'other',
+			content: msg.content,
+			type: msg.type || 'text', // 默认文本类型
+			createdAt: new Date(msg.createdAt),
+			senderInfo: {
+				username: isCurrentUser ? currentUsername : msg.sender.username,
+				avatar: msg.sender.avatar,
+				realname: msg.sender.realname,
+				userId: msg.sender.id || msg.sender.user_id
+			}
+		};
+	  
+		// 处理拼车相关消息（与fetchMessages保持相同逻辑）
+		if (msg.type === 'invitation' || msg.type === 'apply_join' || msg.type === 'apply_order' || 
+			msg.type === 'apply_join_accept' || msg.type === 'apply_join_reject' || 
+			msg.type === 'apply_order_accept' || msg.type === 'apply_order_reject') {
+			
+			newMsg.orderInfo = {
+				orderId: msg.orderInfo?.order_id || msg.orderId,
+				startLoc: msg.orderInfo?.start_loc || msg.start_loc || msg.orderInfo?.startLoc,
+				destLoc: msg.orderInfo?.dest_loc || msg.dest_loc || msg.orderInfo?.destLoc,
+				time: msg.orderInfo?.start_time || msg.time || msg.orderInfo?.time,
+				price: msg.orderInfo?.price || msg.orderInfo?.price,
+				status: msg.orderInfo?.status || msg.orderInfo?.status,
+				orderType: msg.orderInfo?.order_type || msg.orderInfo?.orderType,
+				carType: msg.orderInfo?.car_type || msg.orderInfo?.carType,
+				spareSeatNum: msg.orderInfo?.spare_seat_num || msg.orderInfo?.spareSeatNum,
+				travelPartnerNum: msg.orderInfo?.travel_partner_num || msg.orderInfo?.travelPartnerNum
+			};
+		}
+		console.log(msg.conversationId, this.conversationId)
+		if (msg.conversationId === this.conversationId) {
+			console.log("添加新消息成功", newMsg)
+			this.messages = [...this.messages, newMsg];
+		};
 	  
 	  // 下一个tick滚动到底部
 	  this.$nextTick(() => {
@@ -531,26 +559,15 @@ export default {
 	  });
 	},
 	
-    getRandomReply() {
-      const replies = [
-        '收到你的消息了',
-        '好的，我知道了',
-        '这个问题我需要想想',
-        '谢谢你的分享',
-        '我们稍后再聊这个话题'
-      ];
-      return replies[Math.floor(Math.random() * replies.length)];
-    },
-    
-    scrollToBottom() {
-		// TODO:没用
-		console.log("滚动到底部")
-		if (this.messages.length > 0) {
-		  this.lastMsgId = 'msg-' + this.messages[this.messages.length - 1].id;
-		}
-    },
-    
     // 订单相关方法
+	async fetchActiveOrders(){
+		const res = await fetchActiveOrderList();
+		this.driverOrders = res.data.driver_orders;
+		this.passengerOrders = res.data.passenger_orders;
+		console.log("获取活跃订单")
+		console.log(this.driverOrders);
+		console.log(this.passengerOrders);
+	},
     showOrderPopup() {
       this.selectedOrderId = null;
       this.showOrderPopupFlag = true;
@@ -558,104 +575,54 @@ export default {
     closeOrderPopup() {
       this.showOrderPopupFlag = false;
     },
-    
     switchOrderType(type) {
       this.orderType = type;
       this.selectedOrderId = null;
     },
-    
-    previewImage(src) {
-      this.previewImageSrc = src;
-      this.isPreviewing = true;
-    },
-    
-    closePreview() {
-      this.isPreviewing = false;
-    },
-	// 模拟数据
-    getAvailableOrders() {
-      // 模拟获取作为司机的订单（当前用户发布的）
-      this.driverOrders = [
-        {
-          id: 1,
-          start_loc: '同济大学（嘉定校区）',
-          dest_loc: '同济大学（四平校区）',
-          time: '今天 14:30',
-          status: '待出发',
-          role: 'driver',
-          username: this.username
-        },
-        {
-          id: 2,
-          start_loc: '嘉定新城地铁站',
-          dest_loc: '虹桥机场',
-          time: '明天 08:00',
-          status: '待出发',
-          role: 'driver',
-          username: this.username
-        }
-      ];
-      
-      // 模拟获取对方作为乘客的订单（对方发布的）
-      this.passengerOrders = [
-        {
-          id: 101,
-          start_loc: '人民广场',
-          dest_loc: '浦东机场',
-          time: '后天 10:00',
-          status: '寻找司机',
-          role: 'passenger',
-          username: this.other_username  // 使用对方用户名
-        },
-        {
-          id: 102,
-          start_loc: '静安寺',
-          dest_loc: '虹桥火车站',
-          time: '大后天 15:30',
-          status: '寻找司机',
-          role: 'passenger',
-          username: this.other_username  // 使用对方用户名
-        }
-      ];
-    },
-    
     selectOrder(order) {
       this.selectedOrderId = order.id;
     },
-   
-	// 发送订单邀请
-    sendInvite() {
-      if (!this.selectedOrderId) return;
-    
-      const allOrders = [...this.driverOrders, ...this.passengerOrders];
-      const order = allOrders.find(o => o.id === this.selectedOrderId);
-    
-      if (order) {
-        if (order.role === 'passenger') {
-          // 如果是对方的乘客订单，弹出车辆选择弹窗
-          this.fetchUserVehicles(); // 获取车辆列表
-          this.showVehiclePopup = true;
-          return;
-        }
-    
-        // 如果是司机订单，直接发送邀请
-        this.invites.push({
-          ...order,
-          type: 'invite',
-          inviter: order.role === 'driver' ? this.username : this.other_username,
-          inviter_avatar: order.role === 'driver' ? this.userAvatar : this.otherAvatar
-        });
-    
-        this.closeOrderPopup();
-        this.scrollToBottom();
-    
-        uni.showToast({
-          title: '邀请已发送',
-          icon: 'success'
-        });
-      }
+	sendInvite() {
+	  if (!this.selectedOrderId) return;
+	
+	  const allOrders = [...this.driverOrders, ...this.passengerOrders];
+	  const order = allOrders.find(o => o.id === this.selectedOrderId);
+	
+	  if (order) {
+		sendInvitation(this.conversationId, order.id);
+	    
+	    this.closeOrderPopup();
+	    this.scrollToBottom();
+	
+	    uni.showToast({
+	      title: '邀请已发送',
+	      icon: 'success'
+	    });
+	  }
+	},
+	
+	// 预览图片
+	previewImage(src) {
+      this.previewImageSrc = src;
+      this.isPreviewing = true;
     },
-    confirmVehicleSelection() {
+    closePreview() {
+      this.isPreviewing = false;
+    },  
+    chooseImage() {
+      uni.chooseImage({
+        count: 1,
+        success: (res) => {
+          this.messages.push({
+            sender: 'user',
+            image: res.tempFilePaths[0]
+          });
+          this.scrollToBottom();
+        }
+      });
+    },
+    
+	confirmVehicleSelection() {
       if (!this.selectedVehicle) {
         uni.showToast({ title: '请选择车辆', icon: 'none' });
         return;
@@ -683,29 +650,16 @@ export default {
         });
       }
     },
-	// 展示邀请弹窗
+	
+	// 展示订单申请已经订单邀请弹窗
     showOrderMessagePopup(orderMessage) {
       this.currentOrderMessage = {
         ...orderMessage,
       };
       this.showOrder = true;
     },
-    
     closeOrderMessagePopup() {
       this.showOrder = false;
-    },
-    
-    chooseImage() {
-      uni.chooseImage({
-        count: 1,
-        success: (res) => {
-          this.messages.push({
-            sender: 'user',
-            image: res.tempFilePaths[0]
-          });
-          this.scrollToBottom();
-        }
-      });
     },
     
     focusInput() {
@@ -714,10 +668,14 @@ export default {
         this.scrollToBottom();
       }, 300);
     },
-    
     blurInput() {
       // 输入框失去焦点时的处理
-    }
+    },
+	
+	// TODO: 现在只是输出调试信息
+	scrollToBottom() {
+		console.log("滚动到底部")
+	},
   }
 };
 </script>
@@ -982,5 +940,42 @@ export default {
   padding-bottom: 120rpx;
   overflow-anchor: none; /* 防止iOS跳动 */
   -webkit-overflow-scrolling: touch;
+}
+
+/* 订单 */
+.order-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8rpx;
+}
+
+.order-type-tag {
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+  font-size: 12px;
+}
+
+.order-type-tag.car_find_person {
+  background-color: #e6f7ff;
+  color: #1890ff;
+}
+
+.order-type-tag.person_find_car {
+  background-color: #f6ffed;
+  color: #52c41a;
+}
+
+.order-route {
+  font-size: 16px;
+  font-weight: 500;
+  display: block;
+  margin: 8rpx 0;
+}
+
+.order-details {
+  display: flex;
+  justify-content: space-between;
+  color: #666;
+  font-size: 12px;
 }
 </style>
