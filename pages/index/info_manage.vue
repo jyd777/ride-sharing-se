@@ -243,7 +243,8 @@ export default {
   async uploadAvatar(base64Data) {
     try {
       uni.showLoading({ title: '上传中...' });
-      const cacheUserID = uni.getStorageSync('user_id'); 
+	  const cacheUser = uni.getStorageSync('user_info'); 
+      const cacheUserID = cacheUser.user_id; 
       await uploadUserAvatar(cacheUserID, base64Data);
       
       // 获取更新后的头像
